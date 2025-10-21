@@ -10,6 +10,15 @@ from pathlib import Path
 Project_DIR = Path(__file__).parents[1].resolve()
 sys.path.insert(1, str(Project_DIR))
 
+
+
+
+def prepare_input(args):
+
+    pass
+
+
+
 def main():
     pass
 
