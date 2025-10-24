@@ -14,7 +14,7 @@
             "args": [
                 "-D",
                 "--data_path", "/home/azr/lab/candix/data/test_input",
-                "--tmp_path", "/home/azr/lab/candix/data/test_temp"
+                "--temp_path", "/home/azr/lab/candix/data/test_temp"
             ]
         }
     ]

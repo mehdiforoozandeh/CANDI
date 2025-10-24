@@ -31,42 +31,42 @@ def process_bam(bam_file):
     if os.path.exists(f"{bam_file}.bai"):
         os.remove(f"{bam_file}.bai")
 
-def iterate_over_data(base_dir, tmp_dir):
+def iterate_over_data(base_dir, temp_dir):
 
     bio_samples = os.listdir(base_dir)
 
     for bio_sample in bio_samples:
 
         bio_sample_path = os.path.join(base_dir, bio_sample)
-        tmp_bio_sample_path = os.path.join(tmp_dir, bio_sample)
-        os.makedirs(tmp_bio_sample_path, exist_ok=True)
+        temp_bio_sample_path = os.path.join(temp_dir, bio_sample)
+        os.makedirs(temp_bio_sample_path, exist_ok=True)
 
         exps = os.listdir(bio_sample_path)
 
         for exp in exps:
 
             exp_path = os.path.join(bio_sample_path, exp)
-            tmp_exp_path = os.path.join(tmp_bio_sample_path, exp)
-            os.makedirs(tmp_exp_path, exist_ok=True)
+            temp_exp_path = os.path.join(temp_bio_sample_path, exp)
+            os.makedirs(temp_exp_path, exist_ok=True)
 
             for file in os.listdir(exp_path):
                 
                 if file.endswith(".bam"):
 
                     file_path = os.path.join(exp_path,file)
-                    tmp_file_path = os.path.join(tmp_exp_path,file)
-                    shutil.copy2(file_path, tmp_file_path)
-                    pysam.index(tmp_file_path)
+                    temp_file_path = os.path.join(temp_exp_path,file)
+                    shutil.copy2(file_path, temp_file_path)
+                    pysam.index(temp_file_path)
 
                     with contextlib.redirect_stdout(None):
-                        process_bam(tmp_file_path)
+                        process_bam(temp_file_path)
 
 def process_input_data(args):
 
     data_path = args.data_path
-    tmp_dir = args.tmp_path
+    temp_dir = args.temp_path
 
-    iterate_over_data(data_path, tmp_dir)
+    iterate_over_data(data_path, temp_dir)
 
 # ------------------------------------------------------------------------
 # Load model
@@ -75,7 +75,7 @@ def process_input_data(args):
 def make_inf_model(load_path):
 
     model = CANDI_UNET(
-        signal_dim=25,
+        signal_dim=35,
         metadata_embedding_dim=8,
         conv_kernel_size=3,
         n_cnn_layers=2,
@@ -83,15 +83,15 @@ def make_inf_model(load_path):
         n_sab_layers=2,
         pool_size=2,
         dropout=0.1,
-        context_length=100,
+        context_length=120,
         pos_enc="relative",
         expansion_factor=3,
         separate_decoders=3,
-        num_sequencing_platforms=2,
+        num_sequencing_platforms=10,
         num_runtypes=4
     )
     model = CANDI(
-        signal_dim=25,
+        signal_dim=35,
         metadata_embedding_dim=8,
         conv_kernel_size=3,
         n_cnn_layers=2,
@@ -99,11 +99,11 @@ def make_inf_model(load_path):
         n_sab_layers=2,
         pool_size=2,
         dropout=0.1,
-        context_length=100,
+        context_length=120,
         pos_enc="relative",
         expansion_factor=3,
         separate_decoders=3,
-        num_sequencing_platforms=2,
+        num_sequencing_platforms=10,
         num_runtypes=4
     )
 

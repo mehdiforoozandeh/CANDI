@@ -12,6 +12,7 @@ sys.path.insert(1, str(Project_DIR))
 
 import argparse
 from inputs import process_input_data, process_input_model
+from run_model import run_through_model
 
 def inf_arg_parser():
     """
@@ -35,7 +36,7 @@ def inf_arg_parser():
                             help='Path to the model')
     data_group.add_argument('--output_path', type=str, default="./",
                             help='Path to the outputs')
-    data_group.add_argument('--tmp_path', type=str, default="./tmp",
+    data_group.add_argument('--temp_path', type=str, default="./temp",
                             help='Path to the temporary folder to save intermediate work.' \
                             'Deleted afterwards')
 
@@ -69,6 +70,8 @@ def main():
     if not args.debug: process_input_data(args)
 
     model = process_input_model(args)
+
+    run_through_model(args, model)
 
     return
 
