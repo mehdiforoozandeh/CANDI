@@ -16,6 +16,15 @@
                 "--data_path", "/home/azr/lab/candix/data/test_input",
                 "--temp_path", "/home/azr/lab/candix/data/test_temp"
             ]
-        }
+        },
+        {
+            "name": "Curr file",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+            ]
+        },
     ]
 }
