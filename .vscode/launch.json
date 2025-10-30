@@ -11,10 +11,12 @@
             "request": "launch",
             "program": "./inference/main.py",
             "console": "integratedTerminal",
+            "env": {"PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "5"},
             "args": [
                 "-D",
                 "--data_path", "/home/azr/lab/candix/data/test_input",
-                "--temp_path", "/home/azr/lab/candix/data/test_temp"
+                "--temp_path", "/home/azr/lab/candix/data/test_temp",
+                "--model_path", "/home/azr/lab/candix/saved_model"
             ]
         },
         {

@@ -15,15 +15,17 @@ import shutil
 import contextlib
 from data_utils import BAM_TO_SIGNAL
 from model import CANDI, CANDI_UNET
+from pred import CANDIPredictor
 
 # ------------------------------------------------------------------------
 # Load data
 # ------------------------------------------------------------------------
 def process_bam(bam_file):
     # Process BAM to signals using existing BAM_TO_SIGNAL
+
     bam_processor = BAM_TO_SIGNAL(
         bam_file=bam_file,
-        chr_sizes_file="./data/hg38.chrom.sizes"
+        chr_sizes_file="./data/inf_debug_hg38.chrom.sizes" #TODO: know where to get these sizes from
     )
     bam_processor.full_preprocess(dsf_list=[1])
 
@@ -31,14 +33,14 @@ def process_bam(bam_file):
     if os.path.exists(f"{bam_file}.bai"):
         os.remove(f"{bam_file}.bai")
 
-def iterate_over_data(base_dir, temp_dir):
+def process_input_data(base_path, temp_path):
 
-    bio_samples = os.listdir(base_dir)
+    bio_samples = os.listdir(base_path)
 
     for bio_sample in bio_samples:
 
-        bio_sample_path = os.path.join(base_dir, bio_sample)
-        temp_bio_sample_path = os.path.join(temp_dir, bio_sample)
+        bio_sample_path = os.path.join(base_path, bio_sample)
+        temp_bio_sample_path = os.path.join(temp_path, bio_sample)
         os.makedirs(temp_bio_sample_path, exist_ok=True)
 
         exps = os.listdir(bio_sample_path)
@@ -60,13 +62,6 @@ def iterate_over_data(base_dir, temp_dir):
 
                     with contextlib.redirect_stdout(None):
                         process_bam(temp_file_path)
-
-def process_input_data(args):
-
-    data_path = args.data_path
-    temp_dir = args.temp_path
-
-    iterate_over_data(data_path, temp_dir)
 
 # ------------------------------------------------------------------------
 # Load model
@@ -112,6 +107,11 @@ def make_inf_model(load_path):
 def process_input_model(args):
 
     return make_inf_model(args.model_path)
+
+def load_candi_predictor(model_path):
+
+    return CANDIPredictor(model_path)
+
 
 def main():
     pass

@@ -11,7 +11,7 @@ Project_DIR = Path(__file__).parents[1].resolve()
 sys.path.insert(1, str(Project_DIR))
 
 import argparse
-from inputs import process_input_data, process_input_model
+from inputs import load_candi_predictor, process_input_data, process_input_model
 from run_model import run_through_model
 
 def inf_arg_parser():
@@ -67,9 +67,10 @@ def main():
 
     args = inf_arg_parser()
 
-    if not args.debug: process_input_data(args)
+    process_input_data(args.data_path, args.temp_path) if not args.debug else None
 
-    model = process_input_model(args)
+    # model = process_input_model(args)
+    model = load_candi_predictor(args.model_path)
 
     run_through_model(args, model)
 
