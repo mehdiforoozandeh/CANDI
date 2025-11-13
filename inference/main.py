@@ -11,7 +11,7 @@ Project_DIR = Path(__file__).parents[1].resolve()
 sys.path.insert(1, str(Project_DIR))
 
 import argparse
-from inputs import load_candi_predictor, process_input_data, process_input_model
+from inputs import process_input_data, load_candi_predictor
 from run_model import run_through_model
 
 def inf_arg_parser():

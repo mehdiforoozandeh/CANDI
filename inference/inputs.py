@@ -13,9 +13,8 @@ sys.path.insert(1, str(Project_DIR))
 import pysam
 import shutil
 import contextlib
-from data_utils import BAM_TO_SIGNAL
-from model import CANDI, CANDI_UNET
-from pred import CANDIPredictor
+from data_utils import BAM_TO_SIGNAL # external import
+from pred import CANDIPredictor # external import
 
 # ------------------------------------------------------------------------
 # Load data
@@ -52,7 +51,7 @@ def process_input_data(base_path, temp_path):
             os.makedirs(temp_exp_path, exist_ok=True)
 
             for file in os.listdir(exp_path):
-                
+
                 if file.endswith(".bam"):
 
                     file_path = os.path.join(exp_path,file)
@@ -67,51 +66,13 @@ def process_input_data(base_path, temp_path):
 # Load model
 # ------------------------------------------------------------------------
 
-def make_inf_model(load_path):
-
-    model = CANDI_UNET(
-        signal_dim=35,
-        metadata_embedding_dim=8,
-        conv_kernel_size=3,
-        n_cnn_layers=2,
-        nhead=2,
-        n_sab_layers=2,
-        pool_size=2,
-        dropout=0.1,
-        context_length=120,
-        pos_enc="relative",
-        expansion_factor=3,
-        separate_decoders=3,
-        num_sequencing_platforms=10,
-        num_runtypes=4
-    )
-    model = CANDI(
-        signal_dim=35,
-        metadata_embedding_dim=8,
-        conv_kernel_size=3,
-        n_cnn_layers=2,
-        nhead=2,
-        n_sab_layers=2,
-        pool_size=2,
-        dropout=0.1,
-        context_length=120,
-        pos_enc="relative",
-        expansion_factor=3,
-        separate_decoders=3,
-        num_sequencing_platforms=10,
-        num_runtypes=4
-    )
-
-    return model
-
-def process_input_model(args):
-
-    return make_inf_model(args.model_path)
-
 def load_candi_predictor(model_path):
 
     return CANDIPredictor(model_path)
 
+# ------------------------------------------------------------------------
+# Extra stuff
+# ------------------------------------------------------------------------
 
 def main():
     pass

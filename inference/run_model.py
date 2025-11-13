@@ -17,13 +17,17 @@ import numpy as np
 
 from pred import CANDIPredictor
 
-# TODO: don't forget to remove test_exp and add a control
+# All possible assays
 ASSAYS=[
-        'ATAC-seq', 'DNase-seq', 'H2AFZ', 'H2AK5ac', 'H2AK9ac', 'H2BK120ac', 'H2BK12ac', 'H2BK15ac', 
-        'H2BK20ac', 'H2BK5ac', 'H3F3A', 'H3K14ac', 'H3K18ac', 'H3K23ac', 'H3K23me2', 'H3K27ac', 'H3K27me3', 
-        'H3K36me3', 'H3K4ac', 'H3K4me1', 'H3K4me2', 'H3K4me3', 'H3K56ac', 'H3K79me1', 'H3K79me2', 'H3K9ac', 
-        'H3K9me1', 'H3K9me2', 'H3K9me3', 'H3T11ph', 'H4K12ac', 'H4K20me1', 'H4K5ac', 'H4K8ac', 'H4K91ac', 'control'
+        'ATAC-seq', 'DNase-seq', 'H2AFZ', 'H2AK5ac', 'H2AK9ac', 'H2BK120ac', 'H2BK12ac', 'H2BK15ac',
+        'H2BK20ac', 'H2BK5ac', 'H3F3A', 'H3K14ac', 'H3K18ac', 'H3K23ac', 'H3K23me2', 'H3K27ac', 'H3K27me3',
+        'H3K36me3', 'H3K4ac', 'H3K4me1', 'H3K4me2', 'H3K4me3', 'H3K56ac', 'H3K79me1', 'H3K79me2', 'H3K9ac',
+        'H3K9me1', 'H3K9me2', 'H3K9me3', 'H3T11ph', 'H4K12ac', 'H4K20me1', 'H4K5ac', 'H4K8ac', 'H4K91ac', 'chipseq-control'
     ]
+
+# ------------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------------
 
 def load_fasta():
     fasta_path = os.fspath("/home/azr/lab/candix/EpiDenoise/data/hg38.fa")  # TODO: ask for this path
@@ -46,25 +50,25 @@ def get_DNA_sequence(fasta, chrom, start, end):
     # Ensure coordinates are within the valid range
     if start < 0 or end <= start:
         raise ValueError("Invalid start or end position")
-    
+
     # Retrieve the sequence
     sequence = fasta.fetch(chrom, start, end)
-    
+
     return sequence
 
 def dna_to_onehot(sequence):
     # Create a mapping from nucleotide to index
     mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N':4}
-    
+
     # Convert the sequence to indices
     indices = torch.tensor([mapping[nuc.upper()] for nuc in sequence], dtype=torch.long)
-    
+
     # Create one-hot encoding
     one_hot = torch.nn.functional.one_hot(indices, num_classes=5)
 
     # Remove the fifth column which corresponds to 'N'
     one_hot = one_hot[:, :4]
-    
+
     return one_hot
 
 def onehot_for_locus(fasta, locus):
@@ -82,7 +86,11 @@ def load_npz(file_name):
     with np.load(file_name, allow_pickle=True) as data:
     # with np.load(file_name, allow_pickle=True, mmap_mode='r') as data:
         return data[data.files[0]]
-    
+
+# ------------------------------------------------------------------------
+# Data loading
+# ------------------------------------------------------------------------
+
 def load_data(bios_path):
 
     loaded_assays = {}
@@ -100,7 +108,7 @@ def load_data(bios_path):
         for chr_file in os.listdir(dsf_path):
 
             if "npz" in chr_file:
-                
+
                 chr_name = chr_file[:-4]
 
                 npz_path = os.path.join(dsf_path, chr_file)
@@ -115,7 +123,7 @@ def load_data(bios_path):
                 loaded_assays[assay][chr_name] = chr_data
 
     return loaded_assays, chr_dict
-    
+
 def make_full_tensor_bios(loaded_assays, chr, start=0, window=25000, missing_value=-1):
     dtensor = []
     mdtensor = []
@@ -124,7 +132,7 @@ def make_full_tensor_bios(loaded_assays, chr, start=0, window=25000, missing_val
     missing_tensor = np.array([missing_value for _ in range(window)])
 
     for assay in ASSAYS:
-        
+
         if assay in loaded_assays.keys():
             dtensor.append(loaded_assays[assay][chr][start:start+window])
             availability.append(1)
@@ -133,7 +141,7 @@ def make_full_tensor_bios(loaded_assays, chr, start=0, window=25000, missing_val
             dtensor.append(missing_tensor)
             availability.append(0)
             mdtensor.append([missing_value, missing_value, missing_value, missing_value])
-    
+
     dtensor = torch.tensor(np.array(dtensor)).permute(1, 0)
     mdtensor = torch.tensor(np.array(mdtensor)).permute(1, 0)
     availability = torch.tensor(np.array(availability))
@@ -154,6 +162,7 @@ def actual_run(args, data, chr_dict, model : CANDIPredictor, fasta):
         output_var_complete = []
         output_peak_complete = []
 
+        # TODO: batchsize.... cmd arg?
         for i in range(0,L,context_length):
 
             if args.debug and i > 10000: break
@@ -169,13 +178,13 @@ def actual_run(args, data, chr_dict, model : CANDIPredictor, fasta):
             output_p, output_n, output_mu, output_var, output_peak = model.predict(
                     dtensor, mdtensor, mdtensor, availability, dna_tensor , []
                 )
-            
+
             output_p_complete.append(output_p.numpy(force=True))
             output_n_complete.append(output_n.numpy(force=True))
             output_mu_complete.append(output_mu.numpy(force=True))
             output_var_complete.append(output_var.numpy(force=True))
             output_peak_complete.append(output_peak.numpy(force=True))
-            
+
             pass
 
         output_p_complete = np.hstack(output_p_complete)[0]
@@ -188,7 +197,7 @@ def actual_run(args, data, chr_dict, model : CANDIPredictor, fasta):
         temp_path = args.temp_path
         bios_path = os.path.join(temp_path, os.listdir(temp_path)[0])
 
-        for exp in os.listdir(bios_path):
+        for exp in ASSAYS: #os.listdir(bios_path):
             #TODO: make a dict of bw files
             bw = pyBigWig.open(os.path.join(bios_path, f"{exp}_signal_mean.bw"), "w")
             bw.addHeader([(chr, L*25)])
@@ -199,7 +208,6 @@ def actual_run(args, data, chr_dict, model : CANDIPredictor, fasta):
 
 
 def run_through_model(args, model):
-    
 
     fasta = load_fasta()
     temp_path = args.temp_path
@@ -210,6 +218,10 @@ def run_through_model(args, model):
     actual_run(args, avail_data, chr_dict, model, fasta)
 
     pass
+
+# ------------------------------------------------------------------------
+# Extras
+# ------------------------------------------------------------------------
 
 def main():
     pass
