@@ -67,9 +67,8 @@ def main():
 
     args = inf_arg_parser()
 
-    process_input_data(args.data_path, args.temp_path) if not args.debug else None
+    process_input_data(args.data_path, args.temp_path) #if not args.debug else None
 
-    # model = process_input_model(args)
     model = load_candi_predictor(args.model_path)
 
     run_through_model(args, model)
