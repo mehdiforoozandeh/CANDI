@@ -12,3 +12,4 @@ candi_venv/
 .cursor/
 logs/
 jobs/
+data/inf_debug*
