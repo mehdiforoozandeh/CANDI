@@ -116,6 +116,9 @@ class CANDIPredictor:
         unet = self.config.get('unet', False)
         pos_enc = self.config.get('pos-enc', 'relative')
         expansion_factor = self.config.get('expansion-factor', 3)
+        # Read attention_type and norm from config (important for model architecture compatibility)
+        attention_type = self.config.get('attention-type', self.config.get('attention_type', 'dual'))
+        norm = self.config.get('norm-type', self.config.get('norm', 'batch'))
 
         self.context_length = context_length
         
@@ -139,7 +142,9 @@ class CANDIPredictor:
                 expansion_factor=expansion_factor,
                 separate_decoders=separate_decoders,
                 num_sequencing_platforms=num_sequencing_platforms,
-                num_runtypes=num_runtypes
+                num_runtypes=num_runtypes,
+                norm=norm,
+                attention_type=attention_type
             )
         else:
             self.model = CANDI(
@@ -156,7 +161,9 @@ class CANDIPredictor:
                 expansion_factor=expansion_factor,
                 separate_decoders=separate_decoders,
                 num_sequencing_platforms=num_sequencing_platforms,
-                num_runtypes=num_runtypes
+                num_runtypes=num_runtypes,
+                norm=norm,
+                attention_type=attention_type
             )
         
         # Load checkpoint
@@ -191,6 +198,12 @@ class CANDIPredictor:
         
         print(f"Filtering navigation for split: {split}...")
         for bios in list(self.data_handler.navigation.keys()):
+            # Skip invalid keys (like environment variable names or paths)
+            if bios not in self.data_handler.split_dict:
+                print(f"Warning: Skipping invalid navigation key: {bios}")
+                if dataset_type == "merged":
+                    del self.data_handler.navigation[bios]
+                continue
             if self.data_handler.split_dict[bios] != split:
                 if dataset_type == "merged":
                     del self.data_handler.navigation[bios]
@@ -851,6 +864,569 @@ class CANDIPredictor:
             results['latent_z'] = Z
         
         return results
+    
+    def predict_all_biosamples(self, dataset_type: str, split: str = "test",
+                              x_dsf: int = 1, fill_y_prompt_spec: Optional[Dict] = None,
+                              fill_prompt_mode: str = "median",
+                              locus: Optional[List] = None):
+        """
+        Run predictions for all biosamples in the dataset.
+        
+        Args:
+            dataset_type: "merged" or "eic"
+            split: Data split to use (train/val/test)
+            x_dsf: Downsampling factor
+            fill_y_prompt_spec: Optional custom metadata specification
+            fill_prompt_mode: Mode for filling missing metadata
+            locus: Genomic locus (default: chr21)
+        """
+        if locus is None:
+            locus = ["chr21", 0, self.data_handler.chr_sizes["chr21"]]
+        
+        # Get list of biosamples filtered by split
+        biosample_names = []
+        for bios in list(self.data_handler.navigation.keys()):
+            # Skip biosamples not in split_dict
+            if bios not in self.data_handler.split_dict:
+                print(f"Warning: Skipping {bios} - not found in split_dict")
+                continue
+            
+            if self.data_handler.split_dict[bios] == split:
+                # For EIC dataset, only process B_ or V_ biosamples (skip T_)
+                if dataset_type == "eic":
+                    if split == "test" and bios.startswith("B_"):
+                        biosample_names.append(bios)
+                    elif split == "val" and bios.startswith("V_"):
+                        biosample_names.append(bios)
+                    elif not (bios.startswith("T_") or bios.startswith("B_") or bios.startswith("V_")):
+                        # Handle non-prefixed biosamples (assume B_)
+                        biosample_names.append(bios)
+                else:
+                    biosample_names.append(bios)
+        
+        print(f"Found {len(biosample_names)} biosamples in {split} split")
+        
+        for bios_name in biosample_names:
+            print(f"\n{'='*60}")
+            print(f"Processing biosample: {bios_name}")
+            print(f"{'='*60}")
+            
+            try:
+                if dataset_type == "merged":
+                    # Use predict_biosample for merged dataset
+                    prediction_dict = self.predict_biosample(
+                        bios_name=bios_name,
+                        x_dsf=x_dsf,
+                        fill_y_prompt_spec=fill_y_prompt_spec,
+                        fill_prompt_mode=fill_prompt_mode,
+                        locus=locus,
+                        get_latent_z=True,
+                        return_raw_predictions=False
+                    )
+                    
+                    # Extract latent Z
+                    Z = prediction_dict.get('latent_z', None)
+                    if Z is None:
+                        # Need to extract Z separately
+                        if self.DNA:
+                            X, Y, P, seq, mX, mY, avX, avY = self.load_data(
+                                bios_name, locus, x_dsf, fill_y_prompt_spec, fill_prompt_mode
+                            )
+                            Z = self.get_latent_z(X, mX, mY, avX, seq)
+                        else:
+                            X, Y, P, mX, mY, avX, avY = self.load_data(
+                                bios_name, locus, x_dsf, fill_y_prompt_spec, fill_prompt_mode
+                            )
+                            Z = self.get_latent_z(X, mX, mY, avX, None)
+                    
+                    experiment_names = list(self.data_handler.aliases['experiment_aliases'].keys())
+                    
+                    # Load observed P and Peak data once for this biosample
+                    try:
+                        temp_p = self.data_handler.load_bios_BW(bios_name, locus)
+                        P_obs_all, _ = self.data_handler.make_bios_tensor_BW(temp_p)
+                        # Reshape to match prediction length
+                        num_rows = (P_obs_all.shape[0] // self.context_length) * self.context_length
+                        P_obs_all = P_obs_all[:num_rows, :]
+                        P_obs_all = P_obs_all.view(-1, self.context_length, P_obs_all.shape[-1])
+                        P_obs_all = P_obs_all.view(-1, P_obs_all.shape[-1])  # [B*L, F]
+                        
+                        temp_peak = self.data_handler.load_bios_Peaks(bios_name, locus)
+                        Peak_obs_all, _ = self.data_handler.make_bios_tensor_Peaks(temp_peak)
+                        num_rows = (Peak_obs_all.shape[0] // self.context_length) * self.context_length
+                        Peak_obs_all = Peak_obs_all[:num_rows, :]
+                        Peak_obs_all = Peak_obs_all.view(-1, self.context_length, Peak_obs_all.shape[-1])
+                        Peak_obs_all = Peak_obs_all.view(-1, Peak_obs_all.shape[-1])  # [B*L, F]
+                    except Exception as e:
+                        print(f"Warning: Failed to load observed data for {bios_name}: {e}")
+                        P_obs_all = None
+                        Peak_obs_all = None
+                    
+                    # Save predictions
+                    self.save_predictions_to_npz(
+                        prediction_dict=prediction_dict,
+                        bios_name=bios_name,
+                        dataset_type="merged",
+                        experiment_names=experiment_names,
+                        Z=Z,
+                        locus=locus,
+                        P_obs_all=P_obs_all,
+                        Peak_obs_all=Peak_obs_all
+                    )
+                    
+                elif dataset_type == "eic":
+                    # Follow bios_pipeline_eic logic exactly
+                    # Determine T_ and B_ biosample names
+                    if split == "test":
+                        if bios_name.startswith("B_"):
+                            T_biosname = bios_name.replace("B_", "T_")
+                            B_biosname = bios_name
+                        elif bios_name.startswith("T_"):
+                            T_biosname = bios_name
+                            B_biosname = bios_name.replace("T_", "B_")
+                        else:
+                            print(f"Warning: Unexpected biosample name format: {bios_name}. Skipping.")
+                            continue
+                    elif split == "val":
+                        if bios_name.startswith("V_"):
+                            T_biosname = bios_name.replace("V_", "T_")
+                            B_biosname = bios_name
+                        elif bios_name.startswith("T_"):
+                            T_biosname = bios_name
+                            B_biosname = bios_name.replace("T_", "V_")
+                        else:
+                            print(f"Warning: Unexpected biosample name format: {bios_name}. Skipping.")
+                            continue
+                    else:
+                        # Default: assume B_ prefix
+                        if bios_name.startswith("B_"):
+                            T_biosname = bios_name.replace("B_", "T_")
+                            B_biosname = bios_name
+                        elif bios_name.startswith("T_"):
+                            T_biosname = bios_name
+                            B_biosname = bios_name.replace("T_", "B_")
+                        else:
+                            print(f"Warning: Unexpected biosample name format: {bios_name}. Skipping.")
+                            continue
+                    
+                    print(f"Loading T_ data from {T_biosname} and B_ data from {B_biosname}")
+                    
+                    # Check if T_ biosample exists
+                    if T_biosname not in self.data_handler.navigation:
+                        print(f"Warning: T_ biosample {T_biosname} not found. Skipping {bios_name}")
+                        continue
+                    
+                    # Load T_ data (input side)
+                    try:
+                        temp_x, temp_mx = self.data_handler.load_bios_Counts(T_biosname, locus, DSF=x_dsf)
+                        X, mX, avX = self.data_handler.make_bios_tensor_Counts(temp_x, temp_mx)
+                        del temp_x, temp_mx
+                        available_X_indices = torch.where(avX[0, :] == 1)[0] if avX.ndim > 1 else torch.where(avX == 1)[0]
+                    except Exception as e:
+                        print(f"Warning: Failed to load T_ data for {T_biosname}: {e}. Skipping {bios_name}")
+                        continue
+                    
+                    # Load B_ data (target side)
+                    try:
+                        temp_y, temp_my = self.data_handler.load_bios_Counts(B_biosname, locus, DSF=1)
+                        Y, mY, avY = self.data_handler.make_bios_tensor_Counts(temp_y, temp_my)
+                        # Apply fill-in-prompt based on mode
+                        if fill_prompt_mode == "none":
+                            pass
+                        elif fill_prompt_mode == "custom" and fill_y_prompt_spec is not None:
+                            mY = self.data_handler.fill_in_prompt_manual(mY, fill_y_prompt_spec, overwrite=True)
+                        elif fill_prompt_mode == "sample":
+                            mY = self.data_handler.fill_in_prompt(mY, missing_value=-1, sample=True)
+                        elif fill_prompt_mode == "mode":
+                            mY = self.data_handler.fill_in_prompt(mY, missing_value=-1, sample=False, use_mode=True)
+                        else:
+                            mY = self.data_handler.fill_in_prompt(mY, missing_value=-1, sample=False, use_mode=False)
+                        del temp_y, temp_my
+                        available_Y_indices = torch.where(avY[0, :] == 1)[0] if avY.ndim > 1 else torch.where(avY == 1)[0]
+                    except Exception as e:
+                        print(f"Warning: Failed to load B_ data for {B_biosname}: {e}. Skipping {bios_name}")
+                        continue
+                    
+                    # Load and merge P-value data
+                    try:
+                        temp_py = self.data_handler.load_bios_BW(B_biosname, locus)
+                        temp_px = self.data_handler.load_bios_BW(T_biosname, locus)
+                        temp_p = {**temp_py, **temp_px}
+                        P, avlP = self.data_handler.make_bios_tensor_BW(temp_p)
+                        del temp_py, temp_px, temp_p
+                    except Exception as e:
+                        print(f"Warning: Failed to load P-value data: {e}. Skipping {bios_name}")
+                        continue
+                    
+                    # Load and merge Peak data
+                    try:
+                        temp_peak_t = self.data_handler.load_bios_Peaks(T_biosname, locus)
+                        temp_peak_b = self.data_handler.load_bios_Peaks(B_biosname, locus)
+                        temp_peak = {**temp_peak_b, **temp_peak_t}
+                        Peak, avlPeak = self.data_handler.make_bios_tensor_Peaks(temp_peak)
+                        del temp_peak_t, temp_peak_b, temp_peak
+                    except Exception as e:
+                        print(f"Warning: Failed to load Peak data: {e}. Skipping {bios_name}")
+                        continue
+                    
+                    # Load control data
+                    control_data = None
+                    control_meta = None
+                    control_avail = None
+                    try:
+                        temp_control_data, temp_control_metadata = self.data_handler.load_bios_Control(T_biosname, locus, DSF=x_dsf)
+                        if temp_control_data and "chipseq-control" in temp_control_data:
+                            control_data, control_meta, control_avail = self.data_handler.make_bios_tensor_Control(temp_control_data, temp_control_metadata)
+                        else:
+                            temp_control_data, temp_control_metadata = self.data_handler.load_bios_Control(B_biosname, locus, DSF=x_dsf)
+                            if temp_control_data and "chipseq-control" in temp_control_data:
+                                control_data, control_meta, control_avail = self.data_handler.make_bios_tensor_Control(temp_control_data, temp_control_metadata)
+                    except Exception as e:
+                        pass
+                    
+                    if control_data is None:
+                        L = X.shape[0]
+                        control_data = torch.full((L, 1), -1.0)
+                        control_meta = torch.full((4, 1), -1.0)
+                        control_avail = torch.zeros(1)
+                    
+                    # Concatenate control data
+                    X = torch.cat([X, control_data], dim=1)
+                    mX = torch.cat([mX, control_meta], dim=1)
+                    avX = torch.cat([avX, control_avail], dim=0)
+                    
+                    # Prepare data for model
+                    num_rows = (X.shape[0] // self.context_length) * self.context_length
+                    X = X[:num_rows, :]
+                    Y = Y[:num_rows, :]
+                    P = P[:num_rows, :]
+                    Peak = Peak[:num_rows, :]
+                    
+                    # Ensure mY matches Y's feature dimension
+                    if mY.shape[-1] != Y.shape[-1]:
+                        print(f"Warning: mY feature dim {mY.shape[-1]} != Y feature dim {Y.shape[-1]}. Trimming mY.")
+                        mY = mY[:, :Y.shape[-1]]
+                    
+                    X = X.view(-1, self.context_length, X.shape[-1])
+                    Y = Y.view(-1, self.context_length, Y.shape[-1])
+                    P = P.view(-1, self.context_length, P.shape[-1])
+                    Peak = Peak.view(-1, self.context_length, Peak.shape[-1])
+                    
+                    # Expand masks to match batch dimension
+                    mX = mX.expand(X.shape[0], -1, -1)
+                    mY = mY.expand(Y.shape[0], -1, -1)
+                    avX = avX.expand(X.shape[0], -1)
+                    
+                    # Load DNA sequence if needed
+                    seq = None
+                    if self.DNA:
+                        seq = self.data_handler._dna_to_onehot(
+                            self.data_handler._get_DNA_sequence(locus[0], locus[1], locus[2])
+                        )
+                        seq = seq[:num_rows*self.data_handler.resolution, :]
+                        seq = seq.view(-1, self.context_length*self.data_handler.resolution, seq.shape[-1])
+                    
+                    # Single forward pass
+                    print(f"Running single forward pass for EIC...")
+                    if self.DNA:
+                        n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(
+                            X, mX, mY, avX, seq=seq, imp_target=[]
+                        )
+                    else:
+                        n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(
+                            X, mX, mY, avX, seq=None, imp_target=[]
+                        )
+                    
+                    # Flatten predictions
+                    p_ups = p_ups.view((p_ups.shape[0] * p_ups.shape[1]), p_ups.shape[-1])
+                    n_ups = n_ups.view((n_ups.shape[0] * n_ups.shape[1]), n_ups.shape[-1])
+                    mu_ups = mu_ups.view((mu_ups.shape[0] * mu_ups.shape[1]), mu_ups.shape[-1])
+                    var_ups = var_ups.view((var_ups.shape[0] * var_ups.shape[1]), var_ups.shape[-1])
+                    peak_ups = peak_ups.view((peak_ups.shape[0] * peak_ups.shape[1]), peak_ups.shape[-1])
+                    
+                    # Flatten ground truth data
+                    X_flat = X.view((X.shape[0] * X.shape[1]), X.shape[-1])
+                    Y_flat = Y.view((Y.shape[0] * Y.shape[1]), Y.shape[-1])
+                    P_flat = P.view((P.shape[0] * P.shape[1]), P.shape[-1])
+                    Peak_flat = Peak.view((Peak.shape[0] * Peak.shape[1]), Peak.shape[-1])
+                    
+                    # Extract latent Z
+                    if self.DNA:
+                        Z = self.get_latent_z(X, mX, mY, avX, seq)
+                    else:
+                        Z = self.get_latent_z(X, mX, mY, avX, None)
+                    
+                    experiment_names = list(self.data_handler.aliases['experiment_aliases'].keys())
+                    
+                    # Save predictions (P_flat and Peak_flat are already the observed data)
+                    self.save_predictions_to_npz(
+                        prediction_dict=None,
+                        bios_name=bios_name,
+                        dataset_type="eic",
+                        experiment_names=experiment_names,
+                        Z=Z,
+                        P_obs_all=P_flat,
+                        Peak_obs_all=Peak_flat,
+                        mu_ups=mu_ups,
+                        var_ups=var_ups,
+                        peak_ups=peak_ups,
+                        available_X_indices=available_X_indices,
+                        available_Y_indices=available_Y_indices,
+                        P=P_flat,
+                        Peak=Peak_flat,
+                        X=X_flat,
+                        Y=Y_flat,
+                        locus=locus
+                    )
+                    
+                print(f"✅ Completed predictions for {bios_name}")
+                
+            except Exception as e:
+                print(f"❌ Error processing {bios_name}: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+    
+    def save_predictions_to_npz(self, prediction_dict: Optional[Dict[str, Any]], 
+                                bios_name: str, dataset_type: str,
+                                experiment_names: List[str], Z: torch.Tensor,
+                                locus: List,
+                                P_obs_all: Optional[torch.Tensor] = None,
+                                Peak_obs_all: Optional[torch.Tensor] = None,
+                                mu_ups: Optional[torch.Tensor] = None,
+                                var_ups: Optional[torch.Tensor] = None,
+                                peak_ups: Optional[torch.Tensor] = None,
+                                available_X_indices: Optional[torch.Tensor] = None,
+                                available_Y_indices: Optional[torch.Tensor] = None,
+                                P: Optional[torch.Tensor] = None,
+                                Peak: Optional[torch.Tensor] = None,
+                                X: Optional[torch.Tensor] = None,
+                                Y: Optional[torch.Tensor] = None):
+        """
+        Save predictions to NPZ files in structured directory format.
+        
+        Args:
+            prediction_dict: For merged: dict from predict_biosample(). For EIC: None
+            bios_name: Name of biosample
+            dataset_type: "merged" or "eic"
+            experiment_names: List of experiment names
+            Z: Latent representations (shared across assays)
+            For EIC: mu_ups, var_ups, peak_ups, available_X_indices, available_Y_indices, P, Peak, X, Y
+        """
+        # Create directory structure: model_dir/preds/biosample/assay/
+        preds_dir = self.model_dir / "preds" / bios_name
+        preds_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Flatten Z to 1D or 2D for saving
+        Z_np = Z.numpy()
+        if Z_np.ndim == 3:  # [B, L, D]
+            Z_np = Z_np.reshape(-1, Z_np.shape[-1])  # [B*L, D]
+        Z_flat = Z_np.flatten() if Z_np.ndim == 2 else Z_np
+        
+        if dataset_type == "merged":
+            # Iterate through prediction_dict keys
+            for exp_key, pred_data in prediction_dict[bios_name].items():
+                # Determine assay name and type
+                if exp_key.endswith("_upsampled"):
+                    assay_name = exp_key.replace("_upsampled", "")
+                    assay_dir = preds_dir / f"{assay_name}_denoised"
+                    is_denoised = True
+                elif exp_key.endswith("_imputed_from_upsampling"):
+                    assay_name = exp_key.replace("_imputed_from_upsampling", "")
+                    assay_dir = preds_dir / f"{assay_name}_imputed"
+                    is_denoised = False
+                else:
+                    # Leave-one-out imputed
+                    assay_name = exp_key
+                    assay_dir = preds_dir / f"{assay_name}_imputed"
+                    is_denoised = False
+                
+                # Create assay directory
+                assay_dir.mkdir(exist_ok=True)
+                
+                # Extract predictions
+                mu = pred_data['pval_params']['mu'].numpy()
+                var = pred_data['pval_params']['var'].numpy()
+                peak_scores = pred_data['peak_scores'].numpy()
+                
+                # Extract observed P and peak data from pre-loaded arrays
+                try:
+                    exp_idx = experiment_names.index(assay_name)
+                    if P_obs_all is not None and exp_idx < P_obs_all.shape[1]:
+                        P_obs_flat = P_obs_all[:, exp_idx].numpy()
+                    else:
+                        P_obs_flat = np.zeros_like(mu)
+                    
+                    if Peak_obs_all is not None and exp_idx < Peak_obs_all.shape[1]:
+                        Peak_obs_flat = Peak_obs_all[:, exp_idx].numpy()
+                    else:
+                        Peak_obs_flat = np.zeros_like(peak_scores)
+                except (ValueError, IndexError) as e:
+                    print(f"Warning: Failed to extract observed data for {assay_name}: {e}")
+                    P_obs_flat = np.zeros_like(mu)
+                    Peak_obs_flat = np.zeros_like(peak_scores)
+                
+                # Save NPZ files (z is saved once at biosample level, not per assay)
+                np.savez_compressed(assay_dir / "mu.npz", mu.flatten())
+                np.savez_compressed(assay_dir / "var.npz", var.flatten())
+                np.savez_compressed(assay_dir / "peak_scores.npz", peak_scores.flatten())
+                np.savez_compressed(assay_dir / "observed_P.npz", P_obs_flat.flatten())
+                np.savez_compressed(assay_dir / "observed_peak.npz", Peak_obs_flat.flatten())
+                
+                print(f"  Saved predictions for {assay_name} ({'denoised' if is_denoised else 'imputed'})")
+        
+        elif dataset_type == "eic":
+            # Iterate through all experiment indices
+            for exp_idx, exp_name in enumerate(experiment_names):
+                # Determine if denoised or imputed
+                is_denoised = exp_idx in list(available_X_indices)
+                is_imputed = exp_idx in list(available_Y_indices)
+                
+                if not (is_denoised or is_imputed):
+                    continue  # Skip experiments not in either
+                
+                # Create assay directory
+                assay_dir = preds_dir / exp_name
+                assay_dir.mkdir(exist_ok=True)
+                
+                # Extract predictions
+                mu = mu_ups[:, exp_idx].numpy()
+                var = var_ups[:, exp_idx].numpy()
+                peak_scores = peak_ups[:, exp_idx].numpy()
+                
+                # Get observed data from pre-loaded P_obs_all and Peak_obs_all (for EIC, these are P and Peak)
+                if P_obs_all is not None and exp_idx < P_obs_all.shape[1]:
+                    P_obs_flat = P_obs_all[:, exp_idx].numpy()
+                else:
+                    P_obs_flat = np.zeros_like(mu)
+                
+                if Peak_obs_all is not None and exp_idx < Peak_obs_all.shape[1]:
+                    Peak_obs_flat = Peak_obs_all[:, exp_idx].numpy()
+                else:
+                    Peak_obs_flat = np.zeros_like(peak_scores)
+                
+                # Save NPZ files (z is saved once at biosample level, not per assay)
+                np.savez_compressed(assay_dir / "mu.npz", mu.flatten())
+                np.savez_compressed(assay_dir / "var.npz", var.flatten())
+                np.savez_compressed(assay_dir / "peak_scores.npz", peak_scores.flatten())
+                np.savez_compressed(assay_dir / "observed_P.npz", P_obs_flat.flatten())
+                np.savez_compressed(assay_dir / "observed_peak.npz", Peak_obs_flat.flatten())
+                
+                print(f"  Saved predictions for {exp_name} ({'denoised' if is_denoised else 'imputed'})")
+        
+        # Save Z once at biosample level (shared across all assays)
+        np.savez_compressed(preds_dir / "z.npz", Z_flat)
+        print(f"  Saved latent Z at biosample level")
+
+
+def load_predictions(model_dir: str, biosample: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Load predictions from NPZ files in directory structure.
+    
+    Args:
+        model_dir: Path to model directory containing preds/ subdirectory
+        biosample: Optional biosample name. If None, load all biosamples.
+        
+    Returns:
+        Dictionary with structure:
+        {
+            biosample: {
+                "assay_imputed" or "assay_denoised": {
+                    "mu": np.array,
+                    "var": np.array,
+                    "z": np.array,
+                    "peak_scores": np.array,
+                    "observed_P": np.array,
+                    "observed_peak": np.array,
+                    "base_assay_name": str,
+                    "type": str  # "imputed", "denoised", or "unknown"
+                }
+            }
+        }
+    """
+    model_dir = Path(model_dir)
+    preds_dir = model_dir / "preds"
+    
+    if not preds_dir.exists():
+        raise FileNotFoundError(f"Predictions directory not found: {preds_dir}")
+    
+    results = {}
+    
+    # Get list of biosamples
+    if biosample is None:
+        biosamples = [d.name for d in preds_dir.iterdir() if d.is_dir()]
+    else:
+        biosamples = [biosample]
+    
+    for bios_name in biosamples:
+        bios_dir = preds_dir / bios_name
+        if not bios_dir.exists():
+            continue
+        
+        results[bios_name] = {}
+        
+        # Load Z from biosample level (shared across all assays)
+        z_path = bios_dir / "z.npz"
+        z_data = None
+        if z_path.exists():
+            try:
+                z_data = np.load(z_path)['arr_0']
+            except Exception as e:
+                print(f"Warning: Failed to load biosample-level Z for {bios_name}: {e}")
+        
+        # Get list of assay directories
+        assay_dirs = [d.name for d in bios_dir.iterdir() if d.is_dir()]
+        
+        for assay_dir_name in assay_dirs:
+            assay_dir = bios_dir / assay_dir_name
+            
+            # Determine base assay name and type
+            if assay_dir_name.endswith("_denoised"):
+                base_assay_name = assay_dir_name.replace("_denoised", "")
+                pred_type = "denoised"
+            elif assay_dir_name.endswith("_imputed"):
+                base_assay_name = assay_dir_name.replace("_imputed", "")
+                pred_type = "imputed"
+            else:
+                # Fallback: assume it's the base name without suffix (for backward compatibility)
+                base_assay_name = assay_dir_name
+                pred_type = "unknown"
+            
+            try:
+                # Load NPZ files
+                mu_data = np.load(assay_dir / "mu.npz")
+                var_data = np.load(assay_dir / "var.npz")
+                peak_data = np.load(assay_dir / "peak_scores.npz")
+                obs_p_data = np.load(assay_dir / "observed_P.npz")
+                obs_peak_data = np.load(assay_dir / "observed_peak.npz")
+                
+                # Try loading z from assay dir for backward compatibility
+                assay_z_data = z_data
+                assay_z_path = assay_dir / "z.npz"
+                if assay_z_path.exists():
+                    try:
+                        assay_z_data = np.load(assay_z_path)['arr_0']
+                    except:
+                        pass  # Use biosample-level z
+                
+                # Extract arrays (NPZ files contain arrays with default key 'arr_0')
+                # Store with original directory name as key to preserve type information
+                results[bios_name][assay_dir_name] = {
+                    "mu": mu_data['arr_0'],
+                    "var": var_data['arr_0'],
+                    "peak_scores": peak_data['arr_0'],
+                    "observed_P": obs_p_data['arr_0'],
+                    "observed_peak": obs_peak_data['arr_0'],
+                    "z": assay_z_data,
+                    "base_assay_name": base_assay_name,
+                    "type": pred_type
+                }
+                
+            except Exception as e:
+                print(f"Warning: Failed to load predictions for {bios_name}/{assay_dir_name}: {e}")
+                continue
+        
+        return results
 
 
 def main():
@@ -885,11 +1461,15 @@ Examples:
     parser.add_argument('--model-dir', type=str, required=True,
                        help='Path to model directory containing config JSON and .pt checkpoint')
     parser.add_argument('--data-path', type=str, required=True,
-                       help='Path to dataset directory')
-    parser.add_argument('--bios-name', type=str, required=True,
-                       help='Name of biosample to predict')
+                       help='Path to dataset directory (e.g., /path/to/DATA_CANDI_MERGED or /path/to/DATA_CANDI_EIC)')
     
     # Optional arguments
+    parser.add_argument('--bios-name', type=str, default=None,
+                       help='Name of biosample to predict (required if --all-biosamples not set)')
+    parser.add_argument('--all-biosamples', action='store_true',
+                       help='Run predictions for all biosamples in the dataset')
+    parser.add_argument('--split', type=str, default='test', choices=['train', 'val', 'test'],
+                       help='Data split to use (default: test)')
     parser.add_argument('--dataset', type=str, default='merged', choices=['merged', 'eic'],
                        help='Dataset type (default: merged)')
     parser.add_argument('--dsf', type=int, default=1,
@@ -902,16 +1482,23 @@ Examples:
     # Metadata specification
     parser.add_argument('--y-prompt-spec', type=str, default=None,
                        help='JSON file with custom metadata specification')
+    parser.add_argument('--fill-prompt-mode', type=str, default='median',
+                       choices=['none', 'median', 'mode', 'sample', 'custom'],
+                       help='Mode for filling missing metadata (default: median)')
     
     # Output options
     parser.add_argument('--output', type=str, default='predictions.pkl',
-                       help='Output file path (default: predictions.pkl)')
+                       help='Output file path (default: predictions.pkl, only used for single biosample)')
     parser.add_argument('--get-latent-z', action='store_true',
                        help='Extract latent representations')
     parser.add_argument('--return-raw-predictions', action='store_true',
                        help='Include raw prediction tensors in output')
     
     args = parser.parse_args()
+    
+    # Validate arguments
+    if not args.all_biosamples and args.bios_name is None:
+        parser.error("Either --bios-name or --all-biosamples must be provided")
     
     # Parse locus
     locus = [args.locus[0], int(args.locus[1]), int(args.locus[2])]
@@ -928,38 +1515,54 @@ Examples:
         predictor = CANDIPredictor(args.model_dir, args.device, DNA=True)
         
         # Setup data handler
-        predictor.setup_data_handler(args.data_path, args.dataset)
+        predictor.setup_data_handler(args.data_path, args.dataset, split=args.split)
         
-        # Run prediction
-        results = predictor.predict_biosample(
-            bios_name=args.bios_name,
-            x_dsf=args.dsf,
-            fill_y_prompt_spec=fill_y_prompt_spec,
-            locus=locus,
-            get_latent_z=args.get_latent_z,
-            return_raw_predictions=args.return_raw_predictions
-        )
-        
-        # Save results
-        with open(args.output, 'wb') as f:
-            pickle.dump(results, f)
-        
-        print(f"Predictions saved to {args.output}")
-        
-        # Print summary
-        bios_name = args.bios_name
-        if bios_name in results:
-            n_experiments = len([k for k in results[bios_name].keys() if not k.endswith('_upsampled')])
-            n_upsampled = len([k for k in results[bios_name].keys() if k.endswith('_upsampled')])
-            print(f"Results summary:")
-            print(f"  Biosample: {bios_name}")
-            print(f"  Imputed experiments: {n_experiments}")
-            print(f"  Denoised experiments: {n_upsampled}")
-            if 'latent_z' in results:
-                print(f"  Latent representations: {results['latent_z'].shape}")
+        if args.all_biosamples:
+            # Run predictions for all biosamples
+            predictor.predict_all_biosamples(
+                dataset_type=args.dataset,
+                split=args.split,
+                x_dsf=args.dsf,
+                fill_y_prompt_spec=fill_y_prompt_spec,
+                fill_prompt_mode=args.fill_prompt_mode,
+                locus=locus
+            )
+            print(f"\n🎉 Completed predictions for all biosamples!")
+            print(f"Predictions saved to {args.model_dir}/preds/")
+        else:
+            # Run single biosample prediction (existing behavior)
+            results = predictor.predict_biosample(
+                bios_name=args.bios_name,
+                x_dsf=args.dsf,
+                fill_y_prompt_spec=fill_y_prompt_spec,
+                fill_prompt_mode=args.fill_prompt_mode,
+                locus=locus,
+                get_latent_z=args.get_latent_z,
+                return_raw_predictions=args.return_raw_predictions
+            )
+            
+            # Save results
+            with open(args.output, 'wb') as f:
+                pickle.dump(results, f)
+            
+            print(f"Predictions saved to {args.output}")
+            
+            # Print summary for single biosample
+            bios_name = args.bios_name
+            if bios_name in results:
+                n_experiments = len([k for k in results[bios_name].keys() if not k.endswith('_upsampled')])
+                n_upsampled = len([k for k in results[bios_name].keys() if k.endswith('_upsampled')])
+                print(f"Results summary:")
+                print(f"  Biosample: {bios_name}")
+                print(f"  Imputed experiments: {n_experiments}")
+                print(f"  Denoised experiments: {n_upsampled}")
+                if 'latent_z' in results:
+                    print(f"  Latent representations: {results['latent_z'].shape}")
         
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

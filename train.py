@@ -1,6 +1,6 @@
 # from model import ConvTower, DeconvTower, DualAttentionEncoderBlock, NegativeBinomialLayer, GaussianLayer, MONITOR_VALIDATION, MetadataCrossAttention
 from model import CANDI, CANDI_LOSS, CANDI, CANDI_UNET, CANDI_Decoder, CANDI_DNA_Encoder, PeakLayer
-from _utils import exponential_linspace_int, negative_binomial_loss, Gaussian, NegativeBinomial, compute_perplexity, DataMasker
+from _utils import exponential_linspace_int, negative_binomial_loss, Gaussian, NegativeBinomial, compute_perplexity, DataMasker, reverse_complement_dna, reverse_signal
 from sklearn.metrics import r2_score, roc_auc_score
 from scipy.stats import pearsonr, spearmanr
 import numpy as np
@@ -97,9 +97,18 @@ class CANDI_TRAINER(object):
         count_weight = self.training_params.get('count_weight', 1.0)
         pval_weight = self.training_params.get('pval_weight', 1.0)
         peak_weight = self.training_params.get('peak_weight', 1.0)
-        self.criterion = CANDI_LOSS(count_weight=count_weight, pval_weight=pval_weight, peak_weight=peak_weight)
+        obs_weight = self.training_params.get('obs_weight', 1.0)
+        imp_weight = self.training_params.get('imp_weight', 1.0)
+        self.criterion = CANDI_LOSS(
+            count_weight=count_weight, 
+            pval_weight=pval_weight, 
+            peak_weight=peak_weight,
+            obs_weight=obs_weight,
+            imp_weight=imp_weight
+        )
         if self.is_main_process:
             print(f"Loss weights - Count: {count_weight}, P-value: {pval_weight}, Peak: {peak_weight}")
+            print(f"Obs/Imp weights - Observed: {obs_weight}, Imputed: {imp_weight}")
         
         # Mixed precision support
         self.use_mixed_precision = self.training_params.get('use_mixed_precision', True) and self.device.type == 'cuda'
@@ -373,18 +382,42 @@ class CANDI_TRAINER(object):
         y_avail = batch['y_avail']            # [B, F] - target availability  
         y_pval = batch['y_pval'].float()      # [B, L, F] - target p-values (convert to float)
         y_peaks = batch['y_peaks'].float()    # [B, L, F] - target peak data (convert to float)
-        y_dna = batch['y_dna'].float()        # [B, L*25, 4] - target DNA sequence (convert to float)
 
         control_data = batch['control_data'].float()   # [B, L, 1] - control signal data (convert to float)
         control_meta = batch['control_meta'].float()   # [B, 4, 1] - control metadata (convert to float)
         control_avail = batch['control_avail']         # [B, 1] - control availability
+        
+        # Apply reverse complement augmentation with specified probability
+        reverse_complement_prob = self.training_params.get('reverse_complement_prob', 0.5)
+        if torch.rand(1).item() < reverse_complement_prob:
+            print("Applying reverse complement augmentation")
+            # Reverse complement DNA sequences
+            x_dna = reverse_complement_dna(x_dna)
+            x_data = reverse_signal(x_data)
+
+            y_data = reverse_signal(y_data)
+            y_pval = reverse_signal(y_pval)
+            y_peaks = reverse_signal(y_peaks)
+            control_data = reverse_signal(control_data)            
         
         # Apply masking to create imputation targets
         # Use the masker to create masked inputs
         if not hasattr(self, 'masker'):
             # Initialize masker if not already done
             token_dict = {"missing_mask": -1, "cloze_mask": -2, "pad": -3}
-            self.masker = DataMasker(token_dict["cloze_mask"])
+            p_full_loci = self.training_params.get('p_full_loci', 0.0)
+            p_full_assay = self.training_params.get('p_full_assay', 1.0)
+            p_chunks = self.training_params.get('p_chunks', 0.0)
+            mask_fraction = self.training_params.get('mask_fraction', 0.20)
+            chunk_size = self.training_params.get('chunk_size', 40)
+            self.masker = DataMasker(
+                mask_value=token_dict["cloze_mask"],
+                chunk_size=chunk_size,
+                mask_fraction=mask_fraction,
+                p_full_loci=p_full_loci,
+                p_full_assay=p_full_assay,
+                p_chunks=p_chunks
+            )
         
         # Apply masking - this modifies x_data, x_meta, x_avail in place
         # The masker expects inputs in a specific format, so we need to handle batch dimension
@@ -404,14 +437,11 @@ class CANDI_TRAINER(object):
             # Fallback - get from dataset_params
             signal_dim = self.dataset_params.get('signal_dim', 35)  # Default to 35 for EIC
         
-        # Determine how many features to mask based on availability
-        num_available_per_sample = x_avail.sum(dim=1)  # [B] - number of available features per sample
-        min_available = num_available_per_sample.min().item()
-        
-        # Let DataMasker handle the case where there are very few features
-        # It will mask 0 features if there's only 1 available, which is fine
-        num_mask = min(random.randint(1, max(1, signal_dim - 1)), signal_dim - 1)
-        x_data_masked, x_meta_masked, x_avail_masked = self.masker.mask_assays(x_data_masked, x_meta_masked, x_avail_masked, num_mask)
+        # Apply masking using the new probability-based strategy
+        # DataMasker.apply_mask handles: full_assay, full_loci, and/or chunks masking
+        x_data_masked, x_meta_masked, x_avail_masked = self.masker.apply_mask(
+            x_data_masked, x_meta_masked, x_avail_masked
+        )
 
         # Create masks for loss computation
         token_dict = {"missing_mask": -1, "cloze_mask": -2, "pad": -3}
@@ -421,8 +451,8 @@ class CANDI_TRAINER(object):
         observed_map = observed_map.clone()
         masked_map = masked_map.clone()
 
-        # Store num_mask for logging
-        self.last_num_mask = num_mask
+        # Store masking info for logging
+        self.last_masking_probs = self.masker.get_probabilities()
 
         x_data_masked = torch.cat([x_data_masked, control_data], dim=2)      # (B, L, F+1)
         x_meta_masked = torch.cat([x_meta_masked, control_meta], dim=2)      # (B, 4, F+1)
@@ -492,7 +522,7 @@ class CANDI_TRAINER(object):
                             output_p, output_n, output_mu, output_var, output_peak,
                             y_data, y_pval, y_peaks, observed_map, masked_map
                         )
-                        total_loss = obs_count_loss + obs_pval_loss + imp_pval_loss + imp_count_loss + obs_peak_loss + imp_peak_loss
+                        total_loss = obs_count_loss + obs_pval_loss + obs_peak_loss + imp_count_loss + imp_pval_loss + imp_peak_loss
                     else:
                         # No masked regions: only compute observed losses
                         obs_count_loss, _, obs_pval_loss, _, obs_peak_loss, _ = self.criterion(
@@ -510,7 +540,7 @@ class CANDI_TRAINER(object):
                         output_p, output_n, output_mu, output_var, output_peak,
                         y_data, y_pval, y_peaks, observed_map, masked_map
                     )
-                    total_loss = obs_count_loss + obs_pval_loss + imp_pval_loss + imp_count_loss + obs_peak_loss + imp_peak_loss
+                    total_loss = obs_count_loss + obs_pval_loss + obs_peak_loss + imp_count_loss + imp_pval_loss + imp_peak_loss
                 else:
                     # No masked regions: only compute observed losses
                     obs_count_loss, _, obs_pval_loss, _, obs_peak_loss, _ = self.criterion(
@@ -550,38 +580,6 @@ class CANDI_TRAINER(object):
                 
                 # Optimizer step
                 self.optimizer.step()
-            
-            # # After backward pass - monitor gradients
-            # early_grads = {}  # Before transformer: conv, x_metadata
-            # late_grads = {}   # After transformer: deconv, y_metadata
-            
-            # for name, param in self.model.named_parameters():
-            #     if param.grad is not None:
-            #         grad_norm_i = param.grad.norm().item()
-                    
-            #         # Early layers: conv towers and x_metadata embeddings
-            #         if 'conv' in name.lower() and 'deconv' not in name.lower():
-            #             early_grads[name] = grad_norm_i
-            #         elif 'x_metadata' in name.lower() or 'x_embed' in name.lower():
-            #             early_grads[name] = grad_norm_i
-                    
-            #         # Late layers: deconv towers and y_metadata embeddings
-            #         elif 'deconv' in name.lower():
-            #             late_grads[name] = grad_norm_i
-            #         elif 'y_metadata' in name.lower() or 'y_embed' in name.lower():
-            #             late_grads[name] = grad_norm_i
-            
-            # # Print min/max for early layers
-            # if early_grads:
-            #     min_layer = min(early_grads, key=early_grads.get)
-            #     max_layer = max(early_grads, key=early_grads.get)
-            #     print(f"Early layers - Min: {min_layer}: {early_grads[min_layer]:.2e}, Max: {max_layer}: {early_grads[max_layer]:.2e}")
-            
-            # # Print min/max for late layers
-            # if late_grads:
-            #     min_layer = min(late_grads, key=late_grads.get)
-            #     max_layer = max(late_grads, key=late_grads.get)
-            #     print(f"Late layers - Min: {min_layer}: {late_grads[min_layer]:.2e}, Max: {max_layer}: {late_grads[max_layer]:.2e}")
                     
             # Store gradient norm for logging
             self.grad_norm = grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm
@@ -704,7 +702,7 @@ class CANDI_TRAINER(object):
         
         # Calculate actual total steps
         num_total_steps = epochs * inner_epochs * batches_per_epoch
-        # Use 20% of total steps for warmup (more conservative)
+        # Use 20% of total steps for warmup 
         warmup_steps = max(1, int(0.2 * num_total_steps))
         
         # Ensure we have at least 1 step for the cosine annealing phase
@@ -1238,10 +1236,11 @@ class CANDI_TRAINER(object):
         if hasattr(self, 'grad_norm'):
             grad_norm = self.grad_norm
         
-        # Get number of masked features (approximate)
-        num_mask = "N/A"
-        if hasattr(self, 'last_num_mask'):
-            num_mask = self.last_num_mask
+        # Get masking probabilities info
+        mask_info = "N/A"
+        if hasattr(self, 'last_masking_probs'):
+            probs = self.last_masking_probs
+            mask_info = f"A:{probs['p_full_assay']:.1f}/L:{probs['p_full_loci']:.1f}/C:{probs['p_chunks']:.1f}"
         
         # Format batch processing time
         batch_time_str = "N/A"
@@ -1251,7 +1250,7 @@ class CANDI_TRAINER(object):
             batch_time = batch_processing_time
         
         # Record progress for CSV logging
-        self._record_progress(epoch, batch_idx, metrics, loss_dict, grad_norm, num_mask, batch_time, current_lr)
+        self._record_progress(epoch, batch_idx, metrics, loss_dict, grad_norm, mask_info, batch_time, current_lr)
         
         # Improved and aesthetic print statement with aligned columns and section headers
         sep = " | "
@@ -1346,7 +1345,7 @@ class CANDI_TRAINER(object):
 
         # Add training dynamics and environment
         metrics_table.append(
-            f"Gradient Norm: {grad_norm:.2f}   Num Masked: {num_mask}   {lr_printstatement}   Batch time: {batch_time_str}"
+            f"Gradient Norm: {grad_norm:.2f}   Mask Probs: {mask_info}   {lr_printstatement}   Batch time: {batch_time_str}"
         )
         metrics_table.append(f"{'='*84}")
 
@@ -1385,7 +1384,7 @@ class CANDI_TRAINER(object):
         if self.is_main_process:
             print(f"Progress updated in {self.progress_file} ({len(df)} records)")
     
-    def _record_progress(self, epoch, batch_idx, metrics, loss_dict, grad_norm, num_mask, batch_time, lr):
+    def _record_progress(self, epoch, batch_idx, metrics, loss_dict, grad_norm, mask_info, batch_time, lr):
         """Record all progress metrics for CSV logging."""
         # Get EMA values if available
         ema_values = {}
@@ -1412,7 +1411,7 @@ class CANDI_TRAINER(object):
             'timestamp': datetime.now().isoformat(),
             'learning_rate': lr,
             'gradient_norm': grad_norm,
-            'num_mask': num_mask,
+            'mask_info': mask_info,
             'batch_time': batch_time,
             
             # Loss values
@@ -1685,23 +1684,24 @@ class CANDI_LOADER(object):
         pool_size = self.hyper_parameters["pool_size"]
         separate_decoders = self.hyper_parameters["separate_decoders"]
         norm = self.hyper_parameters.get("norm", "batch")  # Default to "batch" for backward compatibility
+        attention_type = self.hyper_parameters.get("attention_type", "dual")  # Default to "dual" for backward compatibility
         
         if self.DNA:
             if self.hyper_parameters["unet"]:
                 model = CANDI_UNET(
                     signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                     n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length, 
-                    separate_decoders=separate_decoders, norm=norm)
+                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
             else:
                 model = CANDI(
                     signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                     n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length, 
-                    separate_decoders=separate_decoders, norm=norm)
+                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
         else:
             model = CANDI(
                 signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                 n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length,
-                separate_decoders=separate_decoders, norm=norm)
+                separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
 
         model.load_state_dict(torch.load(self.model_path, map_location=self.device)) 
 
@@ -1761,14 +1761,17 @@ def create_argument_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
             Examples:
-            # Basic EIC training with default settings (random sampling for missing metadata)
+            # Basic EIC training with default settings (full assay masking only)
             python train.py --eic --epochs 10 --batch-size 16
             
-            # Training with median/mode statistics for missing metadata
-            python train.py --eic --epochs 10 --batch-size 16 --fill-prompt-mode median
+            # Training with hybrid masking (full assay + full loci)
+            python train.py --eic --epochs 10 --p-full-assay 1.0 --p-full-loci 0.5 --mask-fraction 0.2
             
-            # Training with mode statistics for all missing metadata fields
-            python train.py --eic --epochs 10 --batch-size 16 --fill-prompt-mode mode
+            # Training with all three masking strategies
+            python train.py --eic --epochs 10 --p-full-assay 1.0 --p-full-loci 0.3 --p-chunks 0.3
+            
+            # Training with full loci masking only (no full assay masking)
+            python train.py --eic --epochs 10 --p-full-assay 0.0 --p-full-loci 1.0 --mask-fraction 0.25 --chunk-size 50
             
             # Multi-GPU training with mixed precision
             python train.py --eic --ddp --mixed-precision --epochs 20 --batch-size 32
@@ -1823,6 +1826,9 @@ def create_argument_parser():
     model_group.add_argument('--pos-enc', type=str, default='relative',
                             choices=['relative', 'absolute'],
                             help='Type of positional encoding')
+    model_group.add_argument('--attention-type', type=str, default='xtransformers',
+                            choices=['dual', 'xtransformers'],
+                            help='Attention mechanism: dual (DualAttentionEncoderBlock) or xtransformers (RoPE)')
     model_group.add_argument('--separate-decoders', action='store_true', default=True,
                             help='Use separate decoders for count and p-value prediction')
     model_group.add_argument('--shared-decoders', action='store_true',
@@ -1830,7 +1836,7 @@ def create_argument_parser():
     model_group.add_argument('--unet', action='store_true',
                            help='Use U-Net skip connections')
     model_group.add_argument('--norm-type', type=str, default='batch',
-                           choices=['batch', 'layer', 'group', 'instance', 'weight', 'rms'],
+                           choices=['batch', 'layer', 'group', 'instance', 'weight', 'rms', 'none'],
                            help='Normalization type for convolutional layers')
     
     # === TRAINING CONFIGURATION ===
@@ -1839,7 +1845,7 @@ def create_argument_parser():
                                help='Number of training epochs')
     training_group.add_argument('--batch-size', type=int, default=25,
                                help='Training batch size')
-    training_group.add_argument('--learning-rate', '--lr', type=float, default=2e-4,
+    training_group.add_argument('--learning-rate', '--lr', type=float, default=5e-4,
                                help='Initial learning rate')
     training_group.add_argument('--optimizer', type=str, default='adamax',
                                choices=['adamax', 'adam', 'adamw', 'sgd'],
@@ -1849,12 +1855,32 @@ def create_argument_parser():
                                help='Number of inner epochs per batch')
     training_group.add_argument('--enable-validation', action='store_true',
                                help='Enable validation during training')
-    training_group.add_argument('--count-weight', type=float, default=1.0,
-                               help='Weight for count loss in multi-task learning (default: 1.0)')
+
+    training_group.add_argument('--count-weight', type=float, default=0.5,
+                               help='Weight for count loss in multi-task learning (default: 0.5)')
     training_group.add_argument('--pval-weight', type=float, default=1.0,
                                help='Weight for p-value loss in multi-task learning (default: 1.0)')
-    training_group.add_argument('--peak-weight', type=float, default=1.0,
-                               help='Weight for peak loss in multi-task learning (default: 1.0)')
+    training_group.add_argument('--peak-weight', type=float, default=0.1,
+                               help='Weight for peak loss in multi-task learning (default: 0.1)')
+
+    training_group.add_argument('--obs-weight', type=float, default=0.25,
+                               help='Weight for observed (upsampling) losses (default: 0.25)')
+    training_group.add_argument('--imp-weight', type=float, default=1.0,
+                               help='Weight for imputed (masked) losses (default: 1.0)')
+    
+    training_group.add_argument('--reverse-complement-prob', type=float, default=0.5,
+                               help='Probability of applying reverse complement augmentation per batch (0.0=disabled, 1.0=always, default: 0.5)')
+    
+    training_group.add_argument('--p-full-loci', type=float, default=0.75,
+                               help='Probability of applying full loci masking (mask same loci across all assays) (default: 0.75)')
+    training_group.add_argument('--p-full-assay', type=float, default=0.75,
+                               help='Probability of applying full assay masking (default: 0.75)')
+    training_group.add_argument('--p-chunks', type=float, default=0.0,
+                               help='Probability of applying independent chunk masking per assay (default: 0.0)')
+    training_group.add_argument('--mask-fraction', type=float, default=0.20,
+                               help='Fraction of loci to mask for full_loci and chunks strategies (default: 0.20)')
+    training_group.add_argument('--chunk-size', type=int, default=40,
+                               help='Size of chunks to mask for full_loci and chunks strategies (default: 40, ~1kb at 25bp)')
     
     # === SYSTEM CONFIGURATION ===
     system_group = parser.add_argument_group('System Configuration')
@@ -2048,7 +2074,8 @@ def create_model_from_args(args, signal_dim, num_sequencing_platforms=10, num_ru
             separate_decoders=args.separate_decoders,
             num_sequencing_platforms=num_sequencing_platforms,
             num_runtypes=num_runtypes,
-            norm=args.norm_type
+            norm=args.norm_type,
+            attention_type=args.attention_type
         )
     else:
         model = CANDI(
@@ -2066,7 +2093,8 @@ def create_model_from_args(args, signal_dim, num_sequencing_platforms=10, num_ru
             separate_decoders=args.separate_decoders,
             num_sequencing_platforms=num_sequencing_platforms,
             num_runtypes=num_runtypes,
-            norm=args.norm_type
+            norm=args.norm_type,
+            attention_type=args.attention_type
         )
     
     return model
@@ -2275,7 +2303,15 @@ def main():
         'no_save': args.no_save,
         'count_weight': args.count_weight,
         'pval_weight': args.pval_weight,
-        'peak_weight': args.peak_weight
+        'peak_weight': args.peak_weight,
+        'obs_weight': args.obs_weight,
+        'imp_weight': args.imp_weight,
+        'p_full_loci': args.p_full_loci,
+        'p_full_assay': args.p_full_assay,
+        'p_chunks': args.p_chunks,
+        'mask_fraction': args.mask_fraction,
+        'chunk_size': args.chunk_size,
+        'reverse_complement_prob': args.reverse_complement_prob
     }
 
     # Create temporary dataset to get signal_dim and metadata information

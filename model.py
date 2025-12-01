@@ -15,6 +15,13 @@ import imageio.v2 as imageio
 from io import BytesIO
 from torchinfo import summary
 
+try:
+    from x_transformers import Encoder as XTransformerEncoder
+    XTRANSFORMERS_AVAILABLE = True
+except ImportError:
+    XTRANSFORMERS_AVAILABLE = False
+    XTransformerEncoder = None
+
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -856,7 +863,7 @@ class MONITOR_VALIDATION(object):
 ##=========================================== Loss Functions =============================================##
 
 class CANDI_LOSS(nn.Module):
-    def __init__(self, reduction='mean', count_weight=1.0, pval_weight=1.0, peak_weight=1.0):
+    def __init__(self, reduction='mean', count_weight=1.0, pval_weight=1.0, peak_weight=1.0, obs_weight=1.0, imp_weight=1.0):
         super(CANDI_LOSS, self).__init__()
         self.reduction = reduction
         self.gaus_nll = nn.GaussianNLLLoss(reduction=self.reduction, full=True)
@@ -866,6 +873,8 @@ class CANDI_LOSS(nn.Module):
         self.count_weight = count_weight
         self.pval_weight = pval_weight
         self.peak_weight = peak_weight
+        self.obs_weight = obs_weight
+        self.imp_weight = imp_weight
 
     def forward(self, p_pred, n_pred, mu_pred, var_pred, peak_pred, true_count, true_pval, true_peak, obs_map, masked_map):
         ups_true_count, ups_true_pval, ups_true_peak = true_count[obs_map], true_pval[obs_map], true_peak[obs_map]
@@ -900,12 +909,21 @@ class CANDI_LOSS(nn.Module):
             imputed_peak_loss = self.bce_loss(imp_peak_pred.float(), imp_true_peak.float())
         
         # Apply weights to losses for multi-task learning
+        # First apply task-specific weights (count, pval, peak)
         observed_count_loss = self.count_weight * observed_count_loss
         imputed_count_loss = self.count_weight * imputed_count_loss
         observed_pval_loss = self.pval_weight * observed_pval_loss
         imputed_pval_loss = self.pval_weight * imputed_pval_loss
         observed_peak_loss = self.peak_weight * observed_peak_loss
         imputed_peak_loss = self.peak_weight * imputed_peak_loss
+        
+        # Then apply obs/imp weights
+        observed_count_loss = self.obs_weight * observed_count_loss
+        observed_pval_loss = self.obs_weight * observed_pval_loss
+        observed_peak_loss = self.obs_weight * observed_peak_loss
+        imputed_count_loss = self.imp_weight * imputed_count_loss
+        imputed_pval_loss = self.imp_weight * imputed_pval_loss
+        imputed_peak_loss = self.imp_weight * imputed_peak_loss
         
         return observed_count_loss, imputed_count_loss, observed_pval_loss, imputed_pval_loss, observed_peak_loss, imputed_peak_loss
 
@@ -960,7 +978,7 @@ class CANDI_DNA_Encoder(nn.Module):
     def __init__(self, 
         signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead, n_sab_layers, pool_size=2, 
         dropout=0.1, context_length=1600, pos_enc="relative", expansion_factor=3, num_sequencing_platforms=10, 
-        num_runtypes=2, norm="batch"):
+        num_runtypes=2, norm="batch", attention_type="dual"):
 
         super(CANDI_DNA_Encoder, self).__init__()
 
@@ -1011,9 +1029,30 @@ class CANDI_DNA_Encoder(nn.Module):
             nn.Linear(2*self.f2, self.f2),  # Still 2*f2 (signal + DNA)
             nn.LayerNorm(self.f2))
 
-        self.transformer_encoder = nn.ModuleList([
-            DualAttentionEncoderBlock(self.f2, nhead, self.l2, dropout=dropout, 
-                max_distance=self.l2, pos_encoding_type="relative", max_len=self.l2
+        # Store attention type for reference
+        self.attention_type = attention_type
+
+        # Validate x-transformers availability if needed
+        if attention_type == "xtransformers" and not XTRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "x-transformers library is required for attention_type='xtransformers' but not installed. "
+                "Install it with: pip install x-transformers"
+            )
+
+        # Initialize transformer encoder based on attention type
+        if attention_type == "xtransformers":
+            self.transformer_encoder = nn.ModuleList([
+                XTransformerEncoderBlock(
+                    d_model=self.f2, 
+                    num_heads=nhead, 
+                    seq_length=self.l2, 
+                    dropout=dropout
+                ) for _ in range(n_sab_layers)])
+        else:  # "dual" or default
+            self.transformer_encoder = nn.ModuleList([
+                DualAttentionEncoderBlock(
+                    self.f2, nhead, self.l2, dropout=dropout, 
+                    max_distance=self.l2, pos_encoding_type=pos_enc, max_len=self.l2
                 ) for _ in range(n_sab_layers)])
 
     def forward(self, src, seq, x_metadata):
@@ -1053,7 +1092,7 @@ class CANDI_DNA_Encoder(nn.Module):
 class CANDI(nn.Module):
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
         n_sab_layers, pool_size=2, dropout=0.1, context_length=1600, pos_enc="relative", 
-        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=2, norm="batch"):
+        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=2, norm="batch", attention_type="dual"):
         super(CANDI, self).__init__()
 
         self.pos_enc = pos_enc
@@ -1067,7 +1106,7 @@ class CANDI(nn.Module):
         self.d_model = self.latent_dim = self.f2
 
         self.encoder = CANDI_DNA_Encoder(signal_dim+1, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
-            n_sab_layers, pool_size, dropout, context_length, pos_enc, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
+            n_sab_layers, pool_size, dropout, context_length, pos_enc, expansion_factor, num_sequencing_platforms, num_runtypes, norm, attention_type=attention_type)
 
         self.latent_projection = nn.Linear(
             ((signal_dim+1) * (expansion_factor**(n_cnn_layers))), 
@@ -1085,10 +1124,22 @@ class CANDI(nn.Module):
         self.gaussian_layer = GaussianLayer(self.f1, self.f1, FF=False)
         self.peak_layer = PeakLayer(self.f1, self.f1, FF=False)
     
-    def encode(self, src, seq, x_metadata):
-        """Encode input data into latent representation."""
+    def encode(self, src, seq, x_metadata, apply_arcsinh_transform=True):
+        """Encode input data into latent representation.
+        
+        Args:
+            src: Source data tensor
+            seq: Sequence data
+            x_metadata: Metadata tensor
+            apply_arcsinh_transform: If True, apply arcsinh transformation to non-missing values in src
+        """
         src = torch.where(src == -2, torch.tensor(-1, device=src.device), src)
         x_metadata = torch.where(x_metadata == -2, torch.tensor(-1, device=x_metadata.device), x_metadata)
+        
+        # Apply arcsinh transformation to non-missing values if requested
+        if apply_arcsinh_transform:
+            mask = src != -1
+            src = torch.where(mask, torch.arcsinh(src), src)
         
         z = self.encoder(src, seq, x_metadata)
         return z
@@ -1129,14 +1180,14 @@ class CANDI(nn.Module):
 class CANDI_UNET(CANDI):
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers,
                  nhead, n_sab_layers, pool_size=2, dropout=0.1, context_length=1600,
-                 pos_enc="relative", expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4, norm="batch"):
+                 pos_enc="relative", expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4, norm="batch", attention_type="dual"):
         super(CANDI_UNET, self).__init__(signal_dim, metadata_embedding_dim,
                                           conv_kernel_size, n_cnn_layers,
                                           nhead, n_sab_layers,
                                           pool_size, dropout,
                                           context_length, pos_enc,
                                           expansion_factor,
-                                          separate_decoders, num_sequencing_platforms, num_runtypes, norm)
+                                          separate_decoders, num_sequencing_platforms, num_runtypes, norm, attention_type)
 
     def _compute_skips(self, src):
         # Compute skip connections from signal encoder only
@@ -1450,6 +1501,41 @@ class RelativePositionBias(nn.Module):
         bias = self.relative_bias[rel_pos]  # (L, L, num_heads)
         bias = bias.permute(2, 0, 1)  # (num_heads, L, L)
         return bias
+
+# ---------------------------
+# XTransformer Encoder Block with RoPE
+# ---------------------------
+class XTransformerEncoderBlock(nn.Module):
+    """Standard transformer with RoPE using x-transformers library."""
+    def __init__(self, d_model, num_heads, seq_length, dropout=0.1, 
+                 ff_mult=4, **kwargs):
+        super().__init__()
+        
+        if not XTRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "x-transformers library is required but not installed. "
+                "Install it with: pip install x-transformers"
+            )
+        
+        self.encoder = XTransformerEncoder(
+            dim=d_model,
+            depth=1,  # Single block (will be stacked in ModuleList)
+            heads=num_heads,
+            # use_rmsnorm=True,
+            ff_mult=ff_mult,
+            attn_dropout=dropout,
+            ff_dropout=dropout,
+            rotary_pos_emb=True  # Enable RoPE (let x-transformers auto-calculate rotary_emb_dim)
+        )
+    
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor of shape (B, L, d_model)
+        Returns:
+            Tensor of shape (B, L, d_model)
+        """
+        return self.encoder(x)
 
 # ---------------------------
 # Dual Attention Encoder Block (Post-Norm)
