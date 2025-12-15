@@ -30,45 +30,354 @@ PROC_PROM_BED_PATH = "data/tss.bed"
 
 
 class DataMasker:
-    def __init__(self, mask_value, chunk_size=5, prog=False):
+    """
+    DataMasker supports three independent masking strategies that can be combined:
+    
+    1. FULL LOCI MASKING (p_full_loci): Mask the same loci chunks across ALL available assays.
+       - Randomly selects chunks of genomic positions
+       - Masks these positions across all assays that have data
+       - Does NOT mask metadata
+    
+    2. FULL ASSAY MASKING (p_full_assay): Completely mask entire assays.
+       - For each sample, randomly masks 1 to (num_available-1) assays
+       - Masks both data AND metadata for selected assays
+       - Ensures at least one assay remains available
+    
+    3. CHUNK MASKING (p_chunks): Mask different loci chunks independently per assay.
+       - Each assay gets its own random set of masked loci positions
+       - Does NOT mask metadata
+    
+    At least one strategy must be applied per batch. Strategies are applied in order:
+    full_assay -> full_loci -> chunks
+    
+    Probabilities are mutable attributes for training-time scheduling.
+    """
+    
+    def __init__(self, mask_value, chunk_size=40, mask_fraction=0.20, 
+                 p_full_loci=0.0, p_full_assay=1.0, p_chunks=0.0):
+        """
+        Args:
+            mask_value: Value to use for masking (typically -2 for cloze_mask)
+            chunk_size: Size of chunks to mask for full_loci and chunks strategies (default: 40, ~1kb at 25bp)
+            mask_fraction: Fraction of loci to mask for full_loci and chunks strategies (default: 0.20)
+            p_full_loci: Probability of applying full loci masking (default: 0.0)
+            p_full_assay: Probability of applying full assay masking (default: 1.0)
+            p_chunks: Probability of applying chunk masking per assay (default: 0.0)
+        """
         self.mask_value = mask_value
         self.chunk_size = chunk_size
-
-    def mask_assays(self, data, metadata, availability, num_mask):
+        self.mask_fraction = mask_fraction
+        
+        # Mutable probabilities for each strategy (can be modified during training)
+        self.p_full_loci = p_full_loci
+        self.p_full_assay = p_full_assay
+        self.p_chunks = p_chunks
+    
+    def _mask_full_loci(self, data, metadata, availability):
+        """
+        Mask the same loci chunks across ALL available assays.
+        
+        This masks randomly selected chunks of genomic positions across all assays that have data.
+        Does NOT mask metadata.
+        
+        Args:
+            data: [B, L, F] signal data tensor
+            metadata: [B, 4, F] metadata tensor (not modified)
+            availability: [B, F] availability tensor (checked for available assays)
+        
+        Returns:
+            Modified data, unchanged metadata, unchanged availability
+        """
         B, L, F = data.shape
-
-        # Number of features to mask per sample in the batch
-        num_to_mask = []
-        num_available = availability.sum(dim=1)
+        device = data.device
+        
         for b in range(B):
-            available_count = int(num_available[b].item())
-            if available_count > num_mask:
-                num_to_mask.append(num_mask)
-            elif available_count > 1:
-                # Mask at least 1 but leave at least 1 available
-                num_to_mask.append(max(1, available_count - 1))
-            else:
-                # Can't mask anything if only 1 or 0 features available
-                num_to_mask.append(0)
-
-        # Prepare the new tensors
-        new_A = availability.clone().float()
-        new_md = metadata.clone().float()
-        data = data.clone().float()
-
-        # Mask indices generation and masking operation
+            # Get available assays for this sample
+            available_assays = torch.where(availability[b] == 1)[0]
+            
+            if len(available_assays) == 0:
+                continue
+            
+            # Handle edge case: if chunk size >= sequence length
+            if self.chunk_size >= L:
+                for f_idx in available_assays:
+                    data[b, :, f_idx.item()] = self.mask_value
+                continue
+            
+            # Calculate target number of loci to mask
+            target_loci_to_mask = L * self.mask_fraction
+            num_chunks_needed = max(1, int((target_loci_to_mask + self.chunk_size - 1) // self.chunk_size))
+            max_possible_chunks = L // self.chunk_size
+            num_chunks = min(num_chunks_needed, max_possible_chunks)
+            
+            if num_chunks == 0:
+                continue
+            
+            # Generate non-overlapping chunk start positions
+            chunk_starts = self._generate_non_overlapping_chunks(L, num_chunks, device)
+            
+            # Apply masking to selected chunks across ALL available assays
+            for start_pos in chunk_starts:
+                end_pos = min(start_pos + self.chunk_size, L)
+                for f_idx in available_assays:
+                    data[b, start_pos:end_pos, f_idx.item()] = self.mask_value
+        
+        return data, metadata, availability
+    
+    def _mask_full_assay(self, data, metadata, availability):
+        """
+        Mask entire assays including their metadata.
+        
+        For each sample, randomly chooses how many assays to mask (1 to num_available-1),
+        ensuring at least one assay remains available.
+        
+        Args:
+            data: [B, L, F] signal data tensor
+            metadata: [B, 4, F] metadata tensor
+            availability: [B, F] availability tensor
+        
+        Returns:
+            Modified data, metadata, and availability
+        """
+        B, L, F = data.shape
+        
         for b in range(B):
-            if num_to_mask[b] > 0:
-                available_indices = torch.where(availability[b] == 1)[0]  # Find indices where features are available
-                if len(available_indices) >= num_to_mask[b]:
-                    mask_indices = torch.randperm(available_indices.size(0))[:num_to_mask[b]]  # Randomly select indices to mask
-                    actual_indices_to_mask = available_indices[mask_indices]  # Actual indices in the feature dimension
+            available_indices = torch.where(availability[b] == 1)[0]
+            num_available = len(available_indices)
+            
+            if num_available <= 1:
+                # Can't mask if only 1 or 0 assays available
+                continue
+            
+            # Randomly choose how many assays to mask: between 1 and (num_available - 1)
+            num_to_mask = torch.randint(1, num_available, (1,)).item()
+            
+            # Randomly select which assays to mask
+            mask_indices = torch.randperm(num_available)[:num_to_mask]
+            actual_indices_to_mask = available_indices[mask_indices]
+            
+            # Apply full assay masking: mask data, metadata, and update availability
+            data[b, :, actual_indices_to_mask] = self.mask_value
+            metadata[b, :, actual_indices_to_mask] = self.mask_value
+            availability[b, actual_indices_to_mask] = self.mask_value
+        
+        return data, metadata, availability
+    
+    def _mask_chunks(self, data, metadata, availability):
+        """
+        Mask different loci chunks independently for each available assay.
+        
+        Each assay gets its own random set of masked loci positions.
+        Does NOT mask metadata.
+        
+        Args:
+            data: [B, L, F] signal data tensor
+            metadata: [B, 4, F] metadata tensor (not modified)
+            availability: [B, F] availability tensor (checked for available assays)
+        
+        Returns:
+            Modified data, unchanged metadata, unchanged availability
+        """
+        B, L, F = data.shape
+        device = data.device
+        
+        for b in range(B):
+            # Get available assays for this sample
+            available_assays = torch.where(availability[b] == 1)[0]
+            
+            if len(available_assays) == 0:
+                continue
+            
+            # For each available assay, apply independent chunk masking
+            for f_idx in available_assays:
+                f = f_idx.item()
+                
+                # Handle edge case: if chunk size >= sequence length
+                if self.chunk_size >= L:
+                    data[b, :, f] = self.mask_value
+                    continue
+                
+                # Calculate target number of loci to mask
+                target_loci_to_mask = L * self.mask_fraction
+                num_chunks_needed = max(1, int((target_loci_to_mask + self.chunk_size - 1) // self.chunk_size))
+                max_possible_chunks = L // self.chunk_size
+                num_chunks = min(num_chunks_needed, max_possible_chunks)
+                
+                if num_chunks == 0:
+                    continue
+                
+                # Generate non-overlapping chunk start positions (different for each assay)
+                chunk_starts = self._generate_non_overlapping_chunks(L, num_chunks, device)
+                
+                # Apply masking to selected chunks for this assay only
+                for start_pos in chunk_starts:
+                    end_pos = min(start_pos + self.chunk_size, L)
+                    data[b, start_pos:end_pos, f] = self.mask_value
+        
+        return data, metadata, availability
+    
+    def _generate_non_overlapping_chunks(self, L, num_chunks, device):
+        """
+        Generate non-overlapping chunk start positions.
+        
+        Args:
+            L: Sequence length
+            num_chunks: Number of chunks to generate
+            device: Device for tensor operations
+        
+        Returns:
+            List of chunk start positions
+        """
+        chunk_starts = []
+        max_start = L - self.chunk_size
+        attempts = 0
+        max_attempts = 2000
+        
+        while len(chunk_starts) < num_chunks and attempts < max_attempts:
+            start = torch.randint(0, max_start + 1, (1,), device=device).item()
+            # Check if this start position overlaps with existing chunks
+            overlaps = False
+            for existing_start in chunk_starts:
+                if not (start + self.chunk_size <= existing_start or 
+                        existing_start + self.chunk_size <= start):
+                    overlaps = True
+                    break
+            if not overlaps:
+                chunk_starts.append(start)
+            attempts += 1
+        
+        return chunk_starts
+    
+    def apply_mask(self, data, metadata, availability):
+        """
+        Apply masking strategies based on their probabilities.
+        
+        Strategies are applied in order: full_assay -> full_loci -> chunks
+        At least one strategy is guaranteed to be applied.
+        
+        Args:
+            data: [B, L, F] signal data tensor
+            metadata: [B, 4, F] metadata tensor
+            availability: [B, F] availability tensor
+        
+        Returns:
+            Masked data, metadata, and availability tensors
+        """
+        # Clone tensors to avoid modifying originals
+        masked_data = data.clone().float()
+        masked_metadata = metadata.clone().float()
+        masked_availability = availability.clone().float()
+        
+        # Track which strategies are applied
+        applied_any = False
+        
+        # Decide which strategies to apply based on probabilities
+        apply_full_assay = torch.rand(1).item() < self.p_full_assay
+        apply_full_loci = torch.rand(1).item() < self.p_full_loci
+        apply_chunks = torch.rand(1).item() < self.p_chunks
+        
+        # Apply strategies in order: full_assay -> full_loci -> chunks
+        if apply_full_assay:
+            masked_data, masked_metadata, masked_availability = self._mask_full_assay(
+                masked_data, masked_metadata, masked_availability
+            )
+            applied_any = True
+        
+        if apply_full_loci:
+            masked_data, masked_metadata, masked_availability = self._mask_full_loci(
+                masked_data, masked_metadata, masked_availability
+            )
+            applied_any = True
+        
+        if apply_chunks:
+            masked_data, masked_metadata, masked_availability = self._mask_chunks(
+                masked_data, masked_metadata, masked_availability
+            )
+            applied_any = True
+        
+        # Ensure at least one strategy is applied
+        if not applied_any:
+            # Default to full loci masking if nothing was applied
+            masked_data, masked_metadata, masked_availability = self._mask_full_loci(
+                masked_data, masked_metadata, masked_availability
+            )
+        
+        return masked_data, masked_metadata, masked_availability
+    
+    def mask_assays(self, data, metadata, availability, num_mask=None):
+        """
+        Legacy interface - calls apply_mask internally.
+        
+        Args:
+            data: [B, L, F] signal data tensor
+            metadata: [B, 4, F] metadata tensor  
+            availability: [B, F] availability tensor
+            num_mask: Deprecated parameter (ignored)
+        
+        Returns:
+            Masked data, metadata, and availability tensors
+        """
+        return self.apply_mask(data, metadata, availability)
+    
+    def set_probabilities(self, p_full_loci=None, p_full_assay=None, p_chunks=None):
+        """
+        Update masking probabilities (useful for training-time scheduling).
+        
+        Args:
+            p_full_loci: New probability for full loci masking (or None to keep current)
+            p_full_assay: New probability for full assay masking (or None to keep current)
+            p_chunks: New probability for chunk masking (or None to keep current)
+        """
+        if p_full_loci is not None:
+            self.p_full_loci = p_full_loci
+        if p_full_assay is not None:
+            self.p_full_assay = p_full_assay
+        if p_chunks is not None:
+            self.p_chunks = p_chunks
+    
+    def get_probabilities(self):
+        """
+        Get current masking probabilities.
+        
+        Returns:
+            dict: Current probabilities for each masking strategy
+        """
+        return {
+            'p_full_loci': self.p_full_loci,
+            'p_full_assay': self.p_full_assay,
+            'p_chunks': self.p_chunks
+        }
 
-                    data[b, :, actual_indices_to_mask] = self.mask_value  # Mask the features in X
-                    new_md[b, :, actual_indices_to_mask] = self.mask_value
-                    new_A[b, actual_indices_to_mask] = self.mask_value  # Update the availability tensor to indicate masked features
+def reverse_complement_dna(dna_onehot):
+    """
+    Reverse complement a one-hot encoded DNA sequence.
+    
+    Args:
+        dna_onehot: Tensor of shape [B, L, 4] where channels are [A, C, G, T]
+    
+    Returns:
+        Reverse complemented DNA tensor [B, L, 4]
+    """
+    # Step 1: Reverse along sequence dimension (dim=1)
+    dna_reversed = torch.flip(dna_onehot, dims=[1])
+    
+    # Step 2: Complement by swapping channels: A<->T (0<->3), C<->G (1<->2)
+    # Channel order: [A, C, G, T] -> [T, G, C, A]
+    dna_rc = dna_reversed[:, :, [3, 2, 1, 0]]
+    
+    return dna_rc
 
-        return data, new_md, new_A
+def reverse_signal(signal):
+    """
+    Reverse signal data along the sequence dimension.
+    
+    Args:
+        signal: Tensor of shape [B, L, ...] where L is sequence length
+    
+    Returns:
+        Reversed signal tensor [B, L, ...]
+    """
+    return torch.flip(signal, dims=[1])
 
 class METRICS(object):
     def __init__(self, chrom='chr21', bin_size=25):
@@ -286,6 +595,25 @@ class METRICS(object):
 
         return self.spearman(y_true[perc_99_pos], y_pred[perc_99_pos])
 
+    def aucroc(self, y_true, y_pred):
+        """
+        Calculate genome-wide AUCROC for peak classification.
+        Uses obs_peak as binary ground truth and pred_peak as probabilities.
+        """
+        return roc_auc_score(y_true, y_pred)
+
+    def aucroc_gene(self, y_true, y_pred, chrom='chr21', bin_size=25):
+        """Calculate AUCROC for peak classification within gene bodies."""
+        gt_vals = self.get_signals(array=y_true, df=self.gene_df)
+        pred_vals = self.get_signals(array=y_pred, df=self.gene_df)
+        return self.aucroc(y_true=gt_vals, y_pred=pred_vals)
+
+    def aucroc_prom(self, y_true, y_pred, chrom='chr21', bin_size=25):
+        """Calculate AUCROC for peak classification within promoter regions."""
+        gt_vals = self.get_signals(array=y_true, df=self.prom_df)
+        pred_vals = self.get_signals(array=y_pred, df=self.prom_df)
+        return self.aucroc(y_true=gt_vals, y_pred=pred_vals)
+
     def peak_overlap(self, y_true, y_pred, p=0.01):
         if p == 0:
             return 0
@@ -453,89 +781,7 @@ class METRICS(object):
         c_idx = self.c_index_gauss(mus[perc_99_pos], sigmas[perc_99_pos], y_true[perc_99_pos], num_pairs)
         return c_idx
 
-    # def c_index_nbinom(self,
-    #                    rs, ps, y_true,
-    #                    epsilon: float = 1e-6,
-    #                    num_pairs: int = 10000):
-    #     """
-    #     Concordance index for Negative‐Binomial predictive marginals,
-    #     estimating over `num_pairs` randomly sampled pairs.
-
-    #     Inputs:
-    #       - rs:        (N,) array of NB 'r' parameters (must be >0)
-    #       - ps:        (N,) array of NB 'p' parameters (0<p<1)
-    #       - y_true:    (N,) array of true values y_i
-    #       - epsilon:   tail‐mass cutoff for truncation (default 1e-6)
-    #       - num_pairs: number of random (i<j) pairs to sample;
-    #                    if -1, use all valid pairs (i<j, y_i≠y_j)
-    #     Returns:
-    #       - c_index: float in [0,1]
-    #     """
-    #     N = len(y_true)
-    #     labels = []
-    #     scores = []
-
-    #     def compute_score(i, j):
-    #         # clamp p_j into (ε,1−ε)
-    #         p_j = np.clip(ps[j], epsilon, 1 - epsilon)
-    #         r_j = rs[j]
-    #         if r_j <= 0:
-    #             return None
-    #         # find cutoff K
-    #         K = nbinom.ppf(1 - epsilon, r_j, p_j)
-    #         if not np.isfinite(K):
-    #             K = 0
-    #         else:
-    #             K = int(K)
-              
-    #         # PMF/CDF arrays
-    #         k = np.arange(K + 1)
-    #         pmf_j = nbinom.pmf(k, r_j, p_j)
-    #         cdf_i = nbinom.cdf(k, rs[i], ps[i])
-    #         # if anything is nan, bail
-    #         if not (np.isfinite(pmf_j).all() and np.isfinite(cdf_i).all()):
-    #             return None
-    #         return np.sum(pmf_j * (1.0 - cdf_i))
-
-    #     if num_pairs == -1:
-    #         # exact mode
-    #         for i in range(N):
-    #             for j in range(i+1, N):
-    #                 if y_true[i] == y_true[j]:
-    #                     continue
-    #                 sc = compute_score(i, j)
-    #                 if sc is None:
-    #                     continue
-    #                 labels.append(int(y_true[i] > y_true[j]))
-    #                 scores.append(sc)
-    #     else:
-    #         # sampling mode
-    #         rng = np.random.default_rng()
-    #         count = 0
-    #         while count < num_pairs:
-    #             i, j = rng.integers(0, N, size=2)
-    #             if i == j or y_true[i] == y_true[j]:
-    #                 continue
-    #             if i > j:
-    #                 i, j = j, i
-    #             sc = compute_score(i, j)
-    #             if sc is None:
-    #                 continue
-    #             labels.append(int(y_true[i] > y_true[j]))
-    #             scores.append(sc)
-    #             count += 1
-
-    #     if len(labels) == 0:
-    #         # no valid pairs
-    #         return np.nan
-
-    #     return roc_auc_score(labels, scores)
-
-    def c_index_nbinom(self,
-                    rs, ps, y_true,
-                    M: int = 500,
-                    num_pairs: int = 10000,
-                    random_state: int = None):
+    def c_index_nbinom(self,rs, ps, y_true, M: int = 500, num_pairs: int = 10000, random_state: int = None):
         """
         Monte Carlo Concordance index for Negative‐Binomial predictive marginals.
 
@@ -622,6 +868,53 @@ class METRICS(object):
         
         c_idx = self.c_index_nbinom(rs[perc_99_pos], ps[perc_99_pos], y_true[perc_99_pos], num_pairs)
         return c_idx
+
+    def coverage_95ci(self, y_true, lower_bound, upper_bound):
+        """
+        Calculate the fraction of y_true values that fall within the 95% confidence interval.
+        
+        Parameters:
+        -----------
+        y_true : array_like
+            True observed values
+        lower_bound : array_like
+            Lower bound of the 95% confidence interval
+        upper_bound : array_like
+            Upper bound of the 95% confidence interval
+            
+        Returns:
+        --------
+        float : Fraction of y_true values within [lower_bound, upper_bound]
+        """
+        within_ci = np.logical_and(y_true >= lower_bound, y_true <= upper_bound)
+        return np.mean(within_ci)
+
+    def coverage_95ci_gene(self, y_true, lower_bound, upper_bound):
+        """Calculate 95% CI coverage for gene body regions."""
+        gt_vals = self.get_signals(array=y_true, df=self.gene_df)
+        lower_vals = self.get_signals(array=lower_bound, df=self.gene_df)
+        upper_vals = self.get_signals(array=upper_bound, df=self.gene_df)
+        
+        return self.coverage_95ci(y_true=gt_vals, lower_bound=lower_vals, upper_bound=upper_vals)
+
+    def coverage_95ci_prom(self, y_true, lower_bound, upper_bound):
+        """Calculate 95% CI coverage for promoter regions."""
+        gt_vals = self.get_signals(array=y_true, df=self.prom_df)
+        lower_vals = self.get_signals(array=lower_bound, df=self.prom_df)
+        upper_vals = self.get_signals(array=upper_bound, df=self.prom_df)
+        
+        return self.coverage_95ci(y_true=gt_vals, lower_bound=lower_vals, upper_bound=upper_vals)
+
+    def coverage_95ci_1obs(self, y_true, lower_bound, upper_bound):
+        """Calculate 95% CI coverage for top 1% of positions by observed signal."""
+        perc_99 = np.percentile(y_true, 99)
+        perc_99_pos = np.where(y_true >= perc_99)[0]
+        
+        return self.coverage_95ci(
+            y_true[perc_99_pos], 
+            lower_bound[perc_99_pos], 
+            upper_bound[perc_99_pos]
+        )
 
 def get_divisible_heads(dim, target):
     """
@@ -752,36 +1045,50 @@ class NegativeBinomial:
 
 def negative_binomial_loss(y_true, n_pred, p_pred):
     """
-        Negative binomial loss function for PyTorch.
+        Negative binomial loss using PyTorch distributions.
         
         Parameters
         ----------
         y_true : torch.Tensor
-            Ground truth values of the predicted variable.
+            Ground truth counts.
         n_pred : torch.Tensor
-            Tensor containing n values of the predicted distribution.
+            total_count parameter (dispersion).
         p_pred : torch.Tensor
-            Tensor containing p values of the predicted distribution.
+            probs parameter in YOUR convention where mean = n*(1-p)/p.
             
         Returns
         -------
         nll : torch.Tensor
-            Negative log likelihood.
+            Negative log likelihood per sample.
+            
+        Note
+        ----
+        PyTorch uses opposite convention: mean = n*p/(1-p)
+        So we pass (1-p) as probs to match your parameterization.
     """
-    eps = 1e-6
+    eps = 1e-8
 
-    # Clamp predictions for numerical stability
+    # Clamp for numerical stability (soft bounds)
     p_pred = torch.clamp(p_pred, min=eps, max=1 - eps)
-    n_pred = torch.clamp(n_pred, min=1e-2, max=1e3)
+    n_pred = torch.clamp(n_pred, min=eps)
 
-    # Compute NB NLL
-    nll = (
-        torch.lgamma(n_pred + eps)
-        + torch.lgamma(y_true + 1 + eps)
-        - torch.lgamma(n_pred + y_true + eps)
-        - n_pred * torch.log(p_pred + eps)
-        - y_true * torch.log(1 - p_pred + eps)
+    # IMPORTANT: PyTorch uses opposite convention!
+    # our code: mean = n * (1-p) / p
+    # PyTorch: mean = n * probs / (1-probs)
+    # So we pass (1-p) to match our code's convention
+    pytorch_probs = 1 - p_pred
+
+    # Create distribution and compute log prob
+    nb_dist = torch.distributions.NegativeBinomial(
+        total_count=n_pred, 
+        probs=pytorch_probs
     )
+    
+    # Negative log likelihood
+    nll = -nb_dist.log_prob(y_true)
+    
+    # Handle any NaN/Inf
+    nll = torch.where(torch.isfinite(nll), nll, torch.zeros_like(nll))
     
     return nll
 
@@ -816,25 +1123,42 @@ def load_gene_coords(file, drop_negative_strand=True, drop_overlapping=True):
     return gene_coords
 
 def signal_feature_extraction(start, end, strand, chip_seq_signal,
-                              bin_size=25, margin=2000):
+                              bin_size=25, margin=2000, margin_tss=None, margin_tes=None):
     """
     Extracts robust ChIP-seq signal summaries for promoter, gene body, and TES regions.
 
-    Returns, for each region:
-      - median signal
-      - inter-quartile range (75th – 25th percentile)
-      - minimum signal
-      - maximum signal
+    Args:
+        start: Gene start coordinate
+        end: Gene end coordinate
+        strand: '+' or '-'
+        chip_seq_signal: 1D array of signal values
+        bin_size: Resolution in bp per bin
+        margin: Default margin for both TSS and TES (used if margin_tss/margin_tes not provided)
+        margin_tss: Optional TSS margin (5% upstream + 5% downstream if None, uses margin)
+        margin_tes: Optional TES margin (5% upstream + 5% downstream if None, uses margin)
+
+    Returns:
+        Dictionary with 12 features (4 per region: promoter, gene body, TES):
+          - median signal
+          - inter-quartile range (75th – 25th percentile)
+          - minimum signal
+          - maximum signal
     """
 
     # 1) Define TSS and TES by strand
     tss = start if strand == '+' else end
     tes = end   if strand == '+' else start
 
-    # 2) Compute bp intervals for each region
-    promoter_bp = (tss - margin, tss + margin)
+    # 2) Use adaptive margins if provided, otherwise use default
+    if margin_tss is None:
+        margin_tss = margin
+    if margin_tes is None:
+        margin_tes = margin
+
+    # 3) Compute bp intervals for each region
+    promoter_bp = (tss - margin_tss, tss + margin_tss)
     gene_body_bp = (start, end)
-    tes_bp = (tes - margin, tes + margin)
+    tes_bp = (tes - margin_tes, tes + margin_tes)
 
     # 3) Map to bin indices (inclusive of any overlapping bin)
     def to_bins(bp_start, bp_end):
@@ -869,18 +1193,18 @@ def signal_feature_extraction(start, end, strand, chip_seq_signal,
     return {
         'median_sig_promoter':   prom_med,
         'iqr_sig_promoter':      prom_iqr,
-        # 'min_sig_promoter':      prom_min,
-        # 'max_sig_promoter':      prom_max,
+        'min_sig_promoter':      prom_min,
+        'max_sig_promoter':      prom_max,
 
         'median_sig_gene_body':  body_med,
         'iqr_sig_gene_body':     body_iqr,
-        # 'min_sig_gene_body':     body_min,
-        # 'max_sig_gene_body':     body_max,
+        'min_sig_gene_body':     body_min,
+        'max_sig_gene_body':     body_max,
 
         'median_sig_around_TES': tes_med,
         'iqr_sig_around_TES':    tes_iqr,
-        # 'min_sig_around_TES':    tes_min,
-        # 'max_sig_around_TES':    tes_max,
+        'min_sig_around_TES':    tes_min,
+        'max_sig_around_TES':    tes_max,
     }
 
 def capture_gradients_hook(module, grad_input, grad_output):

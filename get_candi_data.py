@@ -3600,6 +3600,783 @@ class CANDIDatasetValidator:
             "top_missing_celltypes": sorted(celltype_counts.items(), key=lambda x: x[1], reverse=True)[:10],
             "top_missing_assays": sorted(assay_counts.items(), key=lambda x: x[1], reverse=True)[:10]
         }
+    
+    def find_alternative_bigbed_files(self, exp_accession: str, biosample_accession: str, 
+                                      current_bigbed_accession: str, target_assembly: str = 'GRCh38') -> List[Dict[str, str]]:
+        """
+        Find alternative BigBed files for an experiment when the primary one is corrupted.
+        
+        Args:
+            exp_accession: Experiment accession (e.g., ENCSR...)
+            biosample_accession: Biosample accession (e.g., ENCBS...)
+            current_bigbed_accession: Current BigBed file accession that failed
+            target_assembly: Target assembly (default: 'GRCh38')
+            
+        Returns:
+            List of Dicts with alternative BigBed file information: [{'accession': str, 'output_type': str, 'file_size': int}]
+        """
+        logger = logging.getLogger(__name__)
+        
+        try:
+            logger.info(f"🔍 [ALTERNATIVE] Finding alternative BigBed files for experiment {exp_accession}")
+            logger.info(f"🔍 [ALTERNATIVE] Biosample: {biosample_accession}")
+            logger.info(f"🔍 [ALTERNATIVE] Current BigBed (failed): {current_bigbed_accession}")
+            
+            # Query the experiment to get all files
+            exp_url = f"https://www.encodeproject.org/experiments/{exp_accession}/?format=json"
+            exp_response = requests.get(exp_url, headers={'accept': 'application/json'}, timeout=30)
+            exp_response.raise_for_status()
+            exp_data = exp_response.json()
+            
+            # Get file references from experiment
+            file_refs = exp_data.get('files', [])
+            if not file_refs:
+                file_refs = exp_data.get('original_files', [])
+            
+            logger.info(f"🔍 [ALTERNATIVE] Found {len(file_refs)} file references in experiment")
+            
+            # Extract file accessions
+            file_accessions = []
+            for file_ref in file_refs:
+                if isinstance(file_ref, str):
+                    file_acc = file_ref.strip('/').split('/')[-1]
+                    if file_acc.startswith('ENCFF'):
+                        file_accessions.append(file_acc)
+                elif isinstance(file_ref, dict):
+                    file_acc = file_ref.get('accession') or file_ref.get('@id', '').strip('/').split('/')[-1]
+                    if file_acc and file_acc.startswith('ENCFF'):
+                        file_accessions.append(file_acc)
+            
+            logger.info(f"🔍 [ALTERNATIVE] Extracted {len(file_accessions)} file accessions to check")
+            
+            # Query each file to find alternative BigBed files
+            alternative_bigbeds = []
+            
+            for file_accession in file_accessions:
+                # Skip the current (failed) BigBed file
+                if file_accession == current_bigbed_accession:
+                    continue
+                
+                try:
+                    file_url = f"https://www.encodeproject.org/files/{file_accession}/?format=json"
+                    file_response = requests.get(file_url, headers={'accept': 'application/json'}, timeout=30)
+                    file_response.raise_for_status()
+                    file_data = file_response.json()
+                    
+                    file_format = file_data.get('file_format', '')
+                    assembly = file_data.get('assembly', '')
+                    output_type = file_data.get('output_type', '')
+                    status = file_data.get('status', '')
+                    file_size = file_data.get('file_size', 0)
+                    
+                    # Check if this is a suitable BigBed file
+                    if (file_format == 'bigBed' and
+                        assembly == target_assembly and
+                        ('peaks' in output_type.lower() or 'narrowPeak' in output_type.lower() or 'broadPeak' in output_type.lower()) and
+                        status in ['released', 'in progress']):
+                        
+                        alternative_bigbeds.append({
+                            'accession': file_accession,
+                            'output_type': output_type,
+                            'file_size': file_size,
+                            'status': status
+                        })
+                        logger.info(f"✓ [ALTERNATIVE] Found alternative BigBed: {file_accession} ({output_type}, {file_size} bytes)")
+                
+                except Exception as e:
+                    logger.debug(f"Failed to query file {file_accession}: {e}")
+                    continue
+            
+            # Sort by file size (largest first) and then by output_type preference
+            # Prefer narrowPeak > broadPeak > other peaks
+            def sort_key(bb):
+                type_pref = 0
+                if 'narrowPeak' in bb['output_type'].lower():
+                    type_pref = 3
+                elif 'broadPeak' in bb['output_type'].lower():
+                    type_pref = 2
+                elif 'peaks' in bb['output_type'].lower():
+                    type_pref = 1
+                return (type_pref, bb['file_size'])
+            
+            alternative_bigbeds.sort(key=sort_key, reverse=True)
+            
+            logger.info(f"✓ [ALTERNATIVE] Found {len(alternative_bigbeds)} alternative BigBed files")
+            
+            return alternative_bigbeds
+            
+        except Exception as e:
+            logger.error(f"❌ [ALTERNATIVE] Error finding alternative BigBed files: {e}")
+            return []
+    
+    def reprocess_bigbed_files(self, dataset_name: str, data_directory: str = None, 
+                               max_workers: int = None, force: bool = False) -> Dict:
+        """
+        Find and reprocess problematic BigBed files.
+        
+        Args:
+            dataset_name: 'eic' or 'merged'
+            data_directory: Optional specific directory to process
+            max_workers: Max parallel workers for processing
+            force: If True, reprocess even if peaks directory exists
+            
+        Returns:
+            Dict with reprocessing results
+        """
+        logger = logging.getLogger(__name__)
+        
+        print(f"\n{'='*70}")
+        print(f"Reprocessing BigBed Files for {dataset_name.upper()} Dataset")
+        print(f"{'='*70}")
+        
+        # Load expected experiments from download plan
+        loader = DownloadPlanLoader(dataset_name)
+        all_tasks = loader.create_task_list()
+        
+        # Use provided data directory or default structure
+        if data_directory:
+            dataset_path = Path(data_directory)
+        else:
+            if dataset_name.lower() == 'eic':
+                dataset_path = self.base_path / "DATA_CANDI_EIC"
+            elif dataset_name.lower() == 'merged':
+                dataset_path = self.base_path / "DATA_CANDI_MERGED"
+            elif dataset_name.lower() == 'eic_test':
+                dataset_path = self.base_path / "DATA_CANDI_EIC_TEST"
+            elif dataset_name.lower() == 'merged_test':
+                dataset_path = self.base_path / "DATA_CANDI_MERGED_TEST"
+            else:
+                raise ValueError(f"Unknown dataset: {dataset_name}")
+        
+        # Find tasks with BigBed files that need reprocessing
+        tasks_to_reprocess = []
+        main_chrs = [f"chr{i}" for i in range(1, 23)] + ["chrX"]
+        
+        for task in all_tasks:
+            if not task.peaks_bigbed_accession:
+                continue
+            
+            exp_path = dataset_path / task.celltype / task.assay
+            if not exp_path.exists():
+                continue
+            
+            peaks_path = exp_path / f"peaks_res{self.resolution}"
+            
+            # Check if reprocessing is needed
+            needs_reprocessing = False
+            
+            if force:
+                needs_reprocessing = True
+            elif not peaks_path.exists():
+                needs_reprocessing = True
+            else:
+                # Check if peaks directory is incomplete
+                missing_chrs = []
+                for chr_name in main_chrs:
+                    chr_file = peaks_path / f"{chr_name}.npz"
+                    if not chr_file.exists():
+                        missing_chrs.append(chr_name)
+                
+                if missing_chrs:
+                    needs_reprocessing = True
+                    logger.info(f"Found incomplete peaks for {task.task_id}: missing {len(missing_chrs)} chromosomes")
+            
+            if needs_reprocessing:
+                tasks_to_reprocess.append(task)
+        
+        print(f"\nFound {len(tasks_to_reprocess)} BigBed files to reprocess")
+        
+        if not tasks_to_reprocess:
+            print("No BigBed files need reprocessing")
+            return {
+                'total_found': 0,
+                'successful': 0,
+                'failed': 0,
+                'failed_tasks': []
+            }
+        
+        # Set default max_workers if not specified
+        if max_workers is None:
+            max_workers = 8
+        
+        # Process tasks
+        download_manager = CANDIDownloadManager(
+            base_path=str(dataset_path),
+            resolution=self.resolution
+        )
+        
+        results = {
+            'total_found': len(tasks_to_reprocess),
+            'successful': 0,
+            'failed': 0,
+            'failed_tasks': []
+        }
+        
+        def reprocess_single_bigbed(task: Task) -> Tuple[Task, bool, str]:
+            """Reprocess a single BigBed file, trying alternatives if primary fails."""
+            exp_path = os.path.join(str(dataset_path), task.celltype, task.assay)
+            peaks_path = os.path.join(exp_path, f"peaks_res{self.resolution}")
+            
+            # Remove existing peaks directory if it exists
+            if os.path.exists(peaks_path):
+                import shutil
+                shutil.rmtree(peaks_path)
+                logger.info(f"Removed existing peaks directory for {task.task_id}")
+            
+            # Prepare BigBed options to try (primary + alternatives)
+            bigbed_options = []
+            
+            # Add primary BigBed
+            primary_bigbed = task.peaks_bigbed_accession
+            bigbed_options.append({
+                'accession': primary_bigbed,
+                'is_primary': True,
+                'source': 'primary'
+            })
+            
+            # Try primary BigBed first
+            logger.info(f"🔄 [REPROCESS] Trying primary BigBed for {task.task_id}: {primary_bigbed}")
+            primary_failed = False
+            primary_error = None
+            
+            try:
+                success = download_manager._download_and_process_bigbed(task, exp_path)
+                if success:
+                    logger.info(f"✓ [REPROCESS] Primary BigBed succeeded for {task.task_id}")
+                    return task, True, "success_with_primary"
+                else:
+                    primary_failed = True
+                    primary_error = "processing_failed"
+            except Exception as e:
+                primary_failed = True
+                primary_error = str(e)
+                error_msg = str(e).lower()
+                logger.warning(f"⚠️ [REPROCESS] Primary BigBed failed for {task.task_id}: {e}")
+            
+            # If primary failed, search for alternatives
+            if primary_failed:
+                logger.info(f"🔍 [REPROCESS] Primary BigBed failed, searching for alternatives...")
+                
+                # Find alternative BigBed files
+                alternatives = self.find_alternative_bigbed_files(
+                    exp_accession=task.exp_accession,
+                    biosample_accession=task.bios_accession,
+                    current_bigbed_accession=primary_bigbed
+                )
+                
+                if alternatives:
+                    logger.info(f"✓ [REPROCESS] Found {len(alternatives)} alternative BigBed files")
+                    for alt in alternatives:
+                        bigbed_options.append({
+                            'accession': alt['accession'],
+                            'is_primary': False,
+                            'source': f"alternative ({alt['output_type']})"
+                        })
+                else:
+                    logger.warning(f"❌ [REPROCESS] No alternative BigBed files found for {task.task_id}")
+                    return task, False, f"primary_failed_no_alternatives: {primary_error}"
+            
+            # Try alternatives if primary failed
+            for option_idx, bigbed_option in enumerate(bigbed_options[1:], start=1):  # Skip primary (already tried)
+                alt_accession = bigbed_option['accession']
+                logger.info(f"🔄 [REPROCESS] Trying alternative {option_idx}/{len(bigbed_options)-1} for {task.task_id}: {alt_accession}")
+                
+                # Temporarily update task's BigBed accession
+                original_accession = task.peaks_bigbed_accession
+                task.peaks_bigbed_accession = alt_accession
+                
+                try:
+                    # Remove peaks directory again before trying alternative
+                    if os.path.exists(peaks_path):
+                        import shutil
+                        shutil.rmtree(peaks_path)
+                    
+                    success = download_manager._download_and_process_bigbed(task, exp_path)
+                    
+                    if success:
+                        logger.info(f"✓ [REPROCESS] Alternative BigBed {alt_accession} succeeded for {task.task_id}")
+                        # Update metadata to reflect the alternative BigBed used
+                        metadata_file = os.path.join(exp_path, "file_metadata.json")
+                        if os.path.exists(metadata_file):
+                            try:
+                                import json
+                                with open(metadata_file, 'r') as f:
+                                    metadata = json.load(f)
+                                # Add note about alternative BigBed used
+                                if 'notes' not in metadata:
+                                    metadata['notes'] = {}
+                                metadata['notes']['alternative_bigbed_used'] = alt_accession
+                                metadata['notes']['original_bigbed'] = original_accession
+                                metadata['notes']['alternative_reason'] = 'primary_file_corrupted'
+                                with open(metadata_file, 'w') as f:
+                                    json.dump(metadata, f, indent=2)
+                            except Exception as meta_e:
+                                logger.warning(f"Failed to update metadata: {meta_e}")
+                        
+                        return task, True, f"success_with_alternative_{option_idx}_{alt_accession}"
+                    else:
+                        logger.warning(f"⚠️ [REPROCESS] Alternative BigBed {alt_accession} failed for {task.task_id}")
+                
+                except Exception as alt_e:
+                    logger.warning(f"⚠️ [REPROCESS] Alternative BigBed {alt_accession} failed with exception: {alt_e}")
+                
+                finally:
+                    # Restore original accession
+                    task.peaks_bigbed_accession = original_accession
+            
+            # All options failed
+            logger.error(f"❌ [REPROCESS] All BigBed options failed for {task.task_id}")
+            return task, False, f"all_options_failed (tried {len(bigbed_options)} options)"
+        
+        # Process in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(reprocess_single_bigbed, task): task for task in tasks_to_reprocess}
+            
+            if HAS_TQDM:
+                with tqdm(total=len(tasks_to_reprocess), desc="Reprocessing BigBed files") as pbar:
+                    for future in as_completed(futures):
+                        task, success, message = future.result()
+                        
+                        if success:
+                            results['successful'] += 1
+                            pbar.set_postfix({"Status": "Success"})
+                        else:
+                            results['failed'] += 1
+                            results['failed_tasks'].append({
+                                'task_id': task.task_id,
+                                'biosample': task.celltype,
+                                'assay': task.assay,
+                                'error': message
+                            })
+                            pbar.set_postfix({"Status": "Failed"})
+                        
+                        pbar.update(1)
+            else:
+                completed = 0
+                for future in as_completed(futures):
+                    task, success, message = future.result()
+                    completed += 1
+                    
+                    if success:
+                        results['successful'] += 1
+                    else:
+                        results['failed'] += 1
+                        results['failed_tasks'].append({
+                            'task_id': task.task_id,
+                            'biosample': task.celltype,
+                            'assay': task.assay,
+                            'error': message
+                        })
+                    
+                    if completed % 5 == 0 or completed == len(tasks_to_reprocess):
+                        print(f"Progress: {completed}/{len(tasks_to_reprocess)} ({completed/len(tasks_to_reprocess)*100:.1f}%)")
+        
+        # Print summary
+        print(f"\n{'='*70}")
+        print(f"BIGBED REPROCESSING SUMMARY")
+        print(f"{'='*70}")
+        print(f"Total found: {results['total_found']}")
+        print(f"Successfully reprocessed: {results['successful']}")
+        print(f"Failed: {results['failed']}")
+        
+        if results['failed'] > 0:
+            print(f"\nFailed tasks:")
+            for failed_task in results['failed_tasks'][:10]:
+                print(f"  - {failed_task['task_id']}: {failed_task['error']}")
+            if len(results['failed_tasks']) > 10:
+                print(f"  ... and {len(results['failed_tasks']) - 10} more")
+        
+        return results
+    
+    def get_missing_files_details(self, biosample: str, assay: str, dataset_path: Path, task: Task) -> Dict:
+        """
+        Get detailed information about what files are missing for an experiment.
+        
+        Args:
+            biosample: Biosample name
+            assay: Assay name
+            dataset_path: Path to dataset directory
+            task: Task object with file accessions
+            
+        Returns:
+            Dict with detailed missing file information
+        """
+        exp_path = dataset_path / biosample / assay
+        missing_details = {
+            'experiment_exists': exp_path.exists(),
+            'missing_directories': [],
+            'missing_chromosomes': {},
+            'missing_metadata': [],
+            'missing_raw_files': [],
+            'incomplete_signal_dirs': {}
+        }
+        
+        if not exp_path.exists():
+            missing_details['missing_directories'].append('experiment_directory')
+            return missing_details
+        
+        # Check file_metadata.json
+        metadata_file = exp_path / "file_metadata.json"
+        if not metadata_file.exists():
+            missing_details['missing_metadata'].append('file_metadata.json')
+        
+        # Special handling for RNA-seq
+        if assay == "RNA-seq":
+            if task.tsv_accession:
+                tsv_file = exp_path / f"{task.tsv_accession}.tsv"
+                if not tsv_file.exists():
+                    missing_details['missing_raw_files'].append(f"{task.tsv_accession}.tsv")
+            return missing_details
+        
+        # Check required signal directories
+        required_dsf = [1, 2, 4, 8]
+        main_chrs = [f"chr{i}" for i in range(1, 23)] + ["chrX"]
+        
+        for dsf in required_dsf:
+            signal_dir = f"signal_DSF{dsf}_res{self.resolution}"
+            signal_path = exp_path / signal_dir
+            
+            if not signal_path.exists():
+                missing_details['missing_directories'].append(signal_dir)
+            else:
+                # Check metadata.json in signal directory
+                signal_metadata = signal_path / "metadata.json"
+                if not signal_metadata.exists():
+                    missing_details['missing_metadata'].append(f"{signal_dir}/metadata.json")
+                
+                # Check chromosome files
+                missing_chrs = []
+                for chr_name in main_chrs:
+                    chr_file = signal_path / f"{chr_name}.npz"
+                    if not chr_file.exists():
+                        missing_chrs.append(chr_name)
+                
+                if missing_chrs:
+                    missing_details['missing_chromosomes'][signal_dir] = missing_chrs
+                    missing_details['incomplete_signal_dirs'][signal_dir] = {
+                        'missing_count': len(missing_chrs),
+                        'total_expected': len(main_chrs),
+                        'missing_chromosomes': missing_chrs
+                    }
+        
+        # Check BigWig signals if available
+        if task.signal_bigwig_accession:
+            bw_dir = f"signal_BW_res{self.resolution}"
+            bw_path = exp_path / bw_dir
+            
+            if not bw_path.exists():
+                missing_details['missing_directories'].append(bw_dir)
+            else:
+                missing_chrs = []
+                for chr_name in main_chrs:
+                    chr_file = bw_path / f"{chr_name}.npz"
+                    if not chr_file.exists():
+                        missing_chrs.append(chr_name)
+                
+                if missing_chrs:
+                    missing_details['missing_chromosomes'][bw_dir] = missing_chrs
+                    missing_details['incomplete_signal_dirs'][bw_dir] = {
+                        'missing_count': len(missing_chrs),
+                        'total_expected': len(main_chrs),
+                        'missing_chromosomes': missing_chrs
+                    }
+        
+        # Check peaks if available
+        if task.peaks_bigbed_accession:
+            peaks_dir = f"peaks_res{self.resolution}"
+            peaks_path = exp_path / peaks_dir
+            
+            if not peaks_path.exists():
+                missing_details['missing_directories'].append(peaks_dir)
+            else:
+                missing_chrs = []
+                for chr_name in main_chrs:
+                    chr_file = peaks_path / f"{chr_name}.npz"
+                    if not chr_file.exists():
+                        missing_chrs.append(chr_name)
+                
+                if missing_chrs:
+                    missing_details['missing_chromosomes'][peaks_dir] = missing_chrs
+                    missing_details['incomplete_signal_dirs'][peaks_dir] = {
+                        'missing_count': len(missing_chrs),
+                        'total_expected': len(main_chrs),
+                        'missing_chromosomes': missing_chrs
+                    }
+        
+        # Check raw files (BAM, BigWig, BigBed) - these might be cleaned up after processing
+        # but we'll note if they should exist based on task
+        if task.bam_accession:
+            bam_file = exp_path / f"{task.bam_accession}.bam"
+            if not bam_file.exists():
+                # BAM might be cleaned up after processing, so this is informational
+                missing_details['missing_raw_files'].append(f"{task.bam_accession}.bam (may be cleaned up)")
+        
+        if task.signal_bigwig_accession:
+            bw_file = exp_path / f"{task.signal_bigwig_accession}.bigWig"
+            if not bw_file.exists():
+                missing_details['missing_raw_files'].append(f"{task.signal_bigwig_accession}.bigWig (may be cleaned up)")
+        
+        if task.peaks_bigbed_accession:
+            bb_file = exp_path / f"{task.peaks_bigbed_accession}.bigBed"
+            if not bb_file.exists():
+                missing_details['missing_raw_files'].append(f"{task.peaks_bigbed_accession}.bigBed (may be cleaned up)")
+        
+        return missing_details
+    
+    def check_and_fix_biosample_completeness(self, dataset_name: str, data_directory: str = None, 
+                                            max_workers: int = None, fix_incomplete: bool = True) -> Dict:
+        """
+        Check biosample completeness and optionally fix incomplete biosamples.
+        
+        Args:
+            dataset_name: 'eic' or 'merged'
+            data_directory: Optional specific directory to validate
+            max_workers: Max parallel workers for processing
+            fix_incomplete: If True, download and process missing data for incomplete biosamples
+            
+        Returns:
+            Dict with biosample completeness analysis and fix results
+        """
+        logger = logging.getLogger(__name__)
+        
+        print(f"\n{'='*70}")
+        print(f"Checking Biosample Completeness for {dataset_name.upper()} Dataset")
+        print(f"{'='*70}")
+        
+        # Load expected experiments from download plan
+        loader = DownloadPlanLoader(dataset_name)
+        all_tasks = loader.create_task_list()
+        
+        # Use provided data directory or default structure
+        if data_directory:
+            dataset_path = Path(data_directory)
+        else:
+            if dataset_name.lower() == 'eic':
+                dataset_path = self.base_path / "DATA_CANDI_EIC"
+            elif dataset_name.lower() == 'merged':
+                dataset_path = self.base_path / "DATA_CANDI_MERGED"
+            elif dataset_name.lower() == 'eic_test':
+                dataset_path = self.base_path / "DATA_CANDI_EIC_TEST"
+            elif dataset_name.lower() == 'merged_test':
+                dataset_path = self.base_path / "DATA_CANDI_MERGED_TEST"
+            else:
+                raise ValueError(f"Unknown dataset: {dataset_name}")
+        
+        # Group tasks by biosample
+        biosample_tasks = defaultdict(list)
+        for task in all_tasks:
+            biosample_tasks[task.celltype].append(task)
+        
+        print(f"\nAnalyzing {len(biosample_tasks)} biosamples...")
+        
+        # Check completeness for each biosample
+        biosample_status = {}
+        incomplete_biosamples = []
+        
+        for biosample_name, tasks in biosample_tasks.items():
+            total_experiments = len(tasks)
+            complete_experiments = 0
+            missing_experiments = []
+            
+            for task in tasks:
+                is_complete = self.validate_experiment(task.celltype, task.assay, dataset_path)
+                if is_complete:
+                    complete_experiments += 1
+                else:
+                    # Get detailed missing file information
+                    missing_files = self.get_missing_files_details(
+                        task.celltype, task.assay, dataset_path, task
+                    )
+                    missing_experiments.append({
+                        'assay': task.assay,
+                        'task_id': task.task_id,
+                        'exp_accession': task.exp_accession,
+                        'missing_files': missing_files
+                    })
+            
+            completion_rate = (complete_experiments / total_experiments * 100) if total_experiments > 0 else 0
+            is_complete = completion_rate == 100.0
+            
+            biosample_status[biosample_name] = {
+                'total_experiments': total_experiments,
+                'complete_experiments': complete_experiments,
+                'missing_experiments': missing_experiments,
+                'completion_rate': completion_rate,
+                'is_complete': is_complete
+            }
+            
+            if not is_complete:
+                incomplete_biosamples.append(biosample_name)
+        
+        # Print summary
+        print(f"\n{'='*70}")
+        print(f"BIOSAMPLE COMPLETENESS SUMMARY")
+        print(f"{'='*70}")
+        print(f"Total biosamples: {len(biosample_tasks)}")
+        print(f"Complete biosamples: {len(biosample_tasks) - len(incomplete_biosamples)}")
+        print(f"Incomplete biosamples: {len(incomplete_biosamples)}")
+        
+        if incomplete_biosamples:
+            print(f"\n{'='*70}")
+            print(f"INCOMPLETE BIOSAMPLES WITH DETAILED FILE INFORMATION:")
+            print(f"{'='*70}")
+            for biosample_name in incomplete_biosamples:
+                status = biosample_status[biosample_name]
+                print(f"\n{biosample_name}:")
+                print(f"  Completion: {status['complete_experiments']}/{status['total_experiments']} ({status['completion_rate']:.1f}%)")
+                print(f"  Missing experiments ({len(status['missing_experiments'])}):")
+                
+                for missing_exp in status['missing_experiments']:
+                    print(f"\n    Experiment: {missing_exp['assay']} ({missing_exp['task_id']})")
+                    print(f"      Exp Accession: {missing_exp['exp_accession']}")
+                    
+                    missing_files = missing_exp.get('missing_files', {})
+                    
+                    # Show missing directories
+                    if missing_files.get('missing_directories'):
+                        print(f"      Missing Directories:")
+                        for dir_name in missing_files['missing_directories']:
+                            print(f"        - {dir_name}")
+                    
+                    # Show missing metadata files
+                    if missing_files.get('missing_metadata'):
+                        print(f"      Missing Metadata Files:")
+                        for meta_file in missing_files['missing_metadata']:
+                            print(f"        - {meta_file}")
+                    
+                    # Show incomplete signal directories with missing chromosomes
+                    if missing_files.get('incomplete_signal_dirs'):
+                        print(f"      Incomplete Signal Directories:")
+                        for signal_dir, details in missing_files['incomplete_signal_dirs'].items():
+                            missing_count = details['missing_count']
+                            total_expected = details['total_expected']
+                            missing_chrs = details['missing_chromosomes']
+                            print(f"        - {signal_dir}: {missing_count}/{total_expected} chromosomes missing")
+                            if missing_count <= 10:  # Show all if 10 or fewer
+                                print(f"          Missing: {', '.join(missing_chrs)}")
+                            else:  # Show first 10 if more
+                                print(f"          Missing: {', '.join(missing_chrs[:10])} ... and {missing_count - 10} more")
+                    
+                    # Show missing raw files (informational)
+                    if missing_files.get('missing_raw_files'):
+                        print(f"      Missing Raw Files (may be cleaned up after processing):")
+                        for raw_file in missing_files['missing_raw_files']:
+                            print(f"        - {raw_file}")
+                    
+                    # If experiment directory doesn't exist at all
+                    if not missing_files.get('experiment_exists', True):
+                        print(f"      ⚠️  Experiment directory does not exist")
+                    elif not missing_files.get('missing_directories') and not missing_files.get('incomplete_signal_dirs'):
+                        print(f"      ⚠️  Experiment directory exists but validation failed (check metadata)")
+        
+        # Fix incomplete biosamples if requested
+        fix_results = {
+            'total_incomplete': len(incomplete_biosamples),
+            'fixed': 0,
+            'failed': 0,
+            'fix_details': {}
+        }
+        
+        if fix_incomplete and incomplete_biosamples:
+            print(f"\n{'='*70}")
+            print(f"FIXING INCOMPLETE BIOSAMPLES")
+            print(f"{'='*70}")
+            print(f"Processing {len(incomplete_biosamples)} incomplete biosamples...")
+            
+            # Collect all missing tasks
+            missing_tasks = []
+            for biosample_name in incomplete_biosamples:
+                status = biosample_status[biosample_name]
+                for missing_exp in status['missing_experiments']:
+                    # Find the corresponding task
+                    for task in biosample_tasks[biosample_name]:
+                        if task.task_id == missing_exp['task_id']:
+                            missing_tasks.append(task)
+                            break
+            
+            print(f"Found {len(missing_tasks)} missing experiments to process")
+            
+            if missing_tasks:
+                # Set default max_workers if not specified
+                if max_workers is None:
+                    max_workers = 8
+                
+                # Process missing tasks
+                download_manager = CANDIDownloadManager(
+                    base_path=str(dataset_path),
+                    resolution=self.resolution
+                )
+                executor = ParallelTaskExecutor(download_manager, max_workers)
+                
+                print(f"Using {max_workers} parallel workers")
+                completed_tasks = executor.execute_tasks(missing_tasks, show_progress=True)
+                
+                # Analyze results by biosample
+                for biosample_name in incomplete_biosamples:
+                    biosample_missing_tasks = [t for t in missing_tasks if t.celltype == biosample_name]
+                    biosample_completed = [t for t in completed_tasks if t.celltype == biosample_name]
+                    
+                    successful = len([t for t in biosample_completed if t.status == TaskStatus.COMPLETED])
+                    failed = len([t for t in biosample_completed if t.status == TaskStatus.FAILED])
+                    
+                    fix_results['fix_details'][biosample_name] = {
+                        'attempted': len(biosample_missing_tasks),
+                        'successful': successful,
+                        'failed': failed
+                    }
+                    
+                    fix_results['fixed'] += successful
+                    fix_results['failed'] += failed
+                    
+                    # Re-check completeness
+                    status = biosample_status[biosample_name]
+                    new_complete = 0
+                    for task in biosample_tasks[biosample_name]:
+                        if self.validate_experiment(task.celltype, task.assay, dataset_path):
+                            new_complete += 1
+                    
+                    new_completion_rate = (new_complete / status['total_experiments'] * 100) if status['total_experiments'] > 0 else 0
+                    status['complete_experiments'] = new_complete
+                    status['completion_rate'] = new_completion_rate
+                    status['is_complete'] = new_completion_rate == 100.0
+                
+                # Print fix summary
+                print(f"\n{'='*70}")
+                print(f"FIX SUMMARY")
+                print(f"{'='*70}")
+                print(f"Total experiments processed: {len(missing_tasks)}")
+                print(f"Successfully fixed: {fix_results['fixed']}")
+                print(f"Failed: {fix_results['failed']}")
+                
+                if fix_results['failed'] > 0:
+                    print(f"\nFailed experiments:")
+                    for task in completed_tasks:
+                        if task.status == TaskStatus.FAILED:
+                            print(f"  - {task.task_id}: {task.error_message}")
+        
+        # Final summary
+        still_incomplete = [bs for bs in incomplete_biosamples if not biosample_status[bs]['is_complete']]
+        
+        print(f"\n{'='*70}")
+        print(f"FINAL SUMMARY")
+        print(f"{'='*70}")
+        print(f"Complete biosamples: {len(biosample_tasks) - len(still_incomplete)}/{len(biosample_tasks)}")
+        print(f"Still incomplete: {len(still_incomplete)}")
+        
+        if still_incomplete:
+            print(f"\nBiosamples still incomplete:")
+            for biosample_name in still_incomplete:
+                status = biosample_status[biosample_name]
+                print(f"  - {biosample_name}: {status['complete_experiments']}/{status['total_experiments']} ({status['completion_rate']:.1f}%)")
+        
+        return {
+            'biosample_status': dict(biosample_status),
+            'incomplete_biosamples': incomplete_biosamples,
+            'still_incomplete': still_incomplete,
+            'fix_results': fix_results
+        }
 
 class EnhancedCANDIDownloadManager(CANDIDownloadManager):
     """Enhanced download manager with improved error handling for retry scenarios."""
@@ -3892,6 +4669,8 @@ Commands:
   retry           Retry failed experiments
   run-complete    Run complete dataset processing with detailed logging
   add-controls    Add control experiments to existing dataset
+  check-biosamples Check biosample completeness and fix incomplete biosamples
+  reprocess-bigbed Redownload and reprocess problematic BigBed files
 
 Examples:
   # Process datasets
@@ -3917,6 +4696,16 @@ Examples:
   # Identify missing controls without processing
   python get_candi_data.py add-controls eic /path/to/DATA_CANDI_EIC --identify-only
   python get_candi_data.py add-controls merged /path/to/DATA_CANDI_MERGED --identify-only
+  
+  # Check and fix biosample completeness
+  python get_candi_data.py check-biosamples eic /path/to/DATA_CANDI_EIC
+  python get_candi_data.py check-biosamples merged /path/to/DATA_CANDI_MERGED --max-workers 12
+  python get_candi_data.py check-biosamples eic /path/to/DATA_CANDI_EIC --check-only
+  
+  # Reprocess problematic BigBed files
+  python get_candi_data.py reprocess-bigbed eic /path/to/DATA_CANDI_EIC
+  python get_candi_data.py reprocess-bigbed merged /path/to/DATA_CANDI_MERGED --max-workers 12
+  python get_candi_data.py reprocess-bigbed eic /path/to/DATA_CANDI_EIC --force
         """
     )
     
@@ -3990,6 +4779,22 @@ Examples:
     add_controls_parser.add_argument('--max-workers', default=8, type=int, help='Max parallel workers (default: 8)')
     add_controls_parser.add_argument('--identify-only', action='store_true', help='Only identify missing controls without processing them')
     
+    # Check and fix biosamples command
+    check_biosamples_parser = subparsers.add_parser('check-biosamples', help='Check biosample completeness and fix incomplete biosamples')
+    check_biosamples_parser.add_argument('dataset', choices=['eic', 'merged', 'eic_test', 'merged_test'], help='Dataset type')
+    check_biosamples_parser.add_argument('directory', help='Data directory (path to existing dataset)')
+    check_biosamples_parser.add_argument('--resolution', default=25, type=int, help='Resolution in bp (default: 25)')
+    check_biosamples_parser.add_argument('--max-workers', default=8, type=int, help='Max parallel workers (default: 8)')
+    check_biosamples_parser.add_argument('--check-only', action='store_true', help='Only check completeness without fixing')
+    
+    # Reprocess BigBed command
+    reprocess_bigbed_parser = subparsers.add_parser('reprocess-bigbed', help='Redownload and reprocess problematic BigBed files')
+    reprocess_bigbed_parser.add_argument('dataset', choices=['eic', 'merged', 'eic_test', 'merged_test'], help='Dataset type')
+    reprocess_bigbed_parser.add_argument('directory', help='Data directory (path to existing dataset)')
+    reprocess_bigbed_parser.add_argument('--resolution', default=25, type=int, help='Resolution in bp (default: 25)')
+    reprocess_bigbed_parser.add_argument('--max-workers', default=8, type=int, help='Max parallel workers (default: 8)')
+    reprocess_bigbed_parser.add_argument('--force', action='store_true', help='Force reprocessing even if peaks directory exists')
+    
     # Global options
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
     
@@ -4026,6 +4831,10 @@ Examples:
             _handle_export_metadata_command(args)
         elif args.command == 'add-controls':
             _handle_add_controls_command(args)
+        elif args.command == 'check-biosamples':
+            _handle_check_biosamples_command(args)
+        elif args.command == 'reprocess-bigbed':
+            _handle_reprocess_bigbed_command(args)
         else:
             print(f"Unknown command: {args.command}")
             sys.exit(1)
@@ -4454,6 +5263,74 @@ def _handle_add_controls_command(args):
     if 'controls_failed' in stats and stats['controls_failed'] > 0:
         sys.exit(1)  # Indicate partial failure
     else:
+        sys.exit(0)  # Success
+
+
+def _handle_check_biosamples_command(args):
+    """Handle the check-biosamples command."""
+    directory = os.path.abspath(args.directory)
+    
+    if args.check_only:
+        print(f"\n=== Checking Biosample Completeness for {args.dataset.upper()} Dataset ===")
+    else:
+        print(f"\n=== Checking and Fixing Biosample Completeness for {args.dataset.upper()} Dataset ===")
+    print(f"Directory: {directory}")
+    print(f"Resolution: {args.resolution}bp")
+    
+    # Setup verbose logging if requested
+    if hasattr(args, 'verbose') and args.verbose:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Initialize validator
+    validator = CANDIDatasetValidator(directory, args.resolution)
+    
+    # Check and fix biosample completeness
+    results = validator.check_and_fix_biosample_completeness(
+        dataset_name=args.dataset,
+        data_directory=directory,
+        max_workers=args.max_workers,
+        fix_incomplete=not args.check_only
+    )
+    
+    # Exit with appropriate code
+    if results['still_incomplete']:
+        print(f"\n⚠️  Warning: {len(results['still_incomplete'])} biosamples still incomplete")
+        sys.exit(1)  # Indicate partial failure
+    else:
+        print(f"\n✅ All biosamples are complete!")
+        sys.exit(0)  # Success
+
+
+def _handle_reprocess_bigbed_command(args):
+    """Handle the reprocess-bigbed command."""
+    directory = os.path.abspath(args.directory)
+    
+    print(f"\n=== Reprocessing BigBed Files for {args.dataset.upper()} Dataset ===")
+    print(f"Directory: {directory}")
+    print(f"Resolution: {args.resolution}bp")
+    print(f"Force reprocessing: {args.force}")
+    
+    # Setup verbose logging if requested
+    if hasattr(args, 'verbose') and args.verbose:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Initialize validator
+    validator = CANDIDatasetValidator(directory, args.resolution)
+    
+    # Reprocess BigBed files
+    results = validator.reprocess_bigbed_files(
+        dataset_name=args.dataset,
+        data_directory=directory,
+        max_workers=args.max_workers,
+        force=args.force
+    )
+    
+    # Exit with appropriate code
+    if results['failed'] > 0:
+        print(f"\n⚠️  Warning: {results['failed']} BigBed files failed to reprocess")
+        sys.exit(1)  # Indicate partial failure
+    else:
+        print(f"\n✅ All BigBed files reprocessed successfully!")
         sys.exit(0)  # Success
 
 

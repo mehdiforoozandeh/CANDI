@@ -1,6 +1,6 @@
 biosample_name,assay_name,bios_accession,exp_accession,file_accession,assembly,read_length,run_type,sequencing_platform,lab,depth
-T_brain_microvascular_endothelial_cell,DNase-seq,ENCBS304AAA,ENCSR000ENE,ENCFF788MPI,GRCh38,36,single-ended,Illumina Genome Analyzer IIx,"John Stamatoyannopoulos, UW",32279824.0
-T_brain_microvascular_endothelial_cell,H3K4me3,ENCBS304AAA,ENCSR000DTC,ENCFF775JHL,GRCh38,36,single-ended,Illumina Genome Analyzer,"John Stamatoyannopoulos, UW",15418716.0
+T_BMEC,DNase-seq,ENCBS304AAA,ENCSR000ENE,ENCFF788MPI,GRCh38,36,single-ended,Illumina Genome Analyzer IIx,"John Stamatoyannopoulos, UW",32279824.0
+T_BMEC,H3K4me3,ENCBS304AAA,ENCSR000DTC,ENCFF775JHL,GRCh38,36,single-ended,Illumina Genome Analyzer,"John Stamatoyannopoulos, UW",15418716.0
 T_H1-hESC,H3K4me1,ENCBS718AAA,ENCSR000ANA,ENCFF767MGL,GRCh38,36,single-ended,Illumina Genome Analyzer IIe,"Bradley Bernstein, Broad",15400331.0
 T_H1-hESC,H4K91ac,ENCBS984IPH,ENCSR858BOF,ENCFF156KJZ,GRCh38,30,single-ended,Illumina HiSeq 2000,"Bing Ren, UCSD",25160665.0
 T_H1-hESC,H2BK120ac,ENCBS534NMZ,ENCSR848DUN,ENCFF372FSW,GRCh38,30,single-ended,Illumina Genome Analyzer II,"Bing Ren, UCSD",17764043.0

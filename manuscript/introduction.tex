@@ -1,0 +1,24 @@
+% introduction.tex
+% CANDI: Confidence-Aware Neural Denoising Imputer for Epigenomic Data
+
+\section{Introduction}
+
+In recent years, the availability of large-scale functional genomic data such as histone modifications and DNA accessibility has provided unprecedented opportunities to understand the functional roles of diverse genomic loci. However, a major confounding factor is that measurements obtained using sequencing methods often suffer from various sources of noise, including batch effects, technical variability, and biological heterogeneity~\cite{zhang2008model, xiang2020s3norm, schreiber2023encode, shahraki2024robust, landt2012chip, teng2021characterizing}.
+
+A promising approach for addressing issues of noise is epigenome imputation. Epigenome imputation methods aim to predict the output of a functional genomics experiment. Due to the high cost and complexity of profiling every possible assay in all relevant cell and tissue types, researchers have turned to computational methods to predict missing data, including ChromImpute, Avocado, eDICE and others~\cite{ernst2015large, schreiber2020avocado, schreiber2023encode, durham2018predictd, hawkins2023getting}.
+
+Epigenome imputation methods were originally designed to predict unperformed assays, but researchers have shown that imputed data often has better properties than observed data, even when such observed data sets are available. By integrating patterns across experiments, cell types, and genomic loci, imputation models average out noise distilling consistent and biologically meaningful signals into less noisy predictions~\cite{ernst2015large}. Thus, researchers frequently apply imputation for denoising by re-imputing each assay before inputting the assay into downstream analysis.
+
+However, existing approaches for imputation-based denoising have significant limitations. Most significantly, all existing imputation methods operate on idealized processed signal (for example, fold enrichment over control). They assume that this processing removes all batch effects and results in an idealized ``signal strength.'' This issue jeopardized the recent ENCODE Imputation Challenge, which aimed to evaluate epigenome imputation methods comprehensively. Upon receiving entries from all participants, the organizers found that, due to subtle differences between the train and test sets, a simple baseline outperformed most of the entrants.
+
+Furthermore, to denoise a given experiment using current approaches, one must typically re-train the model without that particular experiment and then impute it \emph{de novo}. This usually would require re-training the underlying machine learning model; thus, the only existing method that can be applied for denoising in practice is ChromImpute, whose learning architecture allows this process to be performed without re-training. This existing strategy also entirely disregards the target assay, which could provide valuable information towards denoising.
+
+To address these issues, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a method for epigenome imputation that:
+\begin{enumerate}
+    \item Predicts raw counts, processed signal values, and peak locations while handling experiment-specific covariates such as sequencing depth, read length, etc.
+    \item Can (optionally) incorporate information from a low-quality existing experiment when predicting a target without retraining
+    \item Outputs calibrated measures of uncertainty for all prediction types
+\end{enumerate}
+
+This approach is enabled using self-supervised learning (SSL), a paradigm that capitalizes on large amounts of unlabeled data by corrupting and then reconstructing subsets of the input to learn without explicit labels. This strategy enables zero-shot imputation and denoising, allowing models to generalize to new cell types without retraining.
+
