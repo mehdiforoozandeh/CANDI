@@ -7,10 +7,10 @@ multipanel figure visualizing training metrics with scatter plots sized by
 num_mask and smooth trend lines.
 
 Usage:
-    python viz_training_progress.py <csv_file_path>
+    python eval_scripts/viz_training_progress.py --model-dir models/my_model/
 
-The script will save a PNG file with the same name as the input CSV file
-(but with .png extension instead of .csv).
+The script will auto-detect training_progress_*.csv files in the model directory
+and save output to model_dir/viz/training_progress.png.
 """
 
 import argparse
@@ -45,7 +45,7 @@ def load_and_prepare_data(csv_path):
     
     # Check required columns
     required_columns = [
-        'epoch', 'batch_idx', 'learning_rate', 'gradient_norm', 'num_mask',
+        'epoch', 'batch_idx', 'learning_rate', 'gradient_norm',
         'imp_count_loss', 'obs_count_loss', 'imp_pval_loss', 'obs_pval_loss',
         'imp_peak_loss', 'obs_peak_loss', 'total_loss',
         'imp_count_r2_median', 'imp_count_spearman_median', 'imp_count_pearson_median',
@@ -130,31 +130,16 @@ def plot_metric_subplot(ax, df, metric_name, title, color='blue'):
     # Get data
     x = df['iteration'].values
     y = df[metric_name].values
-    sizes = df['num_mask'].values
     
     # Remove NaN values
-    mask = ~(np.isnan(x) | np.isnan(y) | np.isnan(sizes))
+    mask = ~(np.isnan(x) | np.isnan(y))
     x_clean = x[mask]
     y_clean = y[mask]
-    sizes_clean = sizes[mask]
     
     if len(x_clean) == 0:
         ax.text(0.5, 0.5, 'No data', ha='center', va='center', transform=ax.transAxes)
         ax.set_title(title)
         return
-    
-    # Normalize sizes for scatter plot (range 10-100)
-    if len(sizes_clean) > 0:
-        size_min, size_max = sizes_clean.min(), sizes_clean.max()
-        if size_max > size_min:
-            sizes_normalized = 10 + 90 * (sizes_clean - size_min) / (size_max - size_min)
-        else:
-            sizes_normalized = np.full_like(sizes_clean, 50)
-    else:
-        sizes_normalized = np.full_like(x_clean, 50)
-    
-    # Plot scatter points with very transparent black
-    # ax.scatter(x_clean, y_clean, s=sizes_normalized, alpha=0.01, c='black', edgecolors='none')
     
     # Create and plot exponential moving average trend line with color based on metric_name
     x_trend, y_trend = create_exponential_moving_average(x_clean, y_clean, alpha=0.005)
@@ -285,37 +270,55 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python viz_training_progress.py training_progress.csv
-    python viz_training_progress.py /path/to/training_progress_20251019_152903.csv
+    python eval_scripts/viz_training_progress.py --model-dir models/my_model/
+    python eval_scripts/viz_training_progress.py --model-dir models/my_model/ --output custom_output.png
         """
     )
     
     parser.add_argument(
-        'csv_file',
+        '--model-dir',
         type=str,
-        help='Path to the training progress CSV file'
+        required=True,
+        help='Path to model directory containing training_progress_*.csv file'
     )
     
     parser.add_argument(
         '--output',
         type=str,
         default=None,
-        help='Output PNG file path (default: same as input but with .png extension)'
+        help='Output PNG file path (default: model_dir/viz/training_progress.png)'
     )
     
     args = parser.parse_args()
     
-    # Validate input file
-    csv_path = Path(args.csv_file)
-    if not csv_path.exists():
-        print(f"Error: CSV file does not exist: {csv_path}")
+    # Validate model directory
+    model_dir = Path(args.model_dir)
+    if not model_dir.exists():
+        print(f"Error: Model directory does not exist: {model_dir}")
         sys.exit(1)
+    
+    # Auto-detect training progress CSV file
+    csv_pattern = model_dir / "training_progress_*.csv"
+    csv_files = list(model_dir.glob("training_progress_*.csv"))
+    
+    if not csv_files:
+        print(f"Error: No training_progress_*.csv file found in {model_dir}")
+        sys.exit(1)
+    
+    # If multiple files, use the most recent one (by modification time)
+    if len(csv_files) > 1:
+        csv_path = max(csv_files, key=lambda p: p.stat().st_mtime)
+        print(f"Found {len(csv_files)} training progress files, using most recent: {csv_path.name}")
+    else:
+        csv_path = csv_files[0]
     
     # Determine output path
     if args.output:
-        output_path = args.output
+        output_path = Path(args.output)
     else:
-        output_path = csv_path.with_suffix('.png')
+        viz_dir = model_dir / "viz"
+        viz_dir.mkdir(exist_ok=True)
+        output_path = viz_dir / "training_progress.png"
     
     print(f"Input CSV: {csv_path}")
     print(f"Output PNG: {output_path}")
@@ -331,3 +334,4 @@ Examples:
 
 if __name__ == "__main__":
     main()
+

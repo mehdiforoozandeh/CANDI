@@ -1,0 +1,78 @@
+% results.tex
+% CANDI: Confidence-Aware Neural Denoising Imputer for Epigenomic Data
+
+\section{Results and Discussion}
+
+\subsection{Self-supervised, confidence-aware denoising imputation of genomic data}
+
+We propose CANDI, a method for epigenome imputation.
+
+Briefly, CANDI works as follows (Methods): For a given 30kb locus, CANDI takes as input:
+\begin{enumerate}
+    \item Observed epigenomic data sets (read counts) for the locus in the target sample along with ChIP-seq control signal
+    \item Four experimental covariates for each observed assay (sequencing depth, read length, run type, sequencing platform)
+    \item The DNA sequence of the locus
+\end{enumerate}
+
+It also takes as input the experimental covariates of the desired outputs.
+
+CANDI outputs predicted epigenomic data sets for the given locus and sample in three formats:
+\begin{enumerate}
+    \item \textbf{Raw read counts} as a negative binomial distribution per genomic position per assay
+    \item \textbf{Continuous signal} in $\operatorname{arcsinh}\left(\text{signal p-value}\right)$ units as a Gaussian distribution per genomic position per assay
+    \item \textbf{Peak calls} as binary classification probabilities per genomic position per assay
+\end{enumerate}
+
+All outputs are given in the form of probability distributions, enabling calibrated uncertainty quantification.
+
+CANDI consists of a neural network model that includes convolutional, Transformer and deconvolutional layers with per-layer metadata cross-attention (Methods). We trained CANDI using a self-supervised learning approach by optimizing three complementary objectives:
+\begin{enumerate}
+    \item \textbf{Full assay masking}: We masked entire assays and asked CANDI to predict these masked assays from remaining available ones (mimicking imputation)
+    \item \textbf{Full loci masking}: We masked the same genomic positions across all assays and asked CANDI to predict these masked positions (mimicking language modeling)
+    \item \textbf{Denoising via downsampling}: We simulated low-quality data by downsampling reads from training tracks and asked CANDI to predict the original high-depth data from low-quality observations (mimicking denoising)
+\end{enumerate}
+
+\begin{figure}[!ht]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/schematic_workflow.png}
+    \caption{\textbf{CANDI architecture overview.} (A) Input data organization showing the three-dimensional structure of epigenomic data across assays, genomic positions, and cell types. (B) Model architecture consisting of encoder and decoder components. The encoder processes DNA sequence and epigenomic count data through parallel Conv1D towers with per-layer metadata cross-attention, integrates experimental covariate information, and generates a latent representation using a transformer encoder with rotary positional embeddings. Three separate decoders predict count data (negative binomial parameters), signal values (Gaussian parameters), and peak locations (binary classification) for each assay and position. (C) Detailed architecture of key model components including Conv1D towers, transformer encoder blocks, metadata cross-attention, and distribution output layers.}
+    \label{fig:architecture}
+\end{figure}
+
+
+\subsection{CANDI accurately imputes missing epigenetic signals}
+
+We evaluated CANDI's imputation performance against top performers from the ENCODE Imputation Challenge (EIC). Despite being significantly more parameter-efficient ($\sim$42 million parameters compared to billions in models like Avocado) and cell-type agnostic, CANDI achieves competitive performance. Unlike previous approaches that rely on learning specific cell-type embeddings---limiting their applicability to unseen cell types---CANDI utilizes experiment-specific metadata (covariates), enabling zero-shot generalization to new biological contexts without retraining.
+
+In terms of global genome-wide correlation, CANDI significantly outperforms all EIC competitors in Spearman correlation across most assays. However, it underperforms in Pearson correlation. This discrepancy highlights a key characteristic of the model: while CANDI is highly effective at recovering the correct rank-ordering and structural patterns of epigenomic signals (high Spearman), it tends to underestimate the absolute magnitude of high-signal regions (lower Pearson). This is evident in the scatter density plots, where predicted values in $\text{arcsinh}$ space show strong monotonic correlation with observations but a compressed dynamic range. Comparing against the `QNorm' and `Reprocessed' baselines of the EIC, which attempt to correct for train-test covariate shifts, further confirms that CANDI's structural imputation is state-of-the-art, even if signal magnitude scaling remains a challenge.
+
+Beyond correlation, we assessed prediction quality using peak classification metrics. CANDI demonstrates exceptional performance in distinguishing signal from background, achieving near-perfect AUROC ($\sim$1.0) for marks like H3K4me3, even where Pearson correlation was moderate ($\sim$0.35). This suggests that while exact signal values may be compressed, the biological signal-to-noise ratio is preserved, allowing for accurate peak calling.
+
+
+\subsection{CANDI provides calibrated aleatoric uncertainty estimates}
+
+A core innovation of CANDI is its ability to output probability distributions rather than point estimates, providing a measure of aleatoric uncertainty. Specifically, it captures aleatoric uncertainty, the uncertainty caused inherent randomness in experimental data generation caused by biological variation, technical noise, and experimental biases.  Standard evaluation metrics like MSE or Pearson correlation collapse these distributions into their means, discarding valuable information about what the model ``knows it doesn't know.'' For each prediction, CANDI generates confidence intervals around the median value which allows for soft prediction of observed signals i.e. even if the expected value of the predicted distribution does not exactly match the observed value, it falls within the predicted confidence interval (Fig 3A, B)
+
+We evaluated the fidelity of these uncertainty estimates using confidence calibration curves. A perfectly calibrated model would show a 1:1 relationship between the predicted confidence interval (e.g., 95\%) and the empirical coverage (the fraction of observed data points falling within that interval). We observed that calibration varies by assay type; chromatin accessibility assays (like DNase-seq) generally show better calibration than histone modifications. Typically, the model tends to be overconfident at lower confidence intervals ($<0.5$) but becomes more reliable or even conservative at practically relevant intervals (0.9--0.95).
+
+    To further quantify the quality of these distributions, we utilized the Concordance Index (C-index), which evaluates whether the predicted distributions correctly rank-order the data while accounting for uncertainty. Genome-wide C-index scores were generally high. While H3K4me3 showed a lower genome-wide C-index ($\sim$0.6), its performance rose to $\sim$0.83 in promoter regions, where the mark is biologically relevant.
+
+    Visualizing the predicted Coefficient of Variation ($\text{CV} = \sigma/\mu$) reveals that CANDI assigns higher uncertainty to regions where it predicts low signal but the ground truth might be high. In these ``missed'' regions, the model effectively flags its own potential error by outputting high variance, a capability absent in deterministic MSE-trained models.
+
+
+\subsection{CANDI latent space and imputed signals predict gene expression}
+
+To validate the biological utility of CANDI's predictions, we assessed whether they could predict gene expression levels (RNA-seq $\log(\text{TPM} + 1)$ units) better than raw data. We extracted features from transcription start site (TSS), gene body, and transcription end site (TES) using four sources: (1) Observed signals (available assays only), (2) Denoised signals (available assays), (3) Denoised + Imputed signals (all 35 assays), and (4) CANDI's Latent Embeddings ($\mathbf{Z}$).
+
+Our results show that denoised signals marginally outperform raw observed signals, indicating that CANDI successfully removes noise while preserving regulatory information. More importantly, the full set of 35 denoised and imputed assays outperforms the subset of available denoised assays, confirming that the imputation process adds meaningful regulatory context missing from the sparse input. Most strikingly, the best predictive performance was achieved using CANDI's latent embeddings ($\mathbf{Z}$). This suggests that the latent space encodes rich, biologically relevant information---possibly higher-order regulatory logic or chromatin states---that is not fully captured when decoded back into low-dimensional signal tracks. 
+
+Furthermore, while the predictive power of observed and denoised signals depends heavily on the number of available input assays, the performance of the Imputed+Denoised and Latent settings is remarkably robust to input sparsity, demonstrating CANDI's ability to compensate for missing data.
+
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.65\textwidth]{Figures/featimp.png}
+%     \caption{Input assay importance analysis for CANDI’s imputation performance: The heatmap shows genome-wide Pearson correlation coefficients (PCC) between predicted and actual read counts across different input configurations. The vertical axis represents three input scenarios: single assay inputs, accessibility assays (ATAC-seq + DNase-seq), and six core histone marks (H3K4me3, H3K4me1, H3K27ac, H3K27me3, H3K9me3, and H3K36me3). The horizontal axis indicates the target assays being imputed. Cells marked with an “X” represent cases where the target assay is included as an input. Beige cells indicate unavailable data. The color scale is normalized for each column, with the brightest cell representing the best predictor for the corresponding target assay.}
+    
+% \label{fig:featimp}
+% \end{figure}

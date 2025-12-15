@@ -15,6 +15,13 @@ import imageio.v2 as imageio
 from io import BytesIO
 from torchinfo import summary
 
+try:
+    from x_transformers import Encoder as XTransformerEncoder
+    XTRANSFORMERS_AVAILABLE = True
+except ImportError:
+    XTRANSFORMERS_AVAILABLE = False
+    XTransformerEncoder = None
+
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -856,12 +863,18 @@ class MONITOR_VALIDATION(object):
 ##=========================================== Loss Functions =============================================##
 
 class CANDI_LOSS(nn.Module):
-    def __init__(self, reduction='mean'):
+    def __init__(self, reduction='mean', count_weight=1.0, pval_weight=1.0, peak_weight=1.0, obs_weight=1.0, imp_weight=1.0):
         super(CANDI_LOSS, self).__init__()
         self.reduction = reduction
         self.gaus_nll = nn.GaussianNLLLoss(reduction=self.reduction, full=True)
         self.nbin_nll = negative_binomial_loss
         self.bce_loss = nn.BCELoss(reduction=self.reduction)
+        # Loss weights for multi-task learning
+        self.count_weight = count_weight
+        self.pval_weight = pval_weight
+        self.peak_weight = peak_weight
+        self.obs_weight = obs_weight
+        self.imp_weight = imp_weight
 
     def forward(self, p_pred, n_pred, mu_pred, var_pred, peak_pred, true_count, true_pval, true_peak, obs_map, masked_map):
         ups_true_count, ups_true_pval, ups_true_peak = true_count[obs_map], true_pval[obs_map], true_peak[obs_map]
@@ -895,56 +908,77 @@ class CANDI_LOSS(nn.Module):
             observed_peak_loss = self.bce_loss(ups_peak_pred.float(), ups_true_peak.float())
             imputed_peak_loss = self.bce_loss(imp_peak_pred.float(), imp_true_peak.float())
         
+        # Apply weights to losses for multi-task learning
+        # First apply task-specific weights (count, pval, peak)
+        observed_count_loss = self.count_weight * observed_count_loss
+        imputed_count_loss = self.count_weight * imputed_count_loss
+        observed_pval_loss = self.pval_weight * observed_pval_loss
+        imputed_pval_loss = self.pval_weight * imputed_pval_loss
+        observed_peak_loss = self.peak_weight * observed_peak_loss
+        imputed_peak_loss = self.peak_weight * imputed_peak_loss
+        
+        # Then apply obs/imp weights
+        observed_count_loss = self.obs_weight * observed_count_loss
+        observed_pval_loss = self.obs_weight * observed_pval_loss
+        observed_peak_loss = self.obs_weight * observed_peak_loss
+        imputed_count_loss = self.imp_weight * imputed_count_loss
+        imputed_pval_loss = self.imp_weight * imputed_pval_loss
+        imputed_peak_loss = self.imp_weight * imputed_peak_loss
+        
         return observed_count_loss, imputed_count_loss, observed_pval_loss, imputed_pval_loss, observed_peak_loss, imputed_peak_loss
 
 ##=========================================== CANDI Architecture =============================================##
 
 class CANDI_Decoder(nn.Module):
-    def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size=2, expansion_factor=3, num_sequencing_platforms=10, num_runtypes=4):
+    def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size=2, expansion_factor=3, num_sequencing_platforms=10, num_runtypes=2, norm="batch"):
         super(CANDI_Decoder, self).__init__()
 
         self.l1 = context_length
         self.l2 = self.l1 // (pool_size**n_cnn_layers)
         
-        self.f1 = signal_dim 
+        self.f1 = signal_dim
+        self.signal_dim = signal_dim
         self.f2 = (self.f1 * (expansion_factor**(n_cnn_layers)))
-        self.f3 = self.f2 + metadata_embedding_dim
         self.d_model =  self.latent_dim = self.f2
 
         conv_channels = [(self.f1)*(expansion_factor**l) for l in range(n_cnn_layers)]
         reverse_conv_channels = [expansion_factor * x for x in conv_channels[::-1]]
         conv_kernel_size = [conv_kernel_size for _ in range(n_cnn_layers)]
 
-        self.ymd_emb = EmbedMetadata(self.f1, metadata_embedding_dim, num_sequencing_platforms, num_runtypes, non_linearity=False)
-        self.ymd_fusion = nn.Sequential(
-            nn.Linear(self.f3, self.f2),
-            nn.LayerNorm(self.f2), 
-            )
-
         self.deconv = nn.ModuleList(
             [DeconvTower(
                 reverse_conv_channels[i], reverse_conv_channels[i + 1] if i + 1 < n_cnn_layers else int(reverse_conv_channels[i] / expansion_factor),
                 conv_kernel_size[-(i + 1)], S=pool_size, D=1, residuals=True,
-                groups=1, pool_size=pool_size) for i in range(n_cnn_layers)])
+                groups=self.f1, pool_size=pool_size, norm=norm) for i in range(n_cnn_layers)])
+        
+        # Per-layer cross-attention for Y-side metadata (after each deconv layer)
+        self.ymd_cross_attn_layers = nn.ModuleList([
+            MetadataCrossAttention(
+                latent_dim=reverse_conv_channels[i + 1] if i + 1 < n_cnn_layers else int(reverse_conv_channels[i] / expansion_factor),
+                num_heads=expansion_factor,
+                num_assays=signal_dim,
+                num_sequencing_platforms=num_sequencing_platforms,
+                num_runtypes=num_runtypes
+            ) for i in range(n_cnn_layers)
+        ])
     
     def forward(self, src, y_metadata):
-        ymd_embedding = self.ymd_emb(y_metadata)
-        src = torch.cat([src, ymd_embedding.unsqueeze(1).expand(-1, self.l2, -1)], dim=-1)
-        src = self.ymd_fusion(src)
-        
-        src = src.permute(0, 2, 1) # to N, F2, L'
-        for dconv in self.deconv:
+        # Apply deconv with per-layer metadata injection
+        src = src.permute(0, 2, 1)  # to N, F2, L'
+        for i, dconv in enumerate(self.deconv):
             src = dconv(src)
-
-        src = src.permute(0, 2, 1) # to N, L, F1
-
+            # Apply metadata cross-attention after each deconv layer
+            src = src.permute(0, 2, 1)  # to N, L', C
+            src = self.ymd_cross_attn_layers[i](y_metadata, src)
+            src = src.permute(0, 2, 1)  # back to N, C, L'
+        src = src.permute(0, 2, 1)  # final permute to N, L, F1
         return src    
 
 class CANDI_DNA_Encoder(nn.Module):
     def __init__(self, 
         signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead, n_sab_layers, pool_size=2, 
         dropout=0.1, context_length=1600, pos_enc="relative", expansion_factor=3, num_sequencing_platforms=10, 
-        num_runtypes=4):
+        num_runtypes=2, norm="batch", attention_type="dual"):
 
         super(CANDI_DNA_Encoder, self).__init__()
 
@@ -966,7 +1000,7 @@ class CANDI_DNA_Encoder(nn.Module):
                 DNA_conv_channels[i], DNA_conv_channels[i + 1],
                 DNA_kernel_size[i], S=1, D=1,
                 pool_type="max", residuals=True, SE=False,
-                groups=1, pool_size=5 if i >= n_cnn_layers else pool_size) for i in range(n_cnn_layers + 2)])
+                groups=1, pool_size=5 if i >= n_cnn_layers else pool_size, norm=norm) for i in range(n_cnn_layers + 2)])
 
         conv_channels = [(self.f1)*(expansion_factor**l) for l in range(n_cnn_layers)]
         reverse_conv_channels = [expansion_factor * x for x in conv_channels[::-1]]
@@ -978,17 +1012,47 @@ class CANDI_DNA_Encoder(nn.Module):
                 conv_kernel_size_list[i], S=1, D=1,
                 pool_type="avg", residuals=True,
                 groups=self.f1, SE=False,
-                pool_size=pool_size) for i in range(n_cnn_layers)])
+                pool_size=pool_size, norm=norm) for i in range(n_cnn_layers)])
         
-        self.xmd_emb = EmbedMetadata(self.f1, metadata_embedding_dim, num_sequencing_platforms, num_runtypes, non_linearity=False)
+        # Per-layer cross-attention for X-side metadata (after each conv layer)
+        self.xmd_cross_attn_layers = nn.ModuleList([
+            MetadataCrossAttention(
+                latent_dim=conv_channels[i + 1] if i + 1 < n_cnn_layers else expansion_factor * conv_channels[i],
+                num_heads=expansion_factor,
+                num_assays=signal_dim,
+                num_sequencing_platforms=num_sequencing_platforms,
+                num_runtypes=num_runtypes
+            ) for i in range(n_cnn_layers)
+        ])
 
         self.fusion = nn.Sequential(
-            nn.Linear((2*self.f2)+metadata_embedding_dim, self.f2), 
+            nn.Linear(2*self.f2, self.f2),  # Still 2*f2 (signal + DNA)
             nn.LayerNorm(self.f2))
 
-        self.transformer_encoder = nn.ModuleList([
-            DualAttentionEncoderBlock(self.f2, nhead, self.l2, dropout=dropout, 
-                max_distance=self.l2, pos_encoding_type="relative", max_len=self.l2
+        # Store attention type for reference
+        self.attention_type = attention_type
+
+        # Validate x-transformers availability if needed
+        if attention_type == "xtransformers" and not XTRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "x-transformers library is required for attention_type='xtransformers' but not installed. "
+                "Install it with: pip install x-transformers"
+            )
+
+        # Initialize transformer encoder based on attention type
+        if attention_type == "xtransformers":
+            self.transformer_encoder = nn.ModuleList([
+                XTransformerEncoderBlock(
+                    d_model=self.f2, 
+                    num_heads=nhead, 
+                    seq_length=self.l2, 
+                    dropout=dropout
+                ) for _ in range(n_sab_layers)])
+        else:  # "dual" or default
+            self.transformer_encoder = nn.ModuleList([
+                DualAttentionEncoderBlock(
+                    self.f2, nhead, self.l2, dropout=dropout, 
+                    max_distance=self.l2, pos_encoding_type=pos_enc, max_len=self.l2
                 ) for _ in range(n_sab_layers)])
 
     def forward(self, src, seq, x_metadata):
@@ -1003,18 +1067,20 @@ class CANDI_DNA_Encoder(nn.Module):
             seq = seq_conv(seq)
         seq = seq.permute(0, 2, 1)  # to N, L', F2
 
-        ### SIGNAL CONV ENCODER ###
+        ### SIGNAL CONV ENCODER WITH PER-LAYER METADATA INJECTION ###
         src = src.permute(0, 2, 1) # to N, F1, L
-        for conv in self.convEnc:
+        for i, conv in enumerate(self.convEnc):
             src = conv(src)
-        src = src.permute(0, 2, 1)  # to N, L', F2
+            # Apply metadata cross-attention after each conv layer
+            src = src.permute(0, 2, 1)  # to N, L', C
+            src = self.xmd_cross_attn_layers[i](x_metadata, src)
+            src = src.permute(0, 2, 1)  # back to N, C, L'
+        src = src.permute(0, 2, 1)  # final permute to N, L', F2
 
-        ### SIGNAL METADATA EMBEDDING ###
-        xmd_embedding = self.xmd_emb(x_metadata).unsqueeze(1).expand(-1, self.l2, -1)
+        ### CONCATENATE CORRECTED SIGNAL + DNA ###
+        src = torch.cat([src, seq], dim=-1)  # [N, L', 2*F2]
 
         ### FUSION ###
-        src = torch.cat([src, xmd_embedding, seq], dim=-1)
-
         src = self.fusion(src)
 
         ### TRANSFORMER ENCODER ###
@@ -1026,7 +1092,7 @@ class CANDI_DNA_Encoder(nn.Module):
 class CANDI(nn.Module):
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
         n_sab_layers, pool_size=2, dropout=0.1, context_length=1600, pos_enc="relative", 
-        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4):
+        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=2, norm="batch", attention_type="dual"):
         super(CANDI, self).__init__()
 
         self.pos_enc = pos_enc
@@ -1040,29 +1106,40 @@ class CANDI(nn.Module):
         self.d_model = self.latent_dim = self.f2
 
         self.encoder = CANDI_DNA_Encoder(signal_dim+1, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
-            n_sab_layers, pool_size, dropout, context_length, pos_enc, expansion_factor, num_sequencing_platforms, num_runtypes)
+            n_sab_layers, pool_size, dropout, context_length, pos_enc, expansion_factor, num_sequencing_platforms, num_runtypes, norm, attention_type=attention_type)
 
         self.latent_projection = nn.Linear(
             ((signal_dim+1) * (expansion_factor**(n_cnn_layers))), 
             signal_dim * (expansion_factor**(n_cnn_layers)) 
             )
-
         
         if self.separate_decoders:
-            self.count_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes)
-            self.pval_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes)
-            self.peak_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes)
+            self.count_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
+            self.pval_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
+            self.peak_decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
         else:
-            self.decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes)
+            self.decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
 
-        self.neg_binom_layer = NegativeBinomialLayer(self.f1, self.f1)
-        self.gaussian_layer = GaussianLayer(self.f1, self.f1)
-        self.peak_layer = PeakLayer(self.f1, self.f1)
+        self.neg_binom_layer = NegativeBinomialLayer(self.f1, self.f1, FF=False)
+        self.gaussian_layer = GaussianLayer(self.f1, self.f1, FF=False)
+        self.peak_layer = PeakLayer(self.f1, self.f1, FF=False)
     
-    def encode(self, src, seq, x_metadata):
-        """Encode input data into latent representation."""
+    def encode(self, src, seq, x_metadata, apply_arcsinh_transform=True):
+        """Encode input data into latent representation.
+        
+        Args:
+            src: Source data tensor
+            seq: Sequence data
+            x_metadata: Metadata tensor
+            apply_arcsinh_transform: If True, apply arcsinh transformation to non-missing values in src
+        """
         src = torch.where(src == -2, torch.tensor(-1, device=src.device), src)
         x_metadata = torch.where(x_metadata == -2, torch.tensor(-1, device=x_metadata.device), x_metadata)
+        
+        # Apply arcsinh transformation to non-missing values if requested
+        if apply_arcsinh_transform:
+            mask = src != -1
+            src = torch.where(mask, torch.arcsinh(src), src)
         
         z = self.encoder(src, seq, x_metadata)
         return z
@@ -1091,8 +1168,7 @@ class CANDI(nn.Module):
     def forward(self, src, seq, x_metadata, y_metadata, availability=None, return_z=False):
         z = self.encode(src, seq, x_metadata)
 
-        if self.latent_projection is not None:
-            z = self.latent_projection(z)      
+        z = self.latent_projection(z)
 
         p, n, mu, var, peak = self.decode(z, y_metadata)
         
@@ -1104,17 +1180,18 @@ class CANDI(nn.Module):
 class CANDI_UNET(CANDI):
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers,
                  nhead, n_sab_layers, pool_size=2, dropout=0.1, context_length=1600,
-                 pos_enc="relative", expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4):
+                 pos_enc="relative", expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4, norm="batch", attention_type="dual"):
         super(CANDI_UNET, self).__init__(signal_dim, metadata_embedding_dim,
                                           conv_kernel_size, n_cnn_layers,
                                           nhead, n_sab_layers,
                                           pool_size, dropout,
                                           context_length, pos_enc,
                                           expansion_factor,
-                                          separate_decoders, num_sequencing_platforms, num_runtypes)
+                                          separate_decoders, num_sequencing_platforms, num_runtypes, norm, attention_type)
 
     def _compute_skips(self, src):
-        # mask as in encode
+        # Compute skip connections from signal encoder only
+        # This mirrors what happens in encode() for the signal path
         src = torch.where(src == -2,
                           torch.tensor(-1, device=src.device), src)
         x = src.permute(0, 2, 1)  # (N, F1, L)
@@ -1125,19 +1202,17 @@ class CANDI_UNET(CANDI):
         return skips
 
     def _unet_decode(self, z, y_metadata, skips, decoder):
-        # mask metadata
-        y_metadata = torch.where(y_metadata == -2,
-                                 torch.tensor(-1, device=y_metadata.device),
-                                 y_metadata)
-        # embed and fuse metadata
-        ymd_emb = decoder.ymd_emb(y_metadata)
-        x = torch.cat([z, ymd_emb.unsqueeze(1).expand(-1, self.l2, -1)], dim=-1)
-        x = decoder.ymd_fusion(x)
-        x = x.permute(0, 2, 1)  # (N, C, L)
+        x = z.permute(0, 2, 1)  # (N, C, L)
 
-        # apply deconvs with UNet additions
+        # Apply deconvs with UNet skip connections
         for i, dconv in enumerate(decoder.deconv):
-            skip = skips[-(i + 1)]  # matching resolution
+            skip = skips[-(i + 1)]  # Get matching resolution skip from encoder
+            
+            # Handle dimension mismatch by taking first x.shape[-1] values (non-control assays)
+            if skip.shape[1] != x.shape[1]:
+                skip = skip[:, :x.shape[1], :]
+            
+            # Add skip connection before deconv
             x = x + skip
             x = dconv(x)
 
@@ -1145,29 +1220,34 @@ class CANDI_UNET(CANDI):
         return x
 
     def forward(self, src, seq, x_metadata, y_metadata, availability=None, return_z=False):
-        # compute skip features from signal branch
+        # Compute skip features from signal branch
         skips = self._compute_skips(src)
-        # standard encode (fuses seq + signal + metadata)
+        
+        # Standard encode (fuses seq + signal + metadata)
         z = self.encode(src, seq, x_metadata)
+
+        z = self.latent_projection(z)
 
         # UNet-style decode for counts
         if self.separate_decoders:
             count_decoded = self._unet_decode(z, y_metadata, skips, self.count_decoder)
         else:
             count_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
-        # Negative binomial parameters
         p, n = self.neg_binom_layer(count_decoded)
 
         # UNet-style decode for p-values
         if self.separate_decoders:
             pval_decoded = self._unet_decode(z, y_metadata, skips, self.pval_decoder)  
         else:
-            pval_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)  
-        # Gaussian parameters
+            pval_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
         mu, var = self.gaussian_layer(pval_decoded)
 
-        # Peak prediction using count decoder output
-        peak = self.peak_layer(count_decoded)
+        # UNet-style decode for peaks
+        if self.separate_decoders:
+            peak_decoded = self._unet_decode(z, y_metadata, skips, self.peak_decoder)
+        else:
+            peak_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
+        peak = self.peak_layer(peak_decoded)
 
         if return_z:
             return p, n, mu, var, peak, z
@@ -1177,6 +1257,192 @@ class CANDI_UNET(CANDI):
 #========================================================================================================#
 #===========================================Building Blocks==============================================#
 #========================================================================================================#
+
+# ---------------------------
+# Metadata Cross-Attention
+# ---------------------------
+class MetadataCrossAttention(nn.Module):
+    """
+    Per-assay cross-attention where each assay's metadata queries its own spatial features.
+    Includes rich per-field metadata embedding for better OOD robustness.
+    """
+    def __init__(self, latent_dim, num_heads=4, num_assays=35, 
+                 num_sequencing_platforms=10, num_runtypes=2):
+        super().__init__()
+        self.num_assays = num_assays
+        self.latent_dim = latent_dim
+        self.per_assay_dim = latent_dim // num_assays
+        self.num_sequencing_platforms = num_sequencing_platforms
+        self.num_runtypes = num_runtypes
+        
+        assert latent_dim % num_assays == 0, \
+            f"latent_dim {latent_dim} must be divisible by num_assays {num_assays}"
+        
+        # Adjust num_heads to be compatible with per_assay_dim
+        # Find largest divisor of per_assay_dim that is <= num_heads
+        valid_num_heads = num_heads
+        while self.per_assay_dim % valid_num_heads != 0 and valid_num_heads > 1:
+            valid_num_heads -= 1
+        self.num_heads = valid_num_heads
+        
+        # Rich metadata embedding per field
+        # Use max to ensure at least 1 dimension per field
+        # field_embed_dim = max(1, self.per_assay_dim // 4)
+        field_embed_dim = max(16, self.per_assay_dim)
+        self.field_embed_dim = field_embed_dim
+        
+        # Continuous features: depth and read_length
+        self.depth_proj = nn.Sequential(
+            nn.Linear(1, field_embed_dim),
+        )
+        
+        self.read_length_proj = nn.Sequential(
+            nn.Linear(1, field_embed_dim),
+        )
+        
+        # Categorical features: platform and runtype
+        # Add 1 extra token for missing/cloze (-1)
+        self.platform_embedding = nn.Embedding(
+            num_sequencing_platforms + 1,  # +1 for special token
+            field_embed_dim
+        )
+        
+        self.runtype_embedding = nn.Embedding(
+            num_runtypes + 1,  # +1 for special token
+            field_embed_dim
+        )
+        
+        # Final projection to query dimension
+        self.metadata_fusion = nn.Sequential(
+            nn.Linear(4 * field_embed_dim, self.per_assay_dim)
+            )
+        
+        # Multi-head cross-attention (batched over all assays)
+        self.cross_attn = nn.MultiheadAttention(
+            embed_dim=self.per_assay_dim,
+            num_heads=self.num_heads,
+            batch_first=True
+        )
+        
+        # FiLM-style conditioning: separate scale and shift projections
+        self.scale_proj = nn.Sequential(
+            nn.Linear(self.per_assay_dim, self.per_assay_dim),
+            nn.Tanh()  # Bounded scale to prevent instability
+        )
+        
+        self.shift_proj = nn.Sequential(
+            nn.Linear(self.per_assay_dim, self.per_assay_dim)
+        )
+        
+        # Feed-forward network (like in transformers) for richer non-linear processing
+        # Expands to 4x then projects back
+        ffn_hidden_dim = self.per_assay_dim * 4
+        self.ffn = nn.Sequential(
+            nn.Linear(self.per_assay_dim, ffn_hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(ffn_hidden_dim, self.per_assay_dim),
+            nn.Dropout(0.1)
+        )
+        self.ffn_norm = nn.LayerNorm(self.per_assay_dim)
+
+    def _embed_metadata(self, metadata):
+        """
+        Process and embed metadata fields.
+        
+        Args:
+            metadata: [B, 4, F] - metadata for F assays
+                      [depth, platform, read_length, runtype]
+        Returns:
+            metadata_queries: [B, F, per_assay_dim]
+        """
+        B, _, F = metadata.shape
+        
+        # Extract each metadata field
+        depth = metadata[:, 0, :].float()  # [B, F]
+        platform = metadata[:, 1, :].long()  # [B, F]
+        read_length = metadata[:, 2, :].float()  # [B, F]
+        runtype = metadata[:, 3, :].long()  # [B, F]
+        
+        # Handle special tokens for categorical features
+        # Map -1 (missing/cloze) -> num_classes
+        platform = torch.where(platform == -1, 
+                              torch.full_like(platform, self.num_sequencing_platforms),
+                              platform)
+        
+        runtype = torch.where(runtype == -1, 
+                             torch.full_like(runtype, self.num_runtypes),
+                             runtype)
+        
+        # Embed each field
+        # For continuous: clamp extreme values to prevent OOD issues
+        depth_clamped = depth.clamp(min=0.1, max=100.0)  # Reasonable depth range
+        read_length_clamped = read_length.clamp(min=10, max=15000)  # Reasonable read length range
+        
+        depth_embed = self.depth_proj(depth_clamped.unsqueeze(-1))  # [B, F, field_dim]
+        platform_embed = self.platform_embedding(platform)  # [B, F, field_dim]
+        read_length_embed = self.read_length_proj(read_length_clamped.unsqueeze(-1))  # [B, F, field_dim]
+        runtype_embed = self.runtype_embedding(runtype)  # [B, F, field_dim]
+        
+        # Concatenate and fuse
+        metadata_concat = torch.cat([
+            depth_embed, 
+            platform_embed, 
+            read_length_embed, 
+            runtype_embed
+        ], dim=-1)  # [B, F, 4*field_dim]
+        
+        metadata_queries = self.metadata_fusion(metadata_concat)  # [B, F, per_assay_dim]
+        return metadata_queries
+
+    def forward(self, metadata, latent):
+        """
+        Args:
+            metadata: [B, 4, F] - metadata for F assays
+            latent: [B, L, D] where D = F * per_assay_dim
+        Returns:
+            [B, L, D] - per-assay conditioned latent
+        """
+        B, L, D = latent.shape
+        F = metadata.shape[2]
+        d = self.per_assay_dim
+        
+        # Reshape latent to expose per-assay structure
+        latent_per_assay = latent.view(B, L, F, d)
+        
+        # Create rich queries from metadata
+        metadata_queries = self._embed_metadata(metadata)  # [B, F, d]
+        
+        # Batch all assays for parallel attention
+        queries_all = metadata_queries.reshape(B*F, 1, d)  # [B*F, 1, d]
+        kv_all = latent_per_assay.transpose(1, 2).reshape(B*F, L, d)  # [B*F, L, d]
+        
+        # Cross-attention: each assay's metadata queries its spatial features
+        attended_all, _ = self.cross_attn(
+            query=queries_all,
+            key=kv_all,
+            value=kv_all
+        )  # [B*F, 1, d]
+        
+        attended = attended_all.view(B, F, d)  # [B, F, d]
+        
+        # Apply feed-forward network with residual connection (standard transformer practice)
+        # This allows richer non-linear processing of the attended features
+        attended_ffn = self.ffn_norm(attended + self.ffn(attended))  # [B, F, d]
+        
+        # FiLM-style conditioning: generate scale and shift parameters from metadata-attended features
+        scale = self.scale_proj(attended_ffn)  # [B, F, d]
+        shift = self.shift_proj(attended_ffn)  # [B, F, d]
+        
+        # Broadcast scale and shift to spatial dimensions
+        scale_spatial = scale.unsqueeze(1).expand(-1, L, -1, -1)  # [B, L, F, d]
+        shift_spatial = shift.unsqueeze(1).expand(-1, L, -1, -1)  # [B, L, F, d]
+        
+        # Apply FiLM conditioning to the latent features (pure FiLM)
+        modulated_latent = scale_spatial * latent_per_assay + shift_spatial  # [B, L, F, d]
+        
+        # Reshape back to [B, L, D]
+        return modulated_latent.view(B, L, D)
 
 # ---------------------------
 # Absolute Positional Encoding
@@ -1235,6 +1501,41 @@ class RelativePositionBias(nn.Module):
         bias = self.relative_bias[rel_pos]  # (L, L, num_heads)
         bias = bias.permute(2, 0, 1)  # (num_heads, L, L)
         return bias
+
+# ---------------------------
+# XTransformer Encoder Block with RoPE
+# ---------------------------
+class XTransformerEncoderBlock(nn.Module):
+    """Standard transformer with RoPE using x-transformers library."""
+    def __init__(self, d_model, num_heads, seq_length, dropout=0.1, 
+                 ff_mult=4, **kwargs):
+        super().__init__()
+        
+        if not XTRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "x-transformers library is required but not installed. "
+                "Install it with: pip install x-transformers"
+            )
+        
+        self.encoder = XTransformerEncoder(
+            dim=d_model,
+            depth=1,  # Single block (will be stacked in ModuleList)
+            heads=num_heads,
+            # use_rmsnorm=True,
+            ff_mult=ff_mult,
+            attn_dropout=dropout,
+            ff_dropout=dropout,
+            rotary_pos_emb=True  # Enable RoPE (let x-transformers auto-calculate rotary_emb_dim)
+        )
+    
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor of shape (B, L, d_model)
+        Returns:
+            Tensor of shape (B, L, d_model)
+        """
+        return self.encoder(x)
 
 # ---------------------------
 # Dual Attention Encoder Block (Post-Norm)
@@ -1372,119 +1673,63 @@ class DualAttentionEncoderBlock(nn.Module):
         out = self.norm_ffn(x_seq + x_chan + ffn_out)
         return out
 
-class EmbedMetadata(nn.Module):
-    def __init__(self, input_dim, embedding_dim, num_sequencing_platforms=10, num_runtypes=4, non_linearity=True):
-        """
-        Args:
-            input_dim (int): Number of metadata features.
-            embedding_dim (int): Final embedding dimension.
-            num_sequencing_platforms (int): Number of sequencing platforms in the data.
-            num_runtypes (int): Number of run types in the data.
-            non_linearity (bool): Whether to apply ReLU at the end.
-        """
+class RMSNorm(nn.Module):
+    """Root Mean Square Layer Normalization for 1D convolutions.
+    
+    Normalizes by RMS without mean centering. For input shape (B, C, L),
+    normalizes across the channel dimension.
+    """
+    def __init__(self, dim, eps=1e-6):
         super().__init__()
-        self.embedding_dim = embedding_dim
-        self.input_dim = input_dim 
-        self.non_linearity = non_linearity
-        # We divide the embedding_dim into 4 parts for continuous types.
-        # (You can adjust the splitting scheme as needed.)
-        self.continuous_size = embedding_dim // 4
-
-        # For each feature (total input_dim features), create a separate linear transform.
-        self.depth_transforms = nn.ModuleList(
-            [nn.Linear(1, self.continuous_size) for _ in range(input_dim)]
-        )
-        # For sequencing platform, create separate embedding layers per feature.
-        # Use dynamic size based on actual data
-        self.sequencing_platform_embeddings = nn.ModuleList(
-            [nn.Embedding(num_sequencing_platforms, self.continuous_size) for _ in range(input_dim)]
-        )
-        self.read_length_transforms = nn.ModuleList(
-            [nn.Linear(1, self.continuous_size) for _ in range(input_dim)]
-        )
-        # For runtype, create separate embedding layers per feature.
-        # Use dynamic size based on actual data
-        self.runtype_embeddings = nn.ModuleList(
-            [nn.Embedding(num_runtypes, self.continuous_size) for _ in range(input_dim)]
-        )
-
-        # Final projection: the concatenated vector for each feature will be of size 4*continuous_size.
-        # For all features, that becomes input_dim * 4 * continuous_size.
-        self.final_embedding = nn.Linear(input_dim * 4 * self.continuous_size, embedding_dim)
-        self.final_emb_layer_norm = nn.LayerNorm(embedding_dim)
-
-    def forward(self, metadata):
-        """
-        Args:
-            metadata: Tensor of shape (B, 4, input_dim)
-                      where dimension 1 indexes the four metadata types in the order:
-                      [depth, sequencing_platform, read_length, runtype]
-        Returns:
-            embeddings: Tensor of shape (B, embedding_dim)
-        """
-        B = metadata.size(0)
-        # Lists to collect per-feature embeddings.
-        per_feature_embeds = []
-        for i in range(self.input_dim):
-            # Extract each metadata type for feature i.
-            depth = metadata[:, 0, i].unsqueeze(-1).float() 
-            sequencing_platform = metadata[:, 1, i].long() 
-            read_length = metadata[:, 2, i].unsqueeze(-1).float() 
-            runtype = metadata[:, 3, i].long() 
-            
-            # For runtype, map -1 -> 2 (missing) and -2 -> 3 (cloze_masked)
-            runtype = torch.where(runtype == -1, torch.tensor(2, device=runtype.device), runtype)
-            runtype = torch.where(runtype == -2, torch.tensor(3, device=runtype.device), runtype)
-            
-            # For sequencing platform, map -1 -> 2 (missing) and -2 -> 3 (cloze_masked)
-            sequencing_platform = torch.where(sequencing_platform == -1, torch.tensor(2, device=sequencing_platform.device), sequencing_platform)
-            sequencing_platform = torch.where(sequencing_platform == -2, torch.tensor(3, device=sequencing_platform.device), sequencing_platform)
-            
-            # Apply the separate transforms/embeddings for feature i.
-            depth_embed = self.depth_transforms[i](depth)              # (B, continuous_size)
-            sequencing_platform_embed = self.sequencing_platform_embeddings[i](sequencing_platform)  # (B, continuous_size)
-            read_length_embed = self.read_length_transforms[i](read_length)  # (B, continuous_size)
-            runtype_embed = self.runtype_embeddings[i](runtype)           # (B, continuous_size)
-            
-            # Concatenate the four embeddings along the last dimension.
-            feature_embed = torch.cat([depth_embed, sequencing_platform_embed, read_length_embed, runtype_embed], dim=-1)  # (B, 4*continuous_size)
-            per_feature_embeds.append(feature_embed)
-        
-        # Now stack along a new dimension for features -> shape (B, input_dim, 4*continuous_size)
-        embeddings = torch.stack(per_feature_embeds, dim=1)
-        # Flatten feature dimension: (B, input_dim * 4*continuous_size)
-        embeddings = embeddings.view(B, -1)
-        # Project to final embedding dimension.
-        embeddings = self.final_embedding(embeddings)
-        embeddings = self.final_emb_layer_norm(embeddings)
-        
-        if self.non_linearity:
-            embeddings = F.relu(embeddings)
-        
-        return embeddings
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(dim))
+    
+    def forward(self, x):
+        # x shape: (B, C, L) for Conv1d
+        # Transpose to (B, L, C) for normalization
+        x = x.permute(0, 2, 1)
+        # Compute RMS over the channel dimension
+        rms = torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+        x = x * rms * self.weight
+        # Transpose back to (B, C, L)
+        x = x.permute(0, 2, 1)
+        return x
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_C, out_C, W, S, D, norm="layer", groups=1, apply_act=False):
+    def __init__(self, in_C, out_C, W, S, D, norm, groups=1, apply_act=False):
         super(ConvBlock, self).__init__()
         self.normtype = norm
         self.apply_act = apply_act
         
-        if self.normtype == "batch":
+        # Create conv layer
+        self.conv = nn.Conv1d(
+            in_C, out_C, kernel_size=W, dilation=D, stride=S, padding="same", groups=groups)
+        
+        # Apply normalization
+        if self.normtype == "weight":
+            # WeightNorm wraps the conv layer itself
+            self.conv = nn.utils.weight_norm(self.conv)
+        elif self.normtype == "batch":
             self.norm = nn.BatchNorm1d(out_C)
         elif self.normtype == "layer":
             self.norm = nn.LayerNorm(out_C)
-        
-        self.conv = nn.Conv1d(
-            in_C, out_C, kernel_size=W, dilation=D, stride=S, padding="same", groups=groups)
+        elif self.normtype == "group":
+            self.norm = nn.GroupNorm(groups, out_C)
+        elif self.normtype == "instance":
+            # Use affine=True and larger eps to avoid gradient issues
+            self.norm = nn.InstanceNorm1d(out_C, affine=True, eps=1e-5)
+        elif self.normtype == "rms":
+            self.norm = RMSNorm(out_C)
     
     def forward(self, x):
         x = self.conv(x)
         
+        # WeightNorm doesn't need activation normalization
         if self.normtype == "layer":
             x = x.permute(0, 2, 1)
             x = self.norm(x)
             x = x.permute(0, 2, 1)
-        elif self.normtype == "batch":
+        elif self.normtype in ["batch", "group", "instance", "rms"]:
             x = self.norm(x)
         
         if self.apply_act:
@@ -1493,31 +1738,44 @@ class ConvBlock(nn.Module):
         return x
 
 class DeconvBlock(nn.Module):
-    def __init__(self, in_C, out_C, W, S, D, norm="layer", groups=1, apply_act=False):
+    def __init__(self, in_C, out_C, W, S, D, norm, groups=1, apply_act=False):
         super(DeconvBlock, self).__init__()
         self.normtype = norm
         self.apply_act = apply_act
         
-        if self.normtype == "batch":
-            self.norm = nn.BatchNorm1d(out_C)
-        elif self.normtype == "layer":
-            self.norm = nn.LayerNorm(out_C)
-        
+        # Create deconv layer
         padding = (W - 1) // 2
         output_padding = S - 1
         
         self.deconv = nn.ConvTranspose1d(
             in_C, out_C, kernel_size=W, dilation=D, stride=S,
             padding=padding, output_padding=output_padding, groups=groups)
+        
+        # Apply normalization
+        if self.normtype == "weight":
+            # WeightNorm wraps the deconv layer itself
+            self.deconv = nn.utils.weight_norm(self.deconv)
+        elif self.normtype == "batch":
+            self.norm = nn.BatchNorm1d(out_C)
+        elif self.normtype == "layer":
+            self.norm = nn.LayerNorm(out_C)
+        elif self.normtype == "group":
+            self.norm = nn.GroupNorm(groups, out_C)
+        elif self.normtype == "instance":
+            # Use affine=True and larger eps to avoid gradient issues
+            self.norm = nn.InstanceNorm1d(out_C, affine=True, eps=1e-5)
+        elif self.normtype == "rms":
+            self.norm = RMSNorm(out_C)
     
     def forward(self, x):
         x = self.deconv(x)
         
+        # WeightNorm doesn't need activation normalization
         if self.normtype == "layer":
             x = x.permute(0, 2, 1)
             x = self.norm(x)
             x = x.permute(0, 2, 1)
-        elif self.normtype == "batch":
+        elif self.normtype in ["batch", "group", "instance", "rms"]:
             x = self.norm(x)
         
         if self.apply_act:
@@ -1526,10 +1784,10 @@ class DeconvBlock(nn.Module):
         return x
 
 class DeconvTower(nn.Module):
-    def __init__(self, in_C, out_C, W, S=1, D=1, residuals=True, groups=1, pool_size=2):
+    def __init__(self, in_C, out_C, W, S=1, D=1, residuals=True, groups=1, pool_size=2, norm="batch"):
         super(DeconvTower, self).__init__()
         
-        self.deconv1 = DeconvBlock(in_C, out_C, W, S, D, norm="layer", groups=groups, apply_act=False)
+        self.deconv1 = DeconvBlock(in_C, out_C, W, S, D, norm=norm, groups=groups, apply_act=False)
         self.resid = residuals
         
         if self.resid:
@@ -1545,7 +1803,7 @@ class DeconvTower(nn.Module):
         return y
 
 class ConvTower(nn.Module):
-    def __init__(self, in_C, out_C, W, S=1, D=1, pool_type="max", residuals=True, groups=1, pool_size=2, SE=False):
+    def __init__(self, in_C, out_C, W, S=1, D=1, pool_type="max", residuals=True, groups=1, pool_size=2, SE=False, norm="batch"):
         super(ConvTower, self).__init__()
         
         if pool_type == "max" or pool_type == "attn" or pool_type == "avg":
@@ -1560,15 +1818,11 @@ class ConvTower(nn.Module):
         elif pool_type == "avg":
             self.pool = nn.AvgPool1d(pool_size)
         
-        self.conv1 = ConvBlock(in_C, out_C, W, S, D, groups=groups, apply_act=False)
+        self.conv1 = ConvBlock(in_C, out_C, W, S, D, norm=norm, groups=groups, apply_act=False)
         self.resid = residuals
         
         if self.resid:
             self.rconv = nn.Conv1d(in_C, out_C, kernel_size=1, groups=groups)
-        
-        self.SE = SE
-        if self.SE:
-            self.se_block = SE_Block_1D(out_C)
     
     def forward(self, x):
         y = self.conv1(x)  # Output before activation
@@ -1577,10 +1831,7 @@ class ConvTower(nn.Module):
             y = y + self.rconv(x)
         
         y = F.gelu(y)  # Activation after residual
-        
-        if self.SE:
-            y = self.se_block(y)
-        
+                
         if self.do_pool:
             y = self.pool(y)
         
@@ -1862,65 +2113,23 @@ class NegativeBinomialLayer(nn.Module):
         self.FF = FF
         if self.FF:
             self.feed_forward = FeedForwardNN(input_dim, input_dim, input_dim, n_hidden_layers=2)
-
-        self.fc_p = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.LayerNorm(output_dim),
-            nn.Sigmoid()
-        )
-
-        self.fc_n = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.LayerNorm(output_dim),
-            nn.Softplus()
-        )
+        
+        # Linear layers with controlled initialization
+        self.linear_p = nn.Linear(input_dim, output_dim)
+        self.linear_n = nn.Linear(input_dim, output_dim)
+        
 
     def forward(self, x):
         if self.FF:
             x = self.feed_forward(x)
-
-        # using sigmoid to ensure it's between 0 and 1
-        p = self.fc_p(x)
-
-        # using softplus to ensure it's positive
-        n = self.fc_n(x)
+        
+        p_logits = self.linear_p(x)
+        p = torch.sigmoid(p_logits)
+        
+        n_logits = self.linear_n(x)
+        n = F.softplus(n_logits)
 
         return p, n
-
-def negative_binomial_loss(y_true, n_pred, p_pred):
-    """
-        Negative binomial loss function for PyTorch.
-        
-        Parameters
-        ----------
-        y_true : torch.Tensor
-            Ground truth values of the predicted variable.
-        n_pred : torch.Tensor
-            Tensor containing n values of the predicted distribution.
-        p_pred : torch.Tensor
-            Tensor containing p values of the predicted distribution.
-            
-        Returns
-        -------
-        nll : torch.Tensor
-            Negative log likelihood.
-    """
-    eps = 1e-6
-
-    # Clamp predictions for numerical stability
-    p_pred = torch.clamp(p_pred, min=eps, max=1 - eps)
-    n_pred = torch.clamp(n_pred, min=1e-2, max=1e3)
-
-    # Compute NB NLL
-    nll = (
-        torch.lgamma(n_pred + eps)
-        + torch.lgamma(y_true + 1 + eps)
-        - torch.lgamma(n_pred + y_true + eps)
-        - n_pred * torch.log(p_pred + eps)
-        - y_true * torch.log(1 - p_pred + eps)
-    )
-    
-    return nll
 
 class GaussianLayer(nn.Module):
     def __init__(self, input_dim, output_dim, FF=False):
@@ -1930,26 +2139,20 @@ class GaussianLayer(nn.Module):
         if self.FF:
             self.feed_forward = FeedForwardNN(input_dim, input_dim, input_dim, n_hidden_layers=2)
 
-        # Define the layers for calculating mu (mean) parameter
-        self.fc_mu = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.LayerNorm(output_dim),
-            nn.Softplus()
-        )
-
-        # Define the layers for calculating var parameter
-        self.fc_var = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.LayerNorm(output_dim),
-            nn.Softplus() # Ensure var is positive
-        )
+        # Linear layers with controlled initialization
+        self.linear_mu = nn.Linear(input_dim, output_dim)
+        self.linear_var = nn.Linear(input_dim, output_dim)
+        
 
     def forward(self, x):
         if self.FF:
             x = self.feed_forward(x)
 
-        mu = self.fc_mu(x)
-        var = self.fc_var(x)
+        mu_logits = self.linear_mu(x)
+        mu = F.softplus(mu_logits)
+        
+        var_logits = self.linear_var(x)
+        var = F.softplus(var_logits)
 
         return mu, var
 
@@ -1960,19 +2163,16 @@ class PeakLayer(nn.Module):
         self.FF = FF
         if self.FF:
             self.feed_forward = FeedForwardNN(input_dim, input_dim, input_dim, n_hidden_layers=2)
-
-        # Define the layers for calculating peak parameter
-        self.fc_peak = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.LayerNorm(output_dim),
-            nn.Sigmoid()
-        )
+        
+        # Linear layer with controlled initialization
+        self.linear_peak = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
         if self.FF:
             x = self.feed_forward(x)
 
-        peak = self.fc_peak(x)
+        peak_logits = self.linear_peak(x)
+        peak = torch.sigmoid(peak_logits)
 
         return peak
 
