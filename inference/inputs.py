@@ -74,12 +74,17 @@ class BAM_TO_SIGNAL(object):
 
         read_lens = [] 
 
+        paired_read_counts = 0
+        single_read_counts = 0
+
         for chr in self.chr_sizes:
             for read in self.bam.fetch(chr):
                 if read.is_unmapped:
                     continue
                 total_mapped_reads += 1  
                 read_lens.append(read.reference_length)
+                if read.is_paired: paired_read_counts += 1
+                else: single_read_counts += 1
 
                 start_bin = read.reference_start // self.resolution
                 end_bin = read.reference_end // self.resolution
@@ -93,17 +98,18 @@ class BAM_TO_SIGNAL(object):
         coverage = (bins_with_reads / total_bins) if total_bins > 0 else 0
 
         mean_read_len = np.mean(np.array(read_lens))
+        bam_is_paired = paired_read_counts > single_read_counts
 
-        return bins, total_mapped_reads, coverage, mean_read_len
+        return bins, total_mapped_reads, coverage, mean_read_len, bam_is_paired
 
-    def save_signal_metadata(self, depth, mean_read_len):
+    def save_signal_metadata(self, depth, mean_read_len, bam_is_paired):
         
         file_name = os.path.join(self.output_dir, "input_metadata.json")
         mdict = {
             "depth":depth,
             "sequencing_platform":self.input_mdata["sequencing_platform"],
             "mean_read_len":mean_read_len,
-            "run_type":self.input_mdata["run_type"],
+            "run_type":bam_is_paired,
             }
 
         with open(file_name, 'w') as file:
@@ -130,9 +136,9 @@ class BAM_TO_SIGNAL(object):
     
     def full_preprocess(self):
 
-        data, depth, _, mean_read_len = self.calculate_coverage_pysam()
+        data, depth, _, mean_read_len, bam_is_paired = self.calculate_coverage_pysam()
         self.save_signal(data)
-        self.save_signal_metadata(np.log2(depth), mean_read_len)
+        self.save_signal_metadata(np.log2(depth), mean_read_len, bam_is_paired)
 
 # ------------------------------------------------------------------------
 # Load data
@@ -153,7 +159,7 @@ def process_bam(bam_file, input_mdata, output_mdata):
         os.remove(f"{bam_file}.bai")
 
 def process_metadata(metadata):
-    # TODO: make sure of these
+    # TODO: metadata. only seq_plat is left
 
     seq_platform = metadata["sequencing_platform"]
     try:
@@ -190,7 +196,7 @@ def process_input_data(bios_path, temp_path):
         except:
             input_mdata = {
                 "sequencing_platform" : "N/A",
-                "run_type" : "paired" # TODO: make this correct
+                "run_type" : "paired"
             }
         process_metadata(input_mdata)
 

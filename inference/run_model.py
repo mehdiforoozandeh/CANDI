@@ -18,6 +18,7 @@ import numpy as np
 import torch.nn.functional as F
 
 from pred import CANDIPredictor # external import
+from _utils import Gaussian, NegativeBinomial # external import
 
 # ------------------------------------------------------------------------
 # Data loader
@@ -25,13 +26,15 @@ from pred import CANDIPredictor # external import
 
 class CANDI_INFERENCE:
 
-    def __init__(self, temp_path, fasta_path, model : CANDIPredictor, debug):
+    def __init__(self, output_path, temp_path, fasta_path, model : CANDIPredictor, debug):
 
+        self.output_path = output_path
         self.temp_path = temp_path
         self.load_fasta(fasta_path)
 
         self.model = model
         self.window = model.config.get('context-length', 1200)
+        self.overlap = self.window // 4
 
         self.debug = debug
 
@@ -104,7 +107,7 @@ class CANDI_INFERENCE:
             return data[data.files[0]]
 
     def load_json(self, file_name):
-        # TODO: assert the order
+    
         with open(file_name) as f:
             data = json.load(f)
 
@@ -130,7 +133,6 @@ class CANDI_INFERENCE:
         loaded_assays = {}
 
         for exp in os.listdir(self.temp_path):
-            loaded_assays[exp] = {}
 
             exp_path = os.path.join(self.temp_path,exp)
 
@@ -140,6 +142,8 @@ class CANDI_INFERENCE:
             npz_path = os.path.join(exp_path, chr_file)
             if not os.path.isfile(npz_path): continue
             assay_chr_data = self.load_npz(npz_path)
+
+            loaded_assays[exp] = {}
 
             loaded_assays[exp]["data"] = assay_chr_data
 
@@ -171,7 +175,6 @@ class CANDI_INFERENCE:
             else:
                 dtensor.append(missing_tensor)
                 availability.append(0)
-                # TODO: fix missing values
                 input_mdtensor.append([missing_value, missing_value, missing_value, missing_value])
                 output_mdtensor.append([missing_value, missing_value, missing_value, missing_value])
 
@@ -182,39 +185,71 @@ class CANDI_INFERENCE:
 
         return dtensor, input_mdtensor, output_mdtensor, availability
 
-    def reshape_tensor(self, tensor, factor=1):
+    # TODO: legacy remove it
+    # def reshape_tensor(self, tensor, factor=1):
 
-        n,a = tensor.shape
+    #     n,a = tensor.shape
 
-        window_new = self.window * factor
-        # TODO ignore the last window
-        pad_size = (window_new - n % window_new) % window_new
-        padded_tensor = F.pad(tensor, (0, 0, 0, pad_size), mode='constant') # TODO: see if you can fix constant
+    #     window_new = self.window * factor
+    #     pad_size = (window_new - n % window_new) % window_new
+    #     padded_tensor = F.pad(tensor, (0, 0, 0, pad_size), mode='constant')
 
-        return padded_tensor.reshape(-1,window_new,a)
+    #     return padded_tensor.reshape(-1,window_new,a)
 
-    def deshape_tensor(self, tensor, true_len):
+    # def deshape_tensor(self, tensor, true_len):
 
-        if self.debug: true_len = 2500
-        b, l, f = tensor.shape
-        tensor = tensor.reshape(b*l,f)
-        return tensor[:true_len]
+    #     if self.debug: true_len = 2500
+    #     b, l, f = tensor.shape
+    #     tensor = tensor.reshape(b*l,f)
+    #     return tensor[:true_len]
+
+    def split_tensor(self, tensor, factor=1):
+        n, d = tensor.shape
+        window = self.window * factor
+        stride = window - self.overlap * factor  # 900
+        tensor = tensor.unsqueeze(0).permute(0, 2, 1)  # (1, d, n)
+
+        # Unfold into overlapping windows
+        patches = F.unfold(tensor, kernel_size=(d, window), stride=(1, stride))  # (d*1200, L)
+        b = patches.size(-1)
+        windows = patches.view(d, window, b).permute(2, 1, 0)  # (b, 1200, d)
+
+        return windows
+
+    def reconstruct_tensor(self, tensor, true_len):
+
+        b, window, d = tensor.shape # (b, 1200, d)
+
+        windows = tensor.permute(2, 1, 0).reshape(1, d * window, b)
+
+        stride = self.window - self.overlap  # 900
+        # Reconstruct using fold
+        reconstructed = F.fold(
+            windows, output_size=(d, true_len), kernel_size=(d, self.window), stride=(1, stride)
+        ).squeeze(0,1).permute(1, 0)  # (n, d)
+
+        # Normalize for overlap
+        mask = F.fold(
+            torch.ones_like(windows), output_size=(d, true_len), kernel_size=(d, self.window), stride=(1, stride)
+        ).squeeze(0,1).permute(1, 0)
+        reconstructed = reconstructed / mask
+
+        return reconstructed
 
     def tensor_over_chr(self, chr):
 
         loaded_assays = self.load_data_chr(chr)
         L = self.chr_sizes_candi[chr]
 
-        # TODO: overlapping
         dtensor, input_mdtensor, output_mdtensor, availability = self.make_full_tensor(chr, loaded_assays)
-        dna_tensor = self.onehot_for_locus([chr, 0, L*25])
+        dna_tensor = self.onehot_for_locus([chr, 0, L*25]) #TODO: magic number 25
 
         if self.debug:
             dtensor = dtensor[:2500]
             dna_tensor = dna_tensor[:2500*25]
 
-        dtensor = self.reshape_tensor(dtensor)
-        dna_tensor = self.reshape_tensor(dna_tensor, 25)
+        dtensor = self.split_tensor(dtensor.to(torch.float32))  # TODO: ask about float 32
+        dna_tensor = self.split_tensor(dna_tensor.to(torch.float32), factor=25)
         B,_,_ = dtensor.shape
         input_mdtensor = input_mdtensor.unsqueeze(0).float()
         input_mdtensor = input_mdtensor.repeat(B,1,1)
@@ -268,13 +303,13 @@ class CANDI_INFERENCE:
 
             dtensor, input_mdtensor, output_mdtensor, availability, dna_tensor = self.tensor_over_chr(chr)
             # TODO: batchsize.... cmd arg?
-            # TODO: output mdtensor
 
             model_output = self.model.predict(
                     dtensor, input_mdtensor, output_mdtensor, availability, dna_tensor, []
                 )
 
-            model_output = [self.deshape_tensor(out_tensor, self.chr_sizes_candi[chr]) for out_tensor in model_output]
+            true_size = self.chr_sizes_candi[chr] if not self.debug else 2500
+            model_output = [self.reconstruct_tensor(out_tensor, true_size) for out_tensor in model_output]
             all_res = self.save_buffers(model_output)
             self.save_chr_data(chr, all_res)
 
@@ -290,12 +325,14 @@ class CANDI_INFERENCE:
             if "control" in exp: continue
 
             exp_dir = os.path.join(self.temp_path, exp)
+            out_dir = os.path.join(self.output_path, exp)
+            os.makedirs(out_dir, exist_ok=True)
 
-            bw_read = pyBigWig.open(os.path.join(exp_dir, f"{exp}_read_mean.bw"), "w")
+            bw_read = pyBigWig.open(os.path.join(out_dir, f"{exp}_read_count_mean.bw"), "w")
             bw_read.addHeader(bw_header)
-            bw_signal = pyBigWig.open(os.path.join(exp_dir, f"{exp}_signal_mean.bw"), "w")
+            bw_signal = pyBigWig.open(os.path.join(out_dir, f"{exp}_signal_mean.bw"), "w")
             bw_signal.addHeader(bw_header)
-            bw_peak = pyBigWig.open(os.path.join(exp_dir, f"{exp}_peak_mean.bw"), "w")
+            bw_peak = pyBigWig.open(os.path.join(out_dir, f"{exp}_peak_mean.bw"), "w")
             bw_peak.addHeader(bw_header)
 
             for chr in self.chr_sizes_true:
@@ -306,10 +343,14 @@ class CANDI_INFERENCE:
                 data_signal_var = self.load_npz(os.path.join(exp_dir, f"{chr}_signal_var_predicted.npz"))
                 data_peak_score = self.load_npz(os.path.join(exp_dir, f"{chr}_peak_score_predicted.npz"))
 
-                data_read_mu =  (data_read_n * (1-data_read_p))/data_read_p
+                read_data = NegativeBinomial(data_read_p, data_read_n)
+                signal_data = Gaussian(data_signal_mu, data_signal_var)
 
-                bw_read.addEntries(chr, 0, values=data_read_mu, span=25, step=25)
-                bw_signal.addEntries(chr, 0, values=data_signal_mu, span=25, step=25)
+                read_data_mean = read_data.mean()
+                signal_data_mean = signal_data.mean()
+
+                bw_read.addEntries(chr, 0, values=read_data_mean, span=25, step=25)
+                bw_signal.addEntries(chr, 0, values=signal_data_mean, span=25, step=25)
                 bw_peak.addEntries(chr, 0, values=data_peak_score, span=25, step=25)
 
 # ------------------------------------------------------------------------
@@ -318,9 +359,7 @@ class CANDI_INFERENCE:
 
 def run_through_model(args, model):
 
-
-    fasta_path = os.fspath("/home/azr/lab/candix/EpiDenoise/data/hg38.fa")  # TODO: ask for this path
-    inf_inst = CANDI_INFERENCE(args.temp_path, fasta_path, model, args.debug)
+    inf_inst = CANDI_INFERENCE(args.output_path, args.temp_path, args.fasta_path, model, args.debug)
 
     inf_inst.actual_run()
     inf_inst.make_bws()

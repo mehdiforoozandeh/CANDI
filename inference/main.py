@@ -1,5 +1,5 @@
 """
-Main file or CANDI inference
+Main file for CANDI inference
 
 """
 
@@ -39,6 +39,8 @@ def inf_arg_parser():
     data_group.add_argument('--temp_path', type=str, default="./temp",
                             help='Path to the temporary folder to save intermediate work.' \
                             'Deleted afterwards')
+    data_group.add_argument('--fasta_path', type=str, default="./temp/fasta.fa",
+                            help='Path to the fasta file to be used. The standarad hg38.fa')
 
     # === SYSTEM CONFIGURATION ===
     system_group = parser.add_argument_group('System Configuration')
@@ -75,10 +77,8 @@ def main():
 
     return
 
-if __name__=="__main__":
-    main()
-
-    # TODO: remove this
+# TODO: remove
+def tester():
     # download_url = f"https://www.encodeproject.org/files/ENCFF282ZSZ/@@download/ENCFF282ZSZ.bam"
     # save_dir_name = "/home/azr/misc/test.bam"
     # import requests
@@ -90,3 +90,53 @@ if __name__=="__main__":
     #         for chunk in response.iter_content(chunk_size=int(1e3*1024)):
     #             # Write each chunk to the file immediately
     #             file.write(chunk)
+    import torch
+    import torch.nn.functional as F
+    def split_tensor(window, tensor, factor=1):
+        n, d = tensor.shape
+        window = window * factor
+        stride = window - (window//4) * factor  # 900
+        tensor = tensor.unsqueeze(0).permute(0, 2, 1)  # (1, d, n)
+
+        # Unfold into overlapping windows
+        patches = F.unfold(tensor, kernel_size=(d, window), stride=(1, stride))  # (d*1200, L)
+        b = patches.size(-1)
+        windows = patches.view(d, window, b).permute(2, 1, 0)  # (b, 1200, d)
+
+        return windows
+
+    def reconstruct_tensor(window, tensor, true_len):
+
+        b, window, d = tensor.shape # (b, 1200, d)
+
+        windows = tensor.permute(2, 1, 0).reshape(1, d * window, b)
+
+        stride = window - (window // 4)  # 900
+        # Reconstruct using fold
+        reconstructed = F.fold(
+            windows, output_size=(d, true_len), kernel_size=(d, window), stride=(1, stride)
+        ).squeeze(0,1).permute(1, 0)  # (n, d)
+
+        # Normalize for overlap
+        mask = F.fold(
+            torch.ones_like(windows), output_size=(d, true_len), kernel_size=(d, window), stride=(1, stride)
+        ).squeeze(0,1).permute(1, 0)
+        reconstructed = reconstructed / mask
+
+        return reconstructed
+
+    window = 12
+    true_len = 15
+    assays = 2
+    test_tensor = torch.rand((true_len, assays))
+
+    patched = split_tensor(window, test_tensor, 1)
+    repatched = reconstruct_tensor(window, patched, true_len)
+
+    print(torch.allclose(test_tensor, repatched, atol=1e-3))
+
+    print("ALL_DONE")
+
+if __name__=="__main__":
+    main()
+    # tester()
