@@ -14,851 +14,548 @@ from scipy.stats import nbinom
 import imageio.v2 as imageio
 from io import BytesIO
 from torchinfo import summary
+from typing import List, Dict
 
 try:
-    from x_transformers import Encoder as XTransformerEncoder
+    from x_transformers import Encoder as XTransformerEncoder, Attention as XAttention, CrossAttender
     XTRANSFORMERS_AVAILABLE = True
 except ImportError:
     XTRANSFORMERS_AVAILABLE = False
     XTransformerEncoder = None
+    XAttention = None
+    CrossAttender = None
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:256"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
+##=========================================== EIC Validation Monitor =============================================##
 
-class MONITOR_VALIDATION(object):
-    def __init__(
-        self, data_path, context_length, batch_size, must_have_chr_access=False,
-        chr_sizes_file="data/hg38.chrom.sizes", DNA=False, eic=False, resolution=25, split="val", 
-        token_dict = {"missing_mask": -1, "cloze_mask": -2, "pad": -3}, device=None):
-
-        self.data_path = data_path
-        self.context_length = context_length
-        self.batch_size = batch_size
-        self.resolution = resolution
-        self.DNA = DNA
-        self.eic = eic
-
-        self.dataset = ExtendedEncodeDataHandler(self.data_path, resolution=self.resolution)
-        self.dataset.init_eval(
-            self.context_length, check_completeness=True, split=split, 
-            bios_min_exp_avail_threshold=3, eic=eic)
-
-        # self.mark_dict = {v: k for k, v in self.dataset.aliases["experiment_aliases"].items()}
+class EIC_VALIDATION_MONITOR(object):
+    """
+    Validation monitor for EIC dataset during training.
+    Evaluates model on V_* biosamples using T_* as input.
+    Computes NLL losses (not weighted) for imputed and upsampled assays across chr21.
+    """
+    
+    def __init__(self, context_length, training_batch_size, device=None, resolution=25):
+        """
+        Initialize EIC validation monitor.
         
-        self.expnames = list(self.dataset.aliases["experiment_aliases"].keys())
-        self.mark_dict = {i: self.expnames[i] for i in range(len(self.expnames))}
-
-        if device == None:
+        Args:
+            context_length: Context length for genomic windows (in bins)
+            training_batch_size: Training batch size (validation uses 2x this)
+            device: Device to use for validation (auto-detect if None)
+            resolution: Genomic resolution in bp
+        """
+        self.data_path = "/project/6014832/mforooz/DATA_CANDI_EIC"
+        self.context_length = context_length
+        self.resolution = resolution
+        self.validation_batch_size = int(training_batch_size * 4)  
+        print(f"Validation batch size: {self.validation_batch_size}")
+        
+        # Setup device
+        if device is None:
             self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
             self.device = device
-
-        self.example_coords = [
-            (33481539//self.resolution, 33588914//self.resolution), # GART
-            (25800151//self.resolution, 26235914//self.resolution), # APP
-            (31589009//self.resolution, 31745788//self.resolution), # SOD1
-            (39526359//self.resolution, 39802081//self.resolution), # B3GALT5
-            (33577551//self.resolution, 33919338//self.resolution), # ITSN1
-            (36260000//self.resolution, 36450000//self.resolution), # RUNX1
-            (45000000//self.resolution, 45250000//self.resolution), # COL18A1
-            (36600000//self.resolution, 36850000//self.resolution), # MX1
-            (39500000//self.resolution, 40000000//self.resolution) # Highly Conserved Non-Coding Sequences (HCNS)
-            ]
-
-        self.token_dict = token_dict
-
-        self.gaus_nll = torch.nn.GaussianNLLLoss(reduction="mean", full=True)
-        self.nbin_nll = negative_binomial_loss
-
+        
+        # Initialize data handler
+        self.data_handler = CANDIDataHandler(
+            base_path=self.data_path,
+            resolution=self.resolution,
+            dataset_type="eic",
+            DNA=True
+        )
+        self.data_handler._load_files()
+        
+        # Filter to V_* biosamples only (validation split)
+        self.v_biosamples = []
+        for bios in list(self.data_handler.navigation.keys()):
+            if bios.startswith("V_"):
+                self.v_biosamples.append(bios)
+        
+        print(f"EIC_VALIDATION_MONITOR initialized with {len(self.v_biosamples)} V_* biosamples")
+        
+        # Get experiment names
+        self.expnames = list(self.data_handler.aliases["experiment_aliases"].keys())
+        
+        # Load chromosome sizes
         self.chr_sizes = {}
-        self.metrics = METRICS()
-        main_chrs = ["chr" + str(x) for x in range(1,23)] + ["chrX"]
-        with open(chr_sizes_file, 'r') as f:
-            for line in f:
-                chr_name, chr_size = line.strip().split('\t')
-                if chr_name in main_chrs:
-                    self.chr_sizes[chr_name] = int(chr_size)
-
-    def pred(self, X, mX, mY, avail, imp_target=[], seq=None):
-        # Initialize a tensor to store all predictions
-        n = torch.empty_like(X, device="cpu", dtype=torch.float32) 
-        p = torch.empty_like(X, device="cpu", dtype=torch.float32) 
-        mu = torch.empty_like(X, device="cpu", dtype=torch.float32) 
-        var = torch.empty_like(X, device="cpu", dtype=torch.float32) 
-
-        # make predictions in batches
-        for i in range(0, len(X), self.batch_size):
-            torch.cuda.empty_cache()
-            
-            x_batch = X[i:i+ self.batch_size]
-            mX_batch = mX[i:i+ self.batch_size]
-            mY_batch = mY[i:i+ self.batch_size]
-            avail_batch = avail[i:i+ self.batch_size]
-
-            if self.DNA:
-                seq_batch = seq[i:i + self.batch_size]
-
-            with torch.no_grad():
-                x_batch = x_batch.clone()
-                avail_batch = avail_batch.clone()
-                mX_batch = mX_batch.clone()
-                mY_batch = mY_batch.clone()
-
-                x_batch_missing_vals = (x_batch == self.token_dict["missing_mask"])
-                mX_batch_missing_vals = (mX_batch == self.token_dict["missing_mask"])
-                # mY_batch_missing_vals = (mY_batch == self.token_dict["missing_mask"])
-                avail_batch_missing_vals = (avail_batch == 0)
-
-                x_batch[x_batch_missing_vals] = self.token_dict["cloze_mask"]
-                mX_batch[mX_batch_missing_vals] = self.token_dict["cloze_mask"]
-                # mY_batch[mY_batch_missing_vals] = self.token_dict["cloze_mask"]
-
-                if len(imp_target)>0:
-                    x_batch[:, :, imp_target] = self.token_dict["cloze_mask"]
-                    mX_batch[:, :, imp_target] = self.token_dict["cloze_mask"]
-                    # mY_batch[:, :, imp_target] = self.token_dict["cloze_mask"]
-                    avail_batch[:, imp_target] = 0
-
-                x_batch = x_batch.to(self.device)
-                mX_batch = mX_batch.to(self.device)
-                mY_batch = mY_batch.to(self.device)
-                avail_batch = avail_batch.to(self.device)
-
-                if self.DNA:
-                    seq_batch = seq_batch.to(self.device)
-                    outputs_p, outputs_n, outputs_mu, outputs_var = self.model(x_batch.float(), seq_batch, mX_batch, mY_batch, avail_batch)
-                else:
-                    outputs_p, outputs_n, outputs_mu, outputs_var = self.model(x_batch.float(), mX_batch, mY_batch, avail_batch)
-
-
-            # Store the predictions in the large tensor
-            n[i:i+outputs_n.shape[0], :, :] = outputs_n.cpu()
-            p[i:i+outputs_p.shape[0], :, :] = outputs_p.cpu()
-            mu[i:i+outputs_mu.shape[0], :, :] = outputs_mu.cpu()
-            var[i:i+outputs_var.shape[0], :, :] = outputs_var.cpu()
-
-            del x_batch, mX_batch, mY_batch, avail_batch, outputs_p, outputs_n, outputs_mu, outputs_var  # Free up memory
-            torch.cuda.empty_cache()  # Free up GPU memory
-
-        return n, p, mu, var
-
-    def get_bios_frame(self, bios_name, x_dsf=1, y_dsf=1, fill_in_y_prompt=False, fixed_segment=None):
-        print(f"getting bios vals for {bios_name}")
-        
-        # temp_x, temp_mx = self.dataset.load_bios(bios_name, ["chr21", 0, self.chr_sizes["chr21"]], x_dsf)
-        # X, mX, avX = self.dataset.make_bios_tensor(temp_x, temp_mx)
-        # del temp_x, temp_mx
-        
-        # temp_y, temp_my = self.dataset.load_bios(bios_name, ["chr21", 0, self.chr_sizes["chr21"]], y_dsf)
-        # Y, mY, avY = self.dataset.make_bios_tensor(temp_y, temp_my)
-        # if fill_in_y_prompt:
-        #     mY = self.dataset.fill_in_y_prompt(mY)
-        # del temp_y, temp_my
-
-        # temp_p = self.dataset.load_bios_BW(bios_name, ["chr21", 0, self.chr_sizes["chr21"]], y_dsf)
-        # P, avlP = self.dataset.make_bios_tensor_BW(temp_p)
-        # assert (avlP == avY).all(), "avlP and avY do not match"
-        # del temp_p
-
-        # num_rows = (X.shape[0] // self.context_length) * self.context_length
-        # X, Y, P = X[:num_rows, :], Y[:num_rows, :], P[:num_rows, :]
-
-        subsets_X = []
-        subsets_Y = []
-        subsets_P = []
-
-        if self.DNA:
-            subsets_seq = []
-
-        if fixed_segment is None:
-            # Use example coordinates (similar to get_bios_eic behavior)
-            coordinates = self.example_coords
+        chr_sizes_file = "data/hg38.chrom.sizes"
+        main_chrs = ["chr" + str(x) for x in range(1, 23)] + ["chrX"]
+        if os.path.exists(chr_sizes_file):
+            with open(chr_sizes_file, 'r') as f:
+                for line in f:
+                    chr_name, chr_size = line.strip().split('\t')
+                    if chr_name in main_chrs:
+                        self.chr_sizes[chr_name] = int(chr_size)
         else:
-            # Use fixed segment (similar to get_bios_frame behavior)
-            start, end = fixed_segment
-            coordinates = [(start, end)]
-
-        for start, end in coordinates:
-            segment_length = end - start
-            adjusted_length = max(1, int(segment_length // self.context_length)) * self.context_length 
-            adjusted_end = start + adjusted_length
-
-            temp_x, temp_mx = self.dataset.load_bios(bios_name, ["chr21", start* self.resolution, adjusted_end* self.resolution ], x_dsf)
-            X, mX, avX = self.dataset.make_bios_tensor(temp_x, temp_mx)
-            del temp_x, temp_mx
-            
-            temp_y, temp_my = self.dataset.load_bios(bios_name, ["chr21", start* self.resolution, adjusted_end* self.resolution ], y_dsf)
-            Y, mY, avY = self.dataset.make_bios_tensor(temp_y, temp_my)
-            if fill_in_y_prompt:
-                mY = self.dataset.fill_in_y_prompt(mY)
-            del temp_y, temp_my
-
-            temp_p = self.dataset.load_bios_BW(bios_name, ["chr21", start* self.resolution, adjusted_end*self.resolution ], y_dsf)
-            P, avlP = self.dataset.make_bios_tensor_BW(temp_p)
-            assert (avlP == avY).all(), "avlP and avY do not match"
-            del temp_p
-
-            subsets_X.append(X) #[start:adjusted_end, :])
-            subsets_Y.append(Y) #[start:adjusted_end, :])
-            subsets_P.append(P) #[start:adjusted_end, :])
-
-            if self.DNA:
-                subsets_seq.append(
-                    dna_to_onehot(get_DNA_sequence("chr21", start*self.resolution, adjusted_end*self.resolution)))
-
-        X = torch.cat(subsets_X, dim=0)
-        Y = torch.cat(subsets_Y, dim=0)
-        P = torch.cat(subsets_P, dim=0)
-
-        if self.DNA:
-            seq = torch.cat(subsets_seq, dim=0)
+            # Fallback
+            self.chr_sizes = {"chr21": 46709983}
         
-        # print(X.shape, Y.shape, P.shape, seq.shape)
-            
-        X = X.view(-1, self.context_length, X.shape[-1])
-        Y = Y.view(-1, self.context_length, Y.shape[-1])
-        P = P.view(-1, self.context_length, P.shape[-1])
-
-        if self.DNA:
-            seq = seq.view(-1, self.context_length*self.resolution, seq.shape[-1])
-
-        mX, mY = mX.expand(X.shape[0], -1, -1), mY.expand(Y.shape[0], -1, -1)
-        avX, avY = avX.expand(X.shape[0], -1), avY.expand(Y.shape[0], -1)
-
-        available_indices = torch.where(avX[0, :] == 1)[0]
-
-        n_imp = torch.empty_like(X, device="cpu", dtype=torch.float32)
-        p_imp = torch.empty_like(X, device="cpu", dtype=torch.float32)
-
-        mu_imp = torch.empty_like(X, device="cpu", dtype=torch.float32)
-        var_imp = torch.empty_like(X, device="cpu", dtype=torch.float32)
-
-        for leave_one_out in available_indices:
-            if self.DNA:
-                n, p, mu, var = self.pred(X, mX, mY, avX, seq=seq, imp_target=[leave_one_out])
-            else:
-                n, p, mu, var = self.pred(X, mX, mY, avX, seq=None, imp_target=[leave_one_out])
-
-            n_imp[:, :, leave_one_out] = n[:, :, leave_one_out]
-            p_imp[:, :, leave_one_out] = p[:, :, leave_one_out]
-
-            mu_imp[:, :, leave_one_out] = mu[:, :, leave_one_out]
-            var_imp[:, :, leave_one_out] = var[:, :, leave_one_out]
-
-            del n, p, mu, var  # Free up memory
-
-        if self.DNA:
-            n_ups, p_ups, mu_ups, var_ups = self.pred(X, mX, mY, avX, seq=seq, imp_target=[])
-        else:
-            n_ups, p_ups, mu_ups, var_ups = self.pred(X, mX, mY, avX, seq=None, imp_target=[])
-
-        del X, mX, mY, avX, avY  # Free up memory
-
-        p_imp = p_imp.view((p_imp.shape[0] * p_imp.shape[1]), p_imp.shape[-1])
-        n_imp = n_imp.view((n_imp.shape[0] * n_imp.shape[1]), n_imp.shape[-1])
-
-        mu_imp = mu_imp.view((mu_imp.shape[0] * mu_imp.shape[1]), mu_imp.shape[-1])
-        var_imp = var_imp.view((var_imp.shape[0] * var_imp.shape[1]), var_imp.shape[-1])
-
-        p_ups = p_ups.view((p_ups.shape[0] * p_ups.shape[1]), p_ups.shape[-1])
-        n_ups = n_ups.view((n_ups.shape[0] * n_ups.shape[1]), n_ups.shape[-1])
-
-        mu_ups = mu_ups.view((mu_ups.shape[0] * mu_ups.shape[1]), mu_ups.shape[-1])
-        var_ups = var_ups.view((var_ups.shape[0] * var_ups.shape[1]), var_ups.shape[-1])
-
-        imp_count_dist = NegativeBinomial(p_imp, n_imp)
-        ups_count_dist = NegativeBinomial(p_ups, n_ups)
-
-        imp_pval_dist = Gaussian(mu_imp, var_imp)
-        ups_pval_dist = Gaussian(mu_ups, var_ups)
-
-        Y = Y.view((Y.shape[0] * Y.shape[1]), Y.shape[-1])
-        P = P.view((P.shape[0] * P.shape[1]), P.shape[-1])
-
-        return imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, available_indices
-
-    def get_bios_frame_eic(self, bios_name, x_dsf=1, y_dsf=1, fill_in_y_prompt=False, fixed_segment=None):
-        print(f"getting bios vals for {bios_name}")
+        # Initialize loss functions
+        self.nbin_nll = negative_binomial_loss
+        self.gaus_nll = torch.nn.GaussianNLLLoss(reduction="mean", full=True)
+        self.peak_bce = torch.nn.BCEWithLogitsLoss(reduction="mean")
         
-        # Load and process X (input) with "T_" prefix replacement in bios_name
-        # temp_x, temp_mx = self.dataset.load_bios(bios_name.replace("V_", "T_"), ["chr21", 0, self.chr_sizes["chr21"]], x_dsf)
-        # X, mX, avX = self.dataset.make_bios_tensor(temp_x, temp_mx)
-        # del temp_x, temp_mx
-        
-        # # Load and process Y (target)
-        # temp_y, temp_my = self.dataset.load_bios(bios_name, ["chr21", 0, self.chr_sizes["chr21"]], y_dsf)
-        # Y, mY, avY = self.dataset.make_bios_tensor(temp_y, temp_my)
-        # if fill_in_y_prompt:
-        #     mY = self.dataset.fill_in_y_prompt(mY)
-        # del temp_y, temp_my
-
-        # # Load and process P (probability)
-        # temp_py = self.dataset.load_bios_BW(bios_name, ["chr21", 0, self.chr_sizes["chr21"]], y_dsf)
-        # temp_px = self.dataset.load_bios_BW(bios_name.replace("V_", "T_"), ["chr21", 0, self.chr_sizes["chr21"]], x_dsf)
-        # temp_p = {**temp_py, **temp_px}
-
-        # P, avlP = self.dataset.make_bios_tensor_BW(temp_p)
-        # del temp_py, temp_px, temp_p
-
-        # num_rows = (X.shape[0] // self.context_length) * self.context_length
-        # X, Y, P = X[:num_rows, :], Y[:num_rows, :], P[:num_rows, :]
-
-        subsets_X = []
-        subsets_Y = []
-        subsets_P = []
-
-        if self.DNA:
-            subsets_seq = []
-
-        if fixed_segment is None:
-            coordinates = self.example_coords
-        else:
-            start, end = fixed_segment
-            coordinates = [(start, end)]
-
-        for start, end in coordinates:
-            segment_length = end - start
-            adjusted_length = max(1, int(segment_length // self.context_length)) * self.context_length 
-            adjusted_end = start + adjusted_length
-
-            temp_x, temp_mx = self.dataset.load_bios(
-                bios_name.replace("V_", "T_"), ["chr21", start*self.resolution, adjusted_end*self.resolution], x_dsf)
-
-            X, mX, avX = self.dataset.make_bios_tensor(temp_x, temp_mx)
-            del temp_x, temp_mx
-            
-            temp_y, temp_my = self.dataset.load_bios(
-                bios_name, ["chr21", start*self.resolution, adjusted_end*self.resolution], y_dsf)
-
-            Y, mY, avY = self.dataset.make_bios_tensor(temp_y, temp_my)
-            if fill_in_y_prompt:
-                mY = self.dataset.fill_in_y_prompt(mY)
-            del temp_y, temp_my
-
-            # Load and process P (probability)
-            temp_py = self.dataset.load_bios_BW(
-                bios_name, ["chr21", start*self.resolution, adjusted_end*self.resolution], y_dsf)
-            temp_px = self.dataset.load_bios_BW(
-                bios_name.replace("V_", "T_"), ["chr21", start*self.resolution, adjusted_end*self.resolution], x_dsf)
-            temp_p = {**temp_py, **temp_px}
-
-            P, avlP = self.dataset.make_bios_tensor_BW(temp_p)
-            del temp_py, temp_px, temp_p
-
-            subsets_X.append(X) #[start:adjusted_end, :])
-            subsets_Y.append(Y) #[start:adjusted_end, :])
-            subsets_P.append(P) #[start:adjusted_end, :])
-
-            if self.DNA:
-                subsets_seq.append(
-                    dna_to_onehot(get_DNA_sequence("chr21", start*self.resolution, adjusted_end*self.resolution)))
-
-        X = torch.cat(subsets_X, dim=0)
-        Y = torch.cat(subsets_Y, dim=0)
-        P = torch.cat(subsets_P, dim=0)
-
-        if self.DNA:
-            seq = torch.cat(subsets_seq, dim=0)
-        
-        # print(X.shape, Y.shape, P.shape, seq.shape)
-            
-        X = X.view(-1, self.context_length, X.shape[-1])
-        Y = Y.view(-1, self.context_length, Y.shape[-1])
-        P = P.view(-1, self.context_length, P.shape[-1])
-
-        if self.DNA:
-            seq = seq.view(-1, self.context_length*self.resolution, seq.shape[-1])
-
-        mX, mY = mX.expand(X.shape[0], -1, -1), mY.expand(Y.shape[0], -1, -1)
-        avX, avY = avX.expand(X.shape[0], -1), avY.expand(Y.shape[0], -1)
-
-        available_X_indices = torch.where(avX[0, :] == 1)[0]
-        available_Y_indices = torch.where(avY[0, :] == 1)[0]
-
-        if self.DNA:
-            n_ups, p_ups, mu_ups, var_ups = self.pred(X, mX, mY, avX, seq=seq, imp_target=[])
-        else:
-            n_ups, p_ups, mu_ups, var_ups = self.pred(X, mX, mY, avX, seq=None, imp_target=[])
-
-        p_ups = p_ups.view((p_ups.shape[0] * p_ups.shape[1]), p_ups.shape[-1])
-        n_ups = n_ups.view((n_ups.shape[0] * n_ups.shape[1]), n_ups.shape[-1])
-
-        mu_ups = mu_ups.view((mu_ups.shape[0] * mu_ups.shape[1]), mu_ups.shape[-1])
-        var_ups = var_ups.view((var_ups.shape[0] * var_ups.shape[1]), var_ups.shape[-1])
-
-        ups_count_dist = NegativeBinomial(p_ups, n_ups)
-        ups_pval_dist = Gaussian(mu_ups, var_ups)
-
-        X = X.view((X.shape[0] * X.shape[1]), X.shape[-1])
-        Y = Y.view((Y.shape[0] * Y.shape[1]), Y.shape[-1])
-        P = P.view((P.shape[0] * P.shape[1]), P.shape[-1])
-
-        return ups_count_dist, ups_pval_dist, Y, X, P, bios_name, available_X_indices, available_Y_indices
-
-    def get_metric(self, imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, availability):
-        imp_mean = imp_count_dist.expect()
-        ups_mean = ups_count_dist.expect()
-
-        imp_gaussian_mean = imp_pval_dist.mean()
-        ups_gaussian_mean = ups_pval_dist.mean()
-
-        results = []
-        for j in range(Y.shape[1]):
-
-            if j in list(availability):
-
-
-                for comparison in ['imputed', 'upsampled']:
-                    if comparison == "imputed":
-                        pred_count = imp_mean[:, j].numpy()
-                        pred_pval = imp_gaussian_mean[:, j].numpy()
-
-                        pred_n = imp_count_dist.n[:, j].numpy()
-                        pred_p = imp_count_dist.p[:, j].numpy()
-                        pred_mu = imp_pval_dist.mu[:, j].numpy()
-                        pred_var = imp_pval_dist.var[:, j].numpy()
-                        
-                    elif comparison == "upsampled":
-                        pred_count = ups_mean[:, j].numpy()
-                        pred_pval = ups_gaussian_mean[:, j].numpy()
-                        
-                        pred_n = ups_count_dist.n[:, j].numpy()
-                        pred_p = ups_count_dist.p[:, j].numpy()
-                        pred_mu = ups_pval_dist.mu[:, j].numpy()
-                        pred_var = ups_pval_dist.var[:, j].numpy()
-
-                    target_count = Y[:, j].numpy()
-                    target_pval = P[:, j].numpy()
-
-                    metrics = {
-                        'bios':bios_name,
-                        'feature':  self.expnames[j],
-                        'comparison': comparison,
-                        'available assays': len(availability),
-
-                        'MSE_count': self.metrics.mse(target_count, pred_count),
-                        'Pearson_count': self.metrics.pearson(target_count, pred_count),
-                        'Spearman_count': self.metrics.spearman(target_count, pred_count),
-                        'r2_count': self.metrics.r2(target_count, pred_count),
-                        'loss_count': self.nbin_nll(
-                            torch.Tensor(target_count), 
-                            torch.Tensor(pred_n), 
-                            torch.Tensor(pred_p)
-                            ).mean().item(),
-
-                        'MSE_pval': self.metrics.mse(target_pval, pred_pval),
-                        'Pearson_pval': self.metrics.pearson(target_pval, pred_pval),
-                        'Spearman_pval': self.metrics.spearman(target_pval, pred_pval),
-                        'r2_pval': self.metrics.r2(target_pval, pred_pval),
-                        'loss_pval': self.gaus_nll(
-                            torch.Tensor(pred_mu), 
-                            torch.Tensor(target_pval), 
-                            torch.Tensor(pred_var)
-                            ).item()
-                            }
-                    results.append(metrics)
-
-        return results
+        # Token dictionary
+        self.token_dict = {"missing_mask": -1, "cloze_mask": -2, "pad": -3}
     
-    def get_metric_eic(self, ups_count_dist, ups_pval_dist, Y, X, P, bios_name, available_X_indices, available_Y_indices):
-        ups_mean = ups_count_dist.expect()
-        ups_pval = ups_pval_dist.mean()
-        
-        results = []
-        for j in range(Y.shape[1]):
-            
-            pred_count = ups_mean[:, j].numpy()
-            pred_pval = ups_pval[:, j].numpy()
-
-            pred_n = ups_count_dist.n[:, j].numpy()
-            pred_p = ups_count_dist.p[:, j].numpy()
-            pred_mu = ups_pval_dist.mu[:, j].numpy()
-            pred_var = ups_pval_dist.var[:, j].numpy()
-
-            target_pval = P[:, j].numpy()
-
-            if j in list(available_X_indices):
-                comparison = "upsampled"
-                target_count = X[:, j].numpy()
-                
-
-            elif j in list(available_Y_indices):
-                comparison = "imputed"
-                target_count = Y[:, j].numpy()
-
-
-            else:
-                continue
-
-            metrics = {
-                'bios':bios_name,
-                'feature': self.expnames[j],
-                'comparison': comparison,
-                'available assays': len(available_X_indices),
-
-                'MSE_count': self.metrics.mse(target_count, pred_count),
-                'Pearson_count': self.metrics.pearson(target_count, pred_count),
-                'Spearman_count': self.metrics.spearman(target_count, pred_count),
-                'r2_count': self.metrics.r2(target_count, pred_count),
-                'loss_count': self.nbin_nll(
-                    torch.Tensor(target_count), 
-                    torch.Tensor(pred_n), 
-                    torch.Tensor(pred_p)
-                    ).mean().item(),
-
-                'MSE_pval': self.metrics.mse(target_pval, pred_pval),
-                'Pearson_pval': self.metrics.pearson(target_pval, pred_pval),
-                'Spearman_pval': self.metrics.spearman(target_pval, pred_pval),
-                'r2_pval': self.metrics.r2(target_pval, pred_pval),
-                'loss_pval': self.gaus_nll(
-                    torch.Tensor(pred_mu), 
-                    torch.Tensor(target_pval), 
-                    torch.Tensor(pred_var)
-                    ).item()
-            }
-            results.append(metrics)
-
-        return results
-
-    def get_validation(self, model, x_dsf=1, y_dsf=1):
-        t0 = datetime.datetime.now()
-        self.model = model
-
-        full_res = []
-        bioses = list(self.dataset.navigation.keys())
-
-        for bios_name in bioses:
-            if self.eic: 
-                # try:
-                ups_count_dist, ups_pval_dist, Y, X, P, bios_name, available_X_indices, available_Y_indices = self.get_bios_frame_eic(
-                    bios_name, x_dsf=x_dsf, y_dsf=y_dsf)
-                
-                full_res += self.get_metric_eic(ups_count_dist, ups_pval_dist, Y, X, P, bios_name, available_X_indices, available_Y_indices)
-                # except:
-                #     pass
-            else:
-                try:
-                    imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, availability = self.get_bios_frame(
-                        bios_name, x_dsf=x_dsf, y_dsf=y_dsf)
-
-                    full_res += self.get_metric(imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, availability)
-                except:
-                    pass
-
-        # del self.model
-        # del model
-
-        if len(full_res) == 0:
-            print(f"No validation results found.")
-            return "", {}
-        
-        df = pd.DataFrame(full_res)
-
-        # Separate the data based on comparison type
-        imputed_df = df[df['comparison'] == 'imputed']
-        upsampled_df = df[df['comparison'] == 'upsampled']
-
-        # Function to calculate mean, min, and max for a given metric
-        def calculate_stats(df, metric):
-            return df[metric].median(), df[metric].min(), df[metric].max()
-
-        # Imputed statistics for count metrics
-        imp_mse_count_stats = calculate_stats(imputed_df, 'MSE_count')
-        imp_pearson_count_stats = calculate_stats(imputed_df, 'Pearson_count')
-        imp_spearman_count_stats = calculate_stats(imputed_df, 'Spearman_count')
-        imp_r2_count_stats = calculate_stats(imputed_df, 'r2_count')
-        imp_loss_count_stats = calculate_stats(imputed_df, 'loss_count')
-
-        # Imputed statistics for p-value metrics
-        imp_mse_pval_stats = calculate_stats(imputed_df, 'MSE_pval')
-        imp_pearson_pval_stats = calculate_stats(imputed_df, 'Pearson_pval')
-        imp_spearman_pval_stats = calculate_stats(imputed_df, 'Spearman_pval')
-        imp_r2_pval_stats = calculate_stats(imputed_df, 'r2_pval')
-        imp_loss_pval_stats = calculate_stats(imputed_df, 'loss_pval')
-
-        # Upsampled statistics for count metrics
-        ups_mse_count_stats = calculate_stats(upsampled_df, 'MSE_count')
-        ups_pearson_count_stats = calculate_stats(upsampled_df, 'Pearson_count')
-        ups_spearman_count_stats = calculate_stats(upsampled_df, 'Spearman_count')
-        ups_r2_count_stats = calculate_stats(upsampled_df, 'r2_count')
-        ups_loss_count_stats = calculate_stats(upsampled_df, 'loss_count')
-
-        # Upsampled statistics for p-value metrics
-        ups_mse_pval_stats = calculate_stats(upsampled_df, 'MSE_pval')
-        ups_pearson_pval_stats = calculate_stats(upsampled_df, 'Pearson_pval')
-        ups_spearman_pval_stats = calculate_stats(upsampled_df, 'Spearman_pval')
-        ups_r2_pval_stats = calculate_stats(upsampled_df, 'r2_pval')
-        ups_loss_pval_stats = calculate_stats(upsampled_df, 'loss_pval')
-
-        elapsed_time = datetime.datetime.now() - t0
-        hours, remainder = divmod(elapsed_time.total_seconds(), 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-        # Create the updated print statement
-        print_statement = f"""
-        Took {int(minutes)}:{int(seconds)}
-        For Imputed Counts:
-        - MSE_count: median={imp_mse_count_stats[0]:.2f}, min={imp_mse_count_stats[1]:.2f}, max={imp_mse_count_stats[2]:.2f}
-        - PCC_count: median={imp_pearson_count_stats[0]:.2f}, min={imp_pearson_count_stats[1]:.2f}, max={imp_pearson_count_stats[2]:.2f}
-        - SRCC_count: median={imp_spearman_count_stats[0]:.2f}, min={imp_spearman_count_stats[1]:.2f}, max={imp_spearman_count_stats[2]:.2f}
-        - R2_count: median={imp_r2_count_stats[0]:.2f}, min={imp_r2_count_stats[1]:.2f}, max={imp_r2_count_stats[2]:.2f}
-        - loss_count: median={imp_loss_count_stats[0]:.2f}, min={imp_loss_count_stats[1]:.2f}, max={imp_loss_count_stats[2]:.2f}
-
-        For Imputed P-values:
-        - MSE_pval: median={imp_mse_pval_stats[0]:.2f}, min={imp_mse_pval_stats[1]:.2f}, max={imp_mse_pval_stats[2]:.2f}
-        - PCC_pval: median={imp_pearson_pval_stats[0]:.2f}, min={imp_pearson_pval_stats[1]:.2f}, max={imp_pearson_pval_stats[2]:.2f}
-        - SRCC_pval: median={imp_spearman_pval_stats[0]:.2f}, min={imp_spearman_pval_stats[1]:.2f}, max={imp_spearman_pval_stats[2]:.2f}
-        - R2_pval: median={imp_r2_pval_stats[0]:.2f}, min={imp_r2_pval_stats[1]:.2f}, max={imp_r2_pval_stats[2]:.2f}
-        - loss_pval: median={imp_loss_pval_stats[0]:.2f}, min={imp_loss_pval_stats[1]:.2f}, max={imp_loss_pval_stats[2]:.2f}
-
-        For Upsampled Counts:
-        - MSE_count: median={ups_mse_count_stats[0]:.2f}, min={ups_mse_count_stats[1]:.2f}, max={ups_mse_count_stats[2]:.2f}
-        - PCC_count: median={ups_pearson_count_stats[0]:.2f}, min={ups_pearson_count_stats[1]:.2f}, max={ups_pearson_count_stats[2]:.2f}
-        - SRCC_count: median={ups_spearman_count_stats[0]:.2f}, min={ups_spearman_count_stats[1]:.2f}, max={ups_spearman_count_stats[2]:.2f}
-        - R2_count: median={ups_r2_count_stats[0]:.2f}, min={ups_r2_count_stats[1]:.2f}, max={ups_r2_count_stats[2]:.2f}
-        - loss_count: median={ups_loss_count_stats[0]:.2f}, min={ups_loss_count_stats[1]:.2f}, max={ups_loss_count_stats[2]:.2f}
-
-        For Upsampled P-values:
-        - MSE_pval: median={ups_mse_pval_stats[0]:.2f}, min={ups_mse_pval_stats[1]:.2f}, max={ups_mse_pval_stats[2]:.2f}
-        - PCC_pval: median={ups_pearson_pval_stats[0]:.2f}, min={ups_pearson_pval_stats[1]:.2f}, max={ups_pearson_pval_stats[2]:.2f}
-        - SRCC_pval: median={ups_spearman_pval_stats[0]:.2f}, min={ups_spearman_pval_stats[1]:.2f}, max={ups_spearman_pval_stats[2]:.2f}
-        - R2_pval: median={ups_r2_pval_stats[0]:.2f}, min={ups_r2_pval_stats[1]:.2f}, max={ups_r2_pval_stats[2]:.2f}
-        - loss_pval: median={ups_loss_pval_stats[0]:.2f}, min={ups_loss_pval_stats[1]:.2f}, max={ups_loss_pval_stats[2]:.2f}
+    def _load_validation_data(self, V_biosample: str, locus: List, cached_seq=None):
         """
-
-        metrics_dict = {
-            "imputed_counts": {
-                "MSE_count": {"median": imp_mse_count_stats[0], "min": imp_mse_count_stats[1], "max": imp_mse_count_stats[2]},
-                "PCC_count": {"median": imp_pearson_count_stats[0], "min": imp_pearson_count_stats[1], "max": imp_pearson_count_stats[2]},
-                "SRCC_count": {"median": imp_spearman_count_stats[0], "min": imp_spearman_count_stats[1], "max": imp_spearman_count_stats[2]},
-                "R2_count": {"median": imp_r2_count_stats[0], "min": imp_r2_count_stats[1], "max": imp_r2_count_stats[2]},
-                "loss_count": {"median": imp_loss_count_stats[0], "min": imp_loss_count_stats[1], "max": imp_loss_count_stats[2]},
-            },
-            "imputed_pvals": {
-                "MSE_pval": {"median": imp_mse_pval_stats[0], "min": imp_mse_pval_stats[1], "max": imp_mse_pval_stats[2]},
-                "PCC_pval": {"median": imp_pearson_pval_stats[0], "min": imp_pearson_pval_stats[1], "max": imp_pearson_pval_stats[2]},
-                "SRCC_pval": {"median": imp_spearman_pval_stats[0], "min": imp_spearman_pval_stats[1], "max": imp_spearman_pval_stats[2]},
-                "R2_pval": {"median": imp_r2_pval_stats[0], "min": imp_r2_pval_stats[1], "max": imp_r2_pval_stats[2]},
-                "loss_pval": {"median": imp_loss_pval_stats[0], "min": imp_loss_pval_stats[1], "max": imp_loss_pval_stats[2]},
-            },
-            "upsampled_counts": {
-                "MSE_count": {"median": ups_mse_count_stats[0], "min": ups_mse_count_stats[1], "max": ups_mse_count_stats[2]},
-                "PCC_count": {"median": ups_pearson_count_stats[0], "min": ups_pearson_count_stats[1], "max": ups_pearson_count_stats[2]},
-                "SRCC_count": {"median": ups_spearman_count_stats[0], "min": ups_spearman_count_stats[1], "max": ups_spearman_count_stats[2]},
-                "R2_count": {"median": ups_r2_count_stats[0], "min": ups_r2_count_stats[1], "max": ups_r2_count_stats[2]},
-                "loss_count": {"median": ups_loss_count_stats[0], "min": ups_loss_count_stats[1], "max": ups_loss_count_stats[2]},
-            },
-            "upsampled_pvals": {
-                "MSE_pval": {"median": ups_mse_pval_stats[0], "min": ups_mse_pval_stats[1], "max": ups_mse_pval_stats[2]},
-                "PCC_pval": {"median": ups_pearson_pval_stats[0], "min": ups_pearson_pval_stats[1], "max": ups_pearson_pval_stats[2]},
-                "SRCC_pval": {"median": ups_spearman_pval_stats[0], "min": ups_spearman_pval_stats[1], "max": ups_spearman_pval_stats[2]},
-                "R2_pval": {"median": ups_r2_pval_stats[0], "min": ups_r2_pval_stats[1], "max": ups_r2_pval_stats[2]},
-                "loss_pval": {"median": ups_loss_pval_stats[0], "min": ups_loss_pval_stats[1], "max": ups_loss_pval_stats[2]}
-            }}
-
-
-        return print_statement, metrics_dict
-
-    def generate_training_gif_frame(self, model, fig_title):
-        def gen_subplt(
-            ax, x_values, 
-            observed_count, observed_p_value,
-            ups11_count, ups21_count,   #ups41_count, 
-            ups11_pval, ups21_pval,     #ups41_pval, 
-            imp11_count, imp21_count,   #imp41_count, 
-            imp11_pval, imp21_pval,     #imp41_pval, 
-            col, assname, ytick_fontsize=6, title_fontsize=6):
-
-            # Define the data and labels
-            data = [
-                (observed_count, "Obs_count", "royalblue", f"{assname}_Obs_Count"),
-                (ups11_count, "Count Ups. 1->1", "darkcyan", f"{assname}_Ups1->1"),
-                (imp11_count, "Count Imp. 1->1", "salmon", f"{assname}_Imp1->1"),
-                (ups21_count, "Count Ups. 2->1", "darkcyan", f"{assname}_Ups2->1"),
-                (imp21_count, "Count Imp. 2->1", "salmon", f"{assname}_Imp2->1"),
-                # (ups41, "Count Ups. 4->1", "darkcyan", f"{assname}_Ups4->1"),
-                # (imp41, "Count Imp. 4->1", "salmon", f"{assname}_Imp4->1"),
-
-                (observed_p_value, "Obs_P", "royalblue", f"{assname}_Obs_P"),
-                (ups11_pval, "P-Value Ups 1->1", "darkcyan", f"{assname}_Ups1->1"),
-                (imp11_pval, "P-Value Imp 1->1", "salmon", f"{assname}_Imp1->1"),
-                (ups21_pval, "P-Value Ups 2->1", "darkcyan", f"{assname}_Ups2->1"),
-                (imp21_pval, "P-Value Imp 2->1", "salmon", f"{assname}_Imp2->1"),
-                # (ups41, "P-Value Ups 4->1", "darkcyan", f"{assname}_Ups4->1"),
-                # (imp41, "P-Value Imp 4->1", "salmon", f"{assname}_Imp4->1"),
-            ]
+        Load data for a V_* biosample and its corresponding T_*.
+        
+        Args:
+            V_biosample: Name of V_* biosample
+            locus: Genomic locus as [chrom, start, end]
+            cached_seq: Pre-loaded DNA sequence tensor (optional, for speed)
             
-            for i, (values, label, color, title) in enumerate(data):
-                ax[i, col].plot(x_values, values, "--" if i != 0 else "-", color=color, alpha=0.7, label=label, linewidth=0.01)
-                ax[i, col].fill_between(x_values, 0, values, color=color, alpha=0.7)
-                # print("done!", values.shape, label, color, title)
+        Returns:
+            Dictionary with:
+            - X, mX, avX (from T_*)
+            - Y_T, P_T, Peak_T (T_* ground truth for upsampled)
+            - Y_V, P_V, Peak_V (V_* ground truth for imputed)
+            - available_T_indices (upsampled assays)
+            - available_V_indices (all V_* assays)
+            - seq (DNA sequence)
+        """
+        # Find corresponding T_* biosample
+        T_biosample = V_biosample.replace("V_", "T_")
+        
+        if T_biosample not in self.data_handler.navigation:
+            raise ValueError(f"T_* biosample {T_biosample} not found for {V_biosample}")
+        
+        # Load T_* data and ground truth (identical data loading)
+        temp_x, temp_mx = self.data_handler.load_bios_Counts(T_biosample, locus, DSF=1)
+        X, mX, avX = self.data_handler.make_bios_tensor_Counts(temp_x, temp_mx)
+        Y_T, mY_T, avY_T = X, mX, avX  # identical tensors since same source
+        del temp_x, temp_mx
+        
+        # Load V_* ground truth (for imputed assays)
+        temp_y_V, temp_my_V = self.data_handler.load_bios_Counts(V_biosample, locus, DSF=1)
+        Y_V, mY_V, avY_V = self.data_handler.make_bios_tensor_Counts(temp_y_V, temp_my_V)
+        del temp_y_V, temp_my_V
+        
+        # Load P-value data separately for T_* and V_*
+        temp_p_T = self.data_handler.load_bios_BW(T_biosample, locus)
+        temp_p_V = self.data_handler.load_bios_BW(V_biosample, locus)
+        
+        # Create merged P for model input (contains all assays)
+        temp_p_merged = {**temp_p_V, **temp_p_T}
+        P_merged, avlP = self.data_handler.make_bios_tensor_BW(temp_p_merged)
+        
+        # Create separate P tensors for T_* and V_*
+        P_T, _ = self.data_handler.make_bios_tensor_BW(temp_p_T)
+        P_V, _ = self.data_handler.make_bios_tensor_BW(temp_p_V)
+        
+        del temp_p_T, temp_p_V, temp_p_merged
+        
+        # Load Peak data separately for T_* and V_*
+        temp_peak_T = self.data_handler.load_bios_Peaks(T_biosample, locus)
+        temp_peak_V = self.data_handler.load_bios_Peaks(V_biosample, locus)
+        
+        # Create merged Peak for model input (contains all assays)
+        temp_peak_merged = {**temp_peak_V, **temp_peak_T}
+        Peak_merged, avlPeak = self.data_handler.make_bios_tensor_Peaks(temp_peak_merged)
+        
+        # Create separate Peak tensors for T_* and V_*
+        Peak_T, _ = self.data_handler.make_bios_tensor_Peaks(temp_peak_T)
+        Peak_V, _ = self.data_handler.make_bios_tensor_Peaks(temp_peak_V)
+        
+        del temp_peak_T, temp_peak_V, temp_peak_merged
+        
+        # Load control data
+        try:
+            temp_control_data, temp_control_metadata = self.data_handler.load_bios_Control(T_biosample, locus, DSF=1)
+            if temp_control_data and "chipseq-control" in temp_control_data:
+                control_data, control_meta, control_avail = self.data_handler.make_bios_tensor_Control(temp_control_data, temp_control_metadata)
+            else:
+                temp_control_data, temp_control_metadata = self.data_handler.load_bios_Control(V_biosample, locus, DSF=1)
+                if temp_control_data and "chipseq-control" in temp_control_data:
+                    control_data, control_meta, control_avail = self.data_handler.make_bios_tensor_Control(temp_control_data, temp_control_metadata)
+                else:
+                    raise ValueError("No control data found")
+        except Exception as e:
+            L = X.shape[0]
+            control_data = torch.full((L, 1), -1.0)
+            control_meta = torch.full((4, 1), -1.0)
+            control_avail = torch.zeros(1)
+        
+        # Concatenate control data to input
+        X = torch.cat([X, control_data], dim=1)
+        mX = torch.cat([mX, control_meta], dim=1)
+        avX = torch.cat([avX, control_avail], dim=0)
+        
+        # Prepare data for model (reshape to context windows)
+        num_rows = (X.shape[0] // self.context_length) * self.context_length
+        X = X[:num_rows, :]
+        Y_T = Y_T[:num_rows, :]
+        Y_V = Y_V[:num_rows, :]
+        
+        # Reshape P and Peak data to match X/Y length
+        # Ensure all have the same number of rows
+        min_rows = min(X.shape[0], P_merged.shape[0], Peak_merged.shape[0], 
+                      P_T.shape[0], P_V.shape[0], Peak_T.shape[0], Peak_V.shape[0])
+        num_rows = (min_rows // self.context_length) * self.context_length
+        
+        X = X[:num_rows, :]
+        Y_T = Y_T[:num_rows, :]
+        Y_V = Y_V[:num_rows, :]
+        P_merged = P_merged[:num_rows, :]
+        P_T = P_T[:num_rows, :]
+        P_V = P_V[:num_rows, :]
+        Peak_merged = Peak_merged[:num_rows, :]
+        Peak_T = Peak_T[:num_rows, :]
+        Peak_V = Peak_V[:num_rows, :]
+        
+        # Reshape to context windows
+        X = X.view(-1, self.context_length, X.shape[-1])
+        Y_T = Y_T.view(-1, self.context_length, Y_T.shape[-1])
+        Y_V = Y_V.view(-1, self.context_length, Y_V.shape[-1])
+        P_T = P_T.view(-1, self.context_length, P_T.shape[-1])
+        P_V = P_V.view(-1, self.context_length, P_V.shape[-1])
+        Peak_T = Peak_T.view(-1, self.context_length, Peak_T.shape[-1])
+        Peak_V = Peak_V.view(-1, self.context_length, Peak_V.shape[-1])
+        
+        # Expand metadata to match batch dimension
+        mX = mX.expand(X.shape[0], -1, -1)
+        mY_T = mY_T.expand(X.shape[0], -1, -1)
+        mY_V = mY_V.expand(X.shape[0], -1, -1)
+        avX = avX.expand(X.shape[0], -1)
+        
+        # Load DNA sequence (use cached if available)
+        if cached_seq is not None:
+            # Use cached sequence, just slice to match num_rows
+            seq = cached_seq[:num_rows, :, :]
+        else:
+            seq = self.data_handler._dna_to_onehot(
+                self.data_handler._get_DNA_sequence(locus[0], locus[1], locus[2])
+            )
+            seq = seq[:num_rows * self.resolution, :]
+            seq = seq.view(-1, self.context_length * self.resolution, seq.shape[-1])
+        
+        # Get available indices for T_* (input) - remove control if present
+        if avX.ndim == 1:
+            available_T_indices = torch.where(avX == 1)[0].tolist()
+        else:
+            available_T_indices = torch.where(avX[0, :] == 1)[0].tolist()
+        
+        # Remove control index if present (control is at the end)
+        if len(available_T_indices) > 0 and available_T_indices[-1] >= len(self.expnames):
+            available_T_indices = [idx for idx in available_T_indices if idx < len(self.expnames)]
+        
+        # Get available indices for V_* (target)
+        if avY_V.ndim == 1:
+            available_V_indices = torch.where(avY_V == 1)[0].tolist()
+        else:
+            available_V_indices = torch.where(avY_V[0, :] == 1)[0].tolist()
+        
+        return {
+            'X': X,
+            'mX': mX,
+            'avX': avX,
+            'Y_T': Y_T,
+            'P_T': P_T,
+            'Peak_T': Peak_T,
+            'Y_V': Y_V,
+            'P_V': P_V,
+            'Peak_V': Peak_V,
+            'mY_T': mY_T,
+            'mY_V': mY_V,
+            'available_T_indices': available_T_indices,
+            'available_V_indices': available_V_indices,
+            'seq': seq
+        }
+    
+    def _predict(self, model, X, mX, mY, avX, seq):
+        """
+        Run model prediction in batches.
+        
+        Returns:
+            output_p, output_n, output_mu, output_var, output_peak
+        """
+        # Unwrap DDP if needed
+        if hasattr(model, 'module'):
+            model_to_use = model.module
+        else:
+            model_to_use = model
+        
+        model_to_use.train()  # Use batch statistics (avoids corrupted running stats in BatchNorm)
+        
+        # Initialize output tensors
+        original_feature_dim = X.shape[-1] - 1  # Subtract control
+        n = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        p = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        mu = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        var = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        peak = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        
+        # Process in batches with mixed precision for speed
+        with torch.no_grad(), torch.amp.autocast('cuda', enabled=True):
+            for i in range(0, len(X), self.validation_batch_size):
+                x_batch = X[i:i + self.validation_batch_size]
+                mX_batch = mX[i:i + self.validation_batch_size]
+                mY_batch = mY[i:i + self.validation_batch_size]
+                seq_batch = seq[i:i + self.validation_batch_size]
                 
-                if i != len(data)-1:
-                    ax[i, col].tick_params(axis='x', labelbottom=False)
+                # Apply masking (in-place on clones)
+                x_batch = x_batch.clone()
+                mX_batch = mX_batch.clone()
+                x_batch[x_batch == self.token_dict["missing_mask"]] = float(self.token_dict["cloze_mask"])
+                mX_batch[mX_batch == self.token_dict["missing_mask"]] = float(self.token_dict["cloze_mask"])
                 
-                ax[i, col].tick_params(axis='y', labelsize=ytick_fontsize)
-                ax[i, col].set_xticklabels([])
-                ax[i, col].set_title(title, fontsize=title_fontsize)
-
-        self.model = model
+                # Move to device
+                x_batch = x_batch.to(self.device, non_blocking=True)
+                mX_batch = mX_batch.to(self.device, non_blocking=True)
+                mY_batch = mY_batch.to(self.device, non_blocking=True)
+                seq_batch = seq_batch.to(self.device, non_blocking=True)
+                
+                # Forward pass
+                outputs_p, outputs_n, outputs_mu, outputs_var, outputs_peak = model_to_use(
+                    x_batch.float(), seq_batch, mX_batch.float(), mY_batch
+                )
+                
+                # Store predictions (convert to float32 for metrics)
+                batch_end = min(i + self.validation_batch_size, len(X))
+                n[i:batch_end] = outputs_n.float().cpu()
+                p[i:batch_end] = outputs_p.float().cpu()
+                mu[i:batch_end] = outputs_mu.float().cpu()
+                var[i:batch_end] = outputs_var.float().cpu()
+                peak[i:batch_end] = outputs_peak.float().cpu()
         
-        bios_name = list(self.dataset.navigation.keys())[1]
+        return n, p, mu, var, peak
+    
+    def _compute_count_nll(self, n_pred, p_pred, y_true):
+        """Compute mean NB NLL across positions."""
+        # Flatten to [B*L, F]
+        n_flat = n_pred.view(-1, n_pred.shape[-1])
+        p_flat = p_pred.view(-1, p_pred.shape[-1])
+        y_flat = y_true.view(-1, y_true.shape[-1])
         
-        # dsf2-1
-        imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, available_indices = self.get_bios_frame(
-            bios_name, x_dsf=1, y_dsf=1, fixed_segment=(33481539//self.resolution, 33588914//self.resolution))
+        # Compute NLL per position
+        nll = self.nbin_nll(y_flat, n_flat, p_flat)
+        return nll.mean().item()
+    
+    def _compute_signal_nll(self, mu_pred, var_pred, y_true):
+        """Compute mean Gaussian NLL across positions."""
+        # Flatten to [B*L, F]
+        mu_flat = mu_pred.view(-1, mu_pred.shape[-1])
+        var_flat = var_pred.view(-1, var_pred.shape[-1])
+        y_flat = y_true.view(-1, y_true.shape[-1])
         
-        ups11_count = ups_count_dist.expect()
-        imp11_count = imp_count_dist.expect()
+        # Compute NLL per position
+        nll = self.gaus_nll(mu_flat, y_flat, var_flat)
+        return nll.item()
+    
+    def _compute_peak_bce(self, peak_pred, peak_true):
+        """Compute mean BCE across positions."""
+        # Flatten to [B*L, F]
+        peak_pred_flat = peak_pred.view(-1, peak_pred.shape[-1])
+        peak_true_flat = peak_true.view(-1, peak_true.shape[-1]).float()  # Convert to float for BCE
         
-        ups11_pval = ups_pval_dist.mean()
-        imp11_pval = imp_pval_dist.mean() 
-
-        del imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, available_indices
+        # Compute BCE
+        bce = self.peak_bce(peak_pred_flat, peak_true_flat)
+        return bce.item()
+    
+    def run_validation(self, model, batch_idx, total_batches):
+        """
+        Run validation on all V_* biosamples in EIC dataset.
         
-        # dsf1-1
-        imp_count_dist, ups_count_dist, imp_pval_dist, ups_pval_dist, Y, P, bios_name, available_indices = self.get_bios_frame(
-            bios_name, x_dsf=2, y_dsf=1, fixed_segment=(33481539//self.resolution, 33588914//self.resolution))
-
-        ups21_count = ups_count_dist.expect()
-        imp21_count = imp_count_dist.expect()
-
-        ups21_pval = ups_pval_dist.mean()
-        imp21_pval = imp_pval_dist.mean()
-
-        del self.model
-
-        selected_assays = ["H3K4me3", "H3K27ac", "H3K27me3", "H3K36me3", "H3K4me1", "H3K9me3", "CTCF", "DNase-seq", "ATAC-seq"]
-        available_selected = []
-        for col, jj in enumerate(available_indices):
-            assay = self.mark_dict[f"M{str(jj.item()+1).zfill(len(str(len(self.mark_dict))))}"]
-            if assay in selected_assays:
-                available_selected.append(jj)
-
-        fig, axes = plt.subplots(10, len(available_selected), figsize=(len(available_selected) * 3, 10), sharex=True, sharey=False)
-        
-        for col, jj in enumerate(available_selected):
-            j = jj.item()
-            assay = self.mark_dict[f"M{str(j+1).zfill(len(str(len(self.mark_dict))))}"]
-            x_values = list(range(len(Y[:, j])))
-
-            obs_count = Y[:, j].numpy()
-            obs_pval =  P[:, j].numpy()
-
-            gen_subplt(axes, x_values, 
-                    obs_count, obs_pval,
-                    ups11_count[:, j].numpy(), ups21_count[:, j].numpy(),   #ups41_count, 
-                    ups11_pval[:, j].numpy(), ups21_pval[:, j].numpy(),     #ups41_pval, 
-                    imp11_count[:, j].numpy(), imp21_count[:, j].numpy(),   #imp41_count, 
-                    imp11_pval[:, j].numpy(), imp21_pval[:, j].numpy(), 
-                    col, assay)
-
-        fig.suptitle(fig_title, fontsize=10)
-        plt.tight_layout()
-        
-        buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=150)
-        buf.seek(0)
-        plt.close(fig)
-        
-        return buf
-
-    def generate_training_gif_frame_eic(self, model, fig_title):
-        def gen_subplt(
-            ax, x_values, 
-            observed_count, observed_p_value,
-            ups11_count, ups21_count,  # ups41_count, 
-            ups11_pval, ups21_pval,    # ups41_pval, 
-            col, assname, comparison, ytick_fontsize=6, title_fontsize=6):
-
-            # Define the data and labels
-            data = [
-                (observed_count, f"Obs_count ({comparison})", "royalblue", f"{assname}_Obs_Count"),
-                (ups11_count, f"Count Ups. 1->1 ({comparison})", "darkcyan", f"{assname}_Ups1->1 ({comparison})"),
-                (ups21_count, f"Count Ups. 2->1 ({comparison})", "darkcyan", f"{assname}_Ups2->1 ({comparison})"),
-                (observed_p_value, f"Obs_P ({comparison})", "royalblue", f"{assname}_Obs_P"),
-                (ups11_pval, f"P-Value Ups 1->1 ({comparison})", "darkcyan", f"{assname}_Ups1->1 ({comparison})"),
-                (ups21_pval, f"P-Value Ups 2->1 ({comparison})", "darkcyan", f"{assname}_Ups2->1 ({comparison})"),
-            ]
+        Args:
+            model: CANDI model to evaluate
+            batch_idx: Current batch index
+            total_batches: Total number of batches in training
             
-            for i, (values, label, color, title) in enumerate(data):
-                ax[i, col].plot(x_values, values, "--" if i != 0 else "-", color=color, alpha=0.7, label=label, linewidth=0.01)
-                ax[i, col].fill_between(x_values, 0, values, color=color, alpha=0.7)
+        Returns:
+            Dictionary with:
+            - iteration, progress_pct
+            - mean metrics across all assays
+            - per-assay-type metrics (averaged across biosamples)
+        """
+        print(f"Running EIC validation at batch {batch_idx} ({100.0 * batch_idx / total_batches:.1f}% progress)...")
+        
+        # Use full chr21
+        locus = ["chr21", 0, self.chr_sizes["chr21"]]
+        
+        # Collect metrics per (biosample, assay_name, comparison_type)
+        all_metrics = []
+        
+        # Pre-load DNA sequence once (same for all biosamples on chr21)
+        print(f"  Loading DNA sequence for {locus[0]}...")
+        chr_length = locus[2] - locus[1]
+        num_windows = chr_length // (self.context_length * self.resolution)
+        num_rows = num_windows * self.context_length
+        
+        cached_seq = self.data_handler._dna_to_onehot(
+            self.data_handler._get_DNA_sequence(locus[0], locus[1], locus[2])
+        )
+        cached_seq = cached_seq[:num_rows * self.resolution, :]
+        cached_seq = cached_seq.view(-1, self.context_length * self.resolution, cached_seq.shape[-1])
+        print(f"  DNA sequence cached: {cached_seq.shape}")
+        
+        # Process all biosamples one at a time to avoid OOM
+        num_biosamples = len(self.v_biosamples)
+        print(f"  Processing {num_biosamples} biosamples on full {locus[0]}")
+        
+        for bios_idx, V_biosample in enumerate(self.v_biosamples):
+            try:
+                print(f"  [{bios_idx+1}/{num_biosamples}] Validating {V_biosample}...", end=" ", flush=True)
                 
-                if i != len(data)-1:
-                    ax[i, col].tick_params(axis='x', labelbottom=False)
+                # Clear memory before loading new biosample
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
                 
-                ax[i, col].tick_params(axis='y', labelsize=ytick_fontsize)
-                ax[i, col].set_xticklabels([])
-                ax[i, col].set_title(title, fontsize=title_fontsize)
-
-        self.model = model
-
-        bios_dict_sorted = dict(sorted(self.dataset.navigation.items(), key=lambda item: len(item[1]), reverse=True))
-        bios_name = list(bios_dict_sorted.keys())[2]
-
-        # DSF 2->1 (EIC-specific logic)
-        ups_count_dist_21, ups_pval_dist_21, Y, X, P, bios_name, available_X_indices, available_Y_indices = self.get_bios_frame_eic(
-            bios_name, x_dsf=2, y_dsf=1, fixed_segment=(33481539//self.resolution, 33588914//self.resolution))
+                # Load validation data (with cached DNA sequence)
+                data = self._load_validation_data(V_biosample, locus, cached_seq=cached_seq)
+                
+                # Run prediction
+                n, p, mu, var, peak = self._predict(
+                    model, data['X'], data['mX'], data['mY_T'], data['avX'], data['seq']
+                )
+                
+                # Determine which assays are upsampled vs imputed
+                available_T_set = set(data['available_T_indices'])
+                available_V_set = set(data['available_V_indices'])
+                
+                upsampled_assays = available_T_set  # Assays in T_*
+                imputed_assays = available_V_set - available_T_set  # Assays in V_* but not in T_*
+                
+                # Compute metrics for upsampled assays (compare against T_* ground truth)
+                for assay_idx in upsampled_assays:
+                    if assay_idx >= len(self.expnames):
+                        continue
+                    
+                    assay_name = self.expnames[assay_idx]
+                    
+                    # Extract predictions for this assay
+                    n_assay = n[:, :, assay_idx]
+                    p_assay = p[:, :, assay_idx]
+                    mu_assay = mu[:, :, assay_idx]
+                    var_assay = var[:, :, assay_idx]
+                    peak_assay = peak[:, :, assay_idx]
+                    
+                    # Extract ground truth from T_*
+                    y_T_assay = data['Y_T'][:, :, assay_idx]
+                    p_T_assay = data['P_T'][:, :, assay_idx]
+                    peak_T_assay = data['Peak_T'][:, :, assay_idx]
+                    
+                    # Compute losses
+                    count_nll = self._compute_count_nll(n_assay, p_assay, y_T_assay)
+                    signal_nll = self._compute_signal_nll(mu_assay, var_assay, p_T_assay)
+                    peak_bce = self._compute_peak_bce(peak_assay, peak_T_assay)
+                    
+                    all_metrics.append({
+                        'biosample': V_biosample,
+                        'assay_name': assay_name,
+                        'comparison': 'upsampled',
+                        'count_nll': count_nll,
+                        'signal_nll': signal_nll,
+                        'peak_bce': peak_bce
+                    })
+                
+                # Compute metrics for imputed assays (compare against V_* ground truth)
+                for assay_idx in imputed_assays:
+                    if assay_idx >= len(self.expnames):
+                        continue
+                    
+                    assay_name = self.expnames[assay_idx]
+                    
+                    # Extract predictions for this assay
+                    n_assay = n[:, :, assay_idx]
+                    p_assay = p[:, :, assay_idx]
+                    mu_assay = mu[:, :, assay_idx]
+                    var_assay = var[:, :, assay_idx]
+                    peak_assay = peak[:, :, assay_idx]
+                    
+                    # Extract ground truth from V_*
+                    y_V_assay = data['Y_V'][:, :, assay_idx]
+                    p_V_assay = data['P_V'][:, :, assay_idx]
+                    peak_V_assay = data['Peak_V'][:, :, assay_idx]
+                    
+                    # Compute losses
+                    count_nll = self._compute_count_nll(n_assay, p_assay, y_V_assay)
+                    signal_nll = self._compute_signal_nll(mu_assay, var_assay, p_V_assay)
+                    peak_bce = self._compute_peak_bce(peak_assay, peak_V_assay)
+                    
+                    all_metrics.append({
+                        'biosample': V_biosample,
+                        'assay_name': assay_name,
+                        'comparison': 'imputed',
+                        'count_nll': count_nll,
+                        'signal_nll': signal_nll,
+                        'peak_bce': peak_bce
+                    })
+                
+                # Clean up memory after each biosample
+                del data, n, p, mu, var, peak
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                print(f"done ({len(upsampled_assays)} ups, {len(imputed_assays)} imp)")
+                
+            except Exception as e:
+                print(f"failed: {e}")
+                import traceback
+                traceback.print_exc()
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                continue
         
-        ups21_count = ups_count_dist_21.expect()
-        ups21_pval = ups_pval_dist_21.mean()
-
-        del ups_count_dist_21, ups_pval_dist_21
-
-        # DSF 1->1 (EIC-specific logic)
-        ups_count_dist_11, ups_pval_dist_11, _, _, _, _, _, _ = self.get_bios_frame_eic(
-            bios_name, x_dsf=1, y_dsf=1, fixed_segment=(33481539//self.resolution, 33588914//self.resolution))
-
-        ups11_count = ups_count_dist_11.expect()
-        ups11_pval = ups_pval_dist_11.mean()
-
-        del ups_count_dist_11, ups_pval_dist_11
-
-        selected_assays = ["H3K4me3", "H3K27ac", "H3K27me3", "H3K36me3", "H3K4me1", "H3K9me3", "CTCF", "DNase-seq", "ATAC-seq"]
-        available_selected = []
-        for col, jj in enumerate(available_X_indices):
-            assay = self.mark_dict[f"M{str(jj.item()+1).zfill(len(str(len(self.mark_dict))))}"]
-            if assay in selected_assays:
-                available_selected.append(jj)
-
-        for col, jj in enumerate(available_Y_indices):
-            assay = self.mark_dict[f"M{str(jj.item()+1).zfill(len(str(len(self.mark_dict))))}"]
-            if assay in selected_assays:
-                available_selected.append(jj)
-
-        fig, axes = plt.subplots(6, len(available_selected), figsize=(len(available_selected) * 3, 9), sharex=True, sharey=False)
+        if not all_metrics:
+            print("Warning: No validation metrics computed")
+            return {
+                'iteration': batch_idx,
+                'progress_pct': 100.0 * batch_idx / total_batches,
+                'imp_count_nll_mean': 0.0,
+                'imp_signal_nll_mean': 0.0,
+                'imp_peak_bce_mean': 0.0,
+                'ups_count_nll_mean': 0.0,
+                'ups_signal_nll_mean': 0.0,
+                'ups_peak_bce_mean': 0.0
+            }
         
-        for col, jj in enumerate(available_selected):
-            j = jj.item()
-            assay = self.mark_dict[f"M{str(j+1).zfill(len(str(len(self.mark_dict))))}"]
-            x_values = list(range(len(Y[:, j])))
-
-            if j in list(available_X_indices):
-                comparison = "upsampled"
-                obs_count = X[:, j].numpy()
-            elif j in list(available_Y_indices):
-                comparison = "imputed"
-                obs_count = Y[:, j].numpy()
-
-            obs_pval =  P[:, j].numpy()
-
-            gen_subplt(axes, x_values, 
-                    obs_count, obs_pval,
-                    ups11_count[:, j].numpy(), ups21_count[:, j].numpy(),  # ups41_count
-                    ups11_pval[:, j].numpy(), ups21_pval[:, j].numpy(),   # ups41_pval
-                    col, assay, comparison)
-
-        fig.suptitle(fig_title, fontsize=10)
-        plt.tight_layout()
+        # Convert to DataFrame for easier aggregation
+        import pandas as pd
+        df = pd.DataFrame(all_metrics)
         
-        buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=150)
-        buf.seek(0)
-        plt.close(fig)
+        # Compute mean metrics across all assays
+        imp_df = df[df['comparison'] == 'imputed']
+        ups_df = df[df['comparison'] == 'upsampled']
         
-        return buf
+        result = {
+            'iteration': batch_idx,
+            'progress_pct': 100.0 * batch_idx / total_batches,
+            'imp_count_nll_mean': imp_df['count_nll'].mean() if len(imp_df) > 0 else 0.0,
+            'imp_signal_nll_mean': imp_df['signal_nll'].mean() if len(imp_df) > 0 else 0.0,
+            'imp_peak_bce_mean': imp_df['peak_bce'].mean() if len(imp_df) > 0 else 0.0,
+            'ups_count_nll_mean': ups_df['count_nll'].mean() if len(ups_df) > 0 else 0.0,
+            'ups_signal_nll_mean': ups_df['signal_nll'].mean() if len(ups_df) > 0 else 0.0,
+            'ups_peak_bce_mean': ups_df['peak_bce'].mean() if len(ups_df) > 0 else 0.0
+        }
+        
+        # Compute per-assay-type metrics (averaged across biosamples)
+        for assay_name in df['assay_name'].unique():
+            assay_imp_df = imp_df[imp_df['assay_name'] == assay_name]
+            assay_ups_df = ups_df[ups_df['assay_name'] == assay_name]
+            
+            # Imputed metrics
+            if len(assay_imp_df) > 0:
+                result[f'{assay_name}_imp_count_nll'] = assay_imp_df['count_nll'].mean()
+                result[f'{assay_name}_imp_signal_nll'] = assay_imp_df['signal_nll'].mean()
+                result[f'{assay_name}_imp_peak_bce'] = assay_imp_df['peak_bce'].mean()
+            
+            # Upsampled metrics
+            if len(assay_ups_df) > 0:
+                result[f'{assay_name}_ups_count_nll'] = assay_ups_df['count_nll'].mean()
+                result[f'{assay_name}_ups_signal_nll'] = assay_ups_df['signal_nll'].mean()
+                result[f'{assay_name}_ups_peak_bce'] = assay_ups_df['peak_bce'].mean()
+        
+        print(f"Validation completed: {len(imp_df)} imputed, {len(ups_df)} upsampled assays evaluated")
+        
+        return result
 
 ##=========================================== Loss Functions =============================================##
 
@@ -945,17 +642,24 @@ class CANDI_Decoder(nn.Module):
         reverse_conv_channels = [expansion_factor * x for x in conv_channels[::-1]]
         conv_kernel_size = [conv_kernel_size for _ in range(n_cnn_layers)]
 
-        self.deconv = nn.ModuleList(
-            [DeconvTower(
-                reverse_conv_channels[i], reverse_conv_channels[i + 1] if i + 1 < n_cnn_layers else int(reverse_conv_channels[i] / expansion_factor),
+        self.deconv = nn.ModuleList()
+        for i in range(n_cnn_layers):
+
+            is_last_layer = (i == n_cnn_layers - 1)
+            layer_norm_type = norm
+            
+            self.deconv.append(DeconvTower(
+                reverse_conv_channels[i], 
+                reverse_conv_channels[i + 1] if i + 1 < n_cnn_layers else int(reverse_conv_channels[i] / expansion_factor),
                 conv_kernel_size[-(i + 1)], S=pool_size, D=1, residuals=True,
-                groups=self.f1, pool_size=pool_size, norm=norm) for i in range(n_cnn_layers)])
+                groups=self.f1, pool_size=pool_size, norm=layer_norm_type)
+            )
         
         # Per-layer cross-attention for Y-side metadata (after each deconv layer)
         self.ymd_cross_attn_layers = nn.ModuleList([
             MetadataCrossAttention(
                 latent_dim=reverse_conv_channels[i + 1] if i + 1 < n_cnn_layers else int(reverse_conv_channels[i] / expansion_factor),
-                num_heads=expansion_factor,
+                num_heads=1,
                 num_assays=signal_dim,
                 num_sequencing_platforms=num_sequencing_platforms,
                 num_runtypes=num_runtypes
@@ -992,8 +696,22 @@ class CANDI_DNA_Encoder(nn.Module):
         d_model = self.f2
         self.latent_dim = self.f2
 
-        DNA_conv_channels = exponential_linspace_int(4, self.f2, n_cnn_layers+3)
-        DNA_kernel_size = [conv_kernel_size for _ in range(n_cnn_layers+2)]
+        # DNA_conv_channels = exponential_linspace_int(4, self.f2, n_cnn_layers+3)
+        # DNA_kernel_size = [conv_kernel_size for _ in range(n_cnn_layers+2)]
+
+        # --- REDESIGN: Wide Stem & Biophysical Kernels ---
+        # 1. Wide Stem: Start with 64 channels instead of 4 to prevent feature collapse.
+        #    This moves closer to Borzoi's "High-Capacity" philosophy.
+        start_channels = 64 
+        
+        tower_channels = exponential_linspace_int(start_channels, self.f2, n_cnn_layers + 2)
+        DNA_conv_channels = [4] + tower_channels
+        
+        # 2. Biophysical Kernels: 
+        #    Layer 0: 15bp to capture complete TF motifs (The "Motif Scanner").
+        #    Layer 1+: 5bp to capture motif syntax/arrangement.
+        DNA_kernel_size = [15] + [5 for _ in range(n_cnn_layers+1)]
+        # -------------------------------------------------
 
         self.convEncDNA = nn.ModuleList(
             [ConvTower(
@@ -1004,13 +722,21 @@ class CANDI_DNA_Encoder(nn.Module):
 
         conv_channels = [(self.f1)*(expansion_factor**l) for l in range(n_cnn_layers)]
         reverse_conv_channels = [expansion_factor * x for x in conv_channels[::-1]]
-        conv_kernel_size_list = [conv_kernel_size for _ in range(n_cnn_layers)]
+        # conv_kernel_size_list = [conv_kernel_size for _ in range(n_cnn_layers)]
 
+        # --- REDESIGN: Signal Features Only ---
+        # 1. Kernel Size: 9 (225bp) 
+        #    At 25bp resolution, a kernel of 9 covers ~225bp. This matches the typical
+        #    width of a ChIP-seq peak or ATAC domain, allowing the model to see the 
+        #    "shape" of the feature rather than just local noise (kernel 3).
+        conv_kernel_size_list = [9] + [5 for _ in range(n_cnn_layers - 1)]
+        # --------------------------------------
+        
         self.convEnc = nn.ModuleList(
             [ConvTower(
                 conv_channels[i], conv_channels[i + 1] if i + 1 < n_cnn_layers else expansion_factor * conv_channels[i],
                 conv_kernel_size_list[i], S=1, D=1,
-                pool_type="avg", residuals=True,
+                pool_type="max", residuals=True,
                 groups=self.f1, SE=False,
                 pool_size=pool_size, norm=norm) for i in range(n_cnn_layers)])
         
@@ -1018,16 +744,12 @@ class CANDI_DNA_Encoder(nn.Module):
         self.xmd_cross_attn_layers = nn.ModuleList([
             MetadataCrossAttention(
                 latent_dim=conv_channels[i + 1] if i + 1 < n_cnn_layers else expansion_factor * conv_channels[i],
-                num_heads=expansion_factor,
+                num_heads=1,
                 num_assays=signal_dim,
                 num_sequencing_platforms=num_sequencing_platforms,
                 num_runtypes=num_runtypes
             ) for i in range(n_cnn_layers)
         ])
-
-        self.fusion = nn.Sequential(
-            nn.Linear(2*self.f2, self.f2),  # Still 2*f2 (signal + DNA)
-            nn.LayerNorm(self.f2))
 
         # Store attention type for reference
         self.attention_type = attention_type
@@ -1039,6 +761,9 @@ class CANDI_DNA_Encoder(nn.Module):
                 "Install it with: pip install x-transformers"
             )
 
+        # Hybrid fusion: cross-attention + concat-linear for best of both
+        self.fusion = HybridFusion(d_model=self.f2, nhead=nhead, dropout=dropout)
+
         # Initialize transformer encoder based on attention type
         if attention_type == "xtransformers":
             self.transformer_encoder = nn.ModuleList([
@@ -1048,6 +773,7 @@ class CANDI_DNA_Encoder(nn.Module):
                     seq_length=self.l2, 
                     dropout=dropout
                 ) for _ in range(n_sab_layers)])
+                
         else:  # "dual" or default
             self.transformer_encoder = nn.ModuleList([
                 DualAttentionEncoderBlock(
@@ -1077,11 +803,8 @@ class CANDI_DNA_Encoder(nn.Module):
             src = src.permute(0, 2, 1)  # back to N, C, L'
         src = src.permute(0, 2, 1)  # final permute to N, L', F2
 
-        ### CONCATENATE CORRECTED SIGNAL + DNA ###
-        src = torch.cat([src, seq], dim=-1)  # [N, L', 2*F2]
-
-        ### FUSION ###
-        src = self.fusion(src)
+        ### CROSS-ATTENTION FUSION (signal queries DNA) ###
+        src = self.fusion(signal=src, dna=seq)  # [N, L', F2]
 
         ### TRANSFORMER ENCODER ###
         for enc in self.transformer_encoder:
@@ -1092,7 +815,8 @@ class CANDI_DNA_Encoder(nn.Module):
 class CANDI(nn.Module):
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
         n_sab_layers, pool_size=2, dropout=0.1, context_length=1600, pos_enc="relative", 
-        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=2, norm="batch", attention_type="dual"):
+        expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=2, 
+        norm="batch", attention_type="dual", output_ff=False):
         super(CANDI, self).__init__()
 
         self.pos_enc = pos_enc
@@ -1120,9 +844,9 @@ class CANDI(nn.Module):
         else:
             self.decoder = CANDI_Decoder(signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, context_length, pool_size, expansion_factor, num_sequencing_platforms, num_runtypes, norm)
 
-        self.neg_binom_layer = NegativeBinomialLayer(self.f1, self.f1, FF=False)
-        self.gaussian_layer = GaussianLayer(self.f1, self.f1, FF=False)
-        self.peak_layer = PeakLayer(self.f1, self.f1, FF=False)
+        self.neg_binom_layer = NegativeBinomialLayer(self.f1, self.f1, FF=output_ff)
+        self.gaussian_layer = GaussianLayer(self.f1, self.f1, FF=output_ff)
+        self.peak_layer = PeakLayer(self.f1, self.f1, FF=output_ff)
     
     def encode(self, src, seq, x_metadata, apply_arcsinh_transform=True):
         """Encode input data into latent representation.
@@ -1178,80 +902,145 @@ class CANDI(nn.Module):
             return p, n, mu, var, peak
 
 class CANDI_UNET(CANDI):
+    """
+    CANDI with U-Net skip connections.
+    
+    Identical architecture to CANDI, but adds skip connections from the signal encoder
+    to the decoder. The skip connections:
+    1. Are computed with the same operations as the encoder (including arcsinh transform
+       and per-layer metadata cross-attention)
+    2. Are added to the decoder before each deconv layer
+    3. Preserve the decoder's per-layer metadata cross-attention
+    """
     def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers,
                  nhead, n_sab_layers, pool_size=2, dropout=0.1, context_length=1600,
-                 pos_enc="relative", expansion_factor=3, separate_decoders=True, num_sequencing_platforms=10, num_runtypes=4, norm="batch", attention_type="dual"):
-        super(CANDI_UNET, self).__init__(signal_dim, metadata_embedding_dim,
-                                          conv_kernel_size, n_cnn_layers,
-                                          nhead, n_sab_layers,
-                                          pool_size, dropout,
-                                          context_length, pos_enc,
-                                          expansion_factor,
-                                          separate_decoders, num_sequencing_platforms, num_runtypes, norm, attention_type)
+                 pos_enc="relative", expansion_factor=3, separate_decoders=True, 
+                 num_sequencing_platforms=10, num_runtypes=4, norm="batch", attention_type="dual",
+                 output_ff=False):
+        super(CANDI_UNET, self).__init__(
+            signal_dim, metadata_embedding_dim,
+            conv_kernel_size, n_cnn_layers,
+            nhead, n_sab_layers,
+            pool_size, dropout,
+            context_length, pos_enc,
+            expansion_factor,
+            separate_decoders, num_sequencing_platforms, num_runtypes, norm, attention_type,
+            output_ff=output_ff
+        )
 
-    def _compute_skips(self, src):
-        # Compute skip connections from signal encoder only
-        # This mirrors what happens in encode() for the signal path
-        src = torch.where(src == -2,
-                          torch.tensor(-1, device=src.device), src)
-        x = src.permute(0, 2, 1)  # (N, F1, L)
+    def _compute_skips(self, src, x_metadata):
+        """
+        Compute skip connections from signal encoder with per-layer metadata injection.
+        
+        This mirrors EXACTLY what happens in CANDI_DNA_Encoder.forward() for the signal path:
+        1. Replace cloze_mask with missing_mask
+        2. Apply arcsinh transformation
+        3. Apply convolutions with per-layer metadata cross-attention
+        
+        Args:
+            src: Input signal tensor [B, L, F+1] (includes control)
+            x_metadata: Input metadata tensor [B, 4, F+1]
+            
+        Returns:
+            List of skip tensors, one per conv layer, in encoder order (shallow to deep)
+        """
+        # Match encoder preprocessing: replace cloze_mask (-2) with missing_mask (-1)
+        src = torch.where(src == -2, torch.tensor(-1, device=src.device), src)
+        x_metadata = torch.where(x_metadata == -2, torch.tensor(-1, device=x_metadata.device), x_metadata)
+        
+        # Match encoder preprocessing: apply arcsinh transformation to non-missing values
+        mask = src != -1
+        src = torch.where(mask, torch.arcsinh(src), src)
+        
+        # Process through signal convolutions (matching encoder.forward signal path)
+        x = src.permute(0, 2, 1)  # (N, F+1, L)
         skips = []
-        for conv in self.encoder.convEnc:
+        
+        for i, conv in enumerate(self.encoder.convEnc):
             x = conv(x)
+            # Apply metadata cross-attention after each conv layer (matching encoder)
+            x = x.permute(0, 2, 1)  # to N, L', C
+            x = self.encoder.xmd_cross_attn_layers[i](x_metadata, x)
+            x = x.permute(0, 2, 1)  # back to N, C, L'
             skips.append(x)
+        
         return skips
 
     def _unet_decode(self, z, y_metadata, skips, decoder):
-        x = z.permute(0, 2, 1)  # (N, C, L)
-
-        # Apply deconvs with UNet skip connections
-        for i, dconv in enumerate(decoder.deconv):
-            skip = skips[-(i + 1)]  # Get matching resolution skip from encoder
+        """
+        Decode with U-Net skip connections and per-layer metadata injection.
+        
+        This mirrors EXACTLY what happens in CANDI_Decoder.forward(), but adds
+        skip connections before each deconv layer:
+        1. Add skip connection (additive, matching resolution from encoder)
+        2. Apply deconv
+        3. Apply per-layer metadata cross-attention
+        
+        Args:
+            z: Latent tensor [B, L', D]
+            y_metadata: Output metadata tensor [B, 4, F]
+            skips: List of skip tensors from _compute_skips
+            decoder: The CANDI_Decoder to use
             
-            # Handle dimension mismatch by taking first x.shape[-1] values (non-control assays)
+        Returns:
+            Decoded tensor [B, L, F]
+        """
+        x = z.permute(0, 2, 1)  # (N, C, L')
+
+        for i, dconv in enumerate(decoder.deconv):
+            # Get matching resolution skip from encoder (reverse order: deep to shallow)
+            skip = skips[-(i + 1)]
+            
+            # Handle dimension mismatch: encoder has F+1 (with control), decoder has F
+            # Skip shape: (N, C_enc, L), x shape: (N, C_dec, L)
+            # C_enc includes control assay, C_dec does not
             if skip.shape[1] != x.shape[1]:
                 skip = skip[:, :x.shape[1], :]
             
-            # Add skip connection before deconv
+            # Add skip connection before deconv (additive residual)
             x = x + skip
+            
+            # Apply deconv
             x = dconv(x)
+            
+            # Apply metadata cross-attention after each deconv layer (matching decoder)
+            x = x.permute(0, 2, 1)  # to N, L', C
+            x = decoder.ymd_cross_attn_layers[i](y_metadata, x)
+            x = x.permute(0, 2, 1)  # back to N, C, L'
 
-        x = x.permute(0, 2, 1)  # (N, L, F1)
+        x = x.permute(0, 2, 1)  # (N, L, F)
         return x
 
     def forward(self, src, seq, x_metadata, y_metadata, availability=None, return_z=False):
-        # Compute skip features from signal branch
-        skips = self._compute_skips(src)
+        """
+        Forward pass with U-Net skip connections.
         
-        # Standard encode (fuses seq + signal + metadata)
+        Note: Skip connections are computed via a separate pass through the signal encoder.
+        This is necessary because the main encode() fuses signal+DNA, but skips should
+        only contain signal features (DNA context is added via cross-attention in encoder).
+        """
+        # Compute skip features from signal branch with metadata injection
+        skips = self._compute_skips(src, x_metadata)
+        
+        # Standard encode (fuses seq + signal + metadata via HybridFusion + Transformer)
         z = self.encode(src, seq, x_metadata)
-
         z = self.latent_projection(z)
 
-        # UNet-style decode for counts
+        # UNet-style decode with skip connections for each task
         if self.separate_decoders:
             count_decoded = self._unet_decode(z, y_metadata, skips, self.count_decoder)
-        else:
-            count_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
-        p, n = self.neg_binom_layer(count_decoded)
-
-        # UNet-style decode for p-values
-        if self.separate_decoders:
-            pval_decoded = self._unet_decode(z, y_metadata, skips, self.pval_decoder)  
-        else:
-            pval_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
-        mu, var = self.gaussian_layer(pval_decoded)
-
-        # UNet-style decode for peaks
-        if self.separate_decoders:
+            pval_decoded = self._unet_decode(z, y_metadata, skips, self.pval_decoder)
             peak_decoded = self._unet_decode(z, y_metadata, skips, self.peak_decoder)
         else:
-            peak_decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
+            decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
+            count_decoded = pval_decoded = peak_decoded = decoded
+        
+        p, n = self.neg_binom_layer(count_decoded)
+        mu, var = self.gaussian_layer(pval_decoded)
         peak = self.peak_layer(peak_decoded)
 
         if return_z:
             return p, n, mu, var, peak, z
-            
         return p, n, mu, var, peak
 
 #========================================================================================================#
@@ -1277,13 +1066,6 @@ class MetadataCrossAttention(nn.Module):
         
         assert latent_dim % num_assays == 0, \
             f"latent_dim {latent_dim} must be divisible by num_assays {num_assays}"
-        
-        # Adjust num_heads to be compatible with per_assay_dim
-        # Find largest divisor of per_assay_dim that is <= num_heads
-        valid_num_heads = num_heads
-        while self.per_assay_dim % valid_num_heads != 0 and valid_num_heads > 1:
-            valid_num_heads -= 1
-        self.num_heads = valid_num_heads
         
         # Rich metadata embedding per field
         # Use max to ensure at least 1 dimension per field
@@ -1317,17 +1099,16 @@ class MetadataCrossAttention(nn.Module):
             nn.Linear(4 * field_embed_dim, self.per_assay_dim)
             )
         
-        # Multi-head cross-attention (batched over all assays)
+        # single-head cross-attention (batched over all assays)
         self.cross_attn = nn.MultiheadAttention(
             embed_dim=self.per_assay_dim,
-            num_heads=self.num_heads,
+            num_heads=1, # hardcoded to 1 for now
             batch_first=True
         )
         
         # FiLM-style conditioning: separate scale and shift projections
         self.scale_proj = nn.Sequential(
-            nn.Linear(self.per_assay_dim, self.per_assay_dim),
-            nn.Tanh()  # Bounded scale to prevent instability
+            nn.Linear(self.per_assay_dim, self.per_assay_dim)
         )
         
         self.shift_proj = nn.Sequential(
@@ -1374,14 +1155,9 @@ class MetadataCrossAttention(nn.Module):
                              torch.full_like(runtype, self.num_runtypes),
                              runtype)
         
-        # Embed each field
-        # For continuous: clamp extreme values to prevent OOD issues
-        depth_clamped = depth.clamp(min=0.1, max=100.0)  # Reasonable depth range
-        read_length_clamped = read_length.clamp(min=10, max=15000)  # Reasonable read length range
-        
-        depth_embed = self.depth_proj(depth_clamped.unsqueeze(-1))  # [B, F, field_dim]
+        depth_embed = self.depth_proj(depth.unsqueeze(-1))  # [B, F, field_dim]
         platform_embed = self.platform_embedding(platform)  # [B, F, field_dim]
-        read_length_embed = self.read_length_proj(read_length_clamped.unsqueeze(-1))  # [B, F, field_dim]
+        read_length_embed = self.read_length_proj(read_length.unsqueeze(-1))  # [B, F, field_dim]
         runtype_embed = self.runtype_embedding(runtype)  # [B, F, field_dim]
         
         # Concatenate and fuse
@@ -1438,8 +1214,10 @@ class MetadataCrossAttention(nn.Module):
         scale_spatial = scale.unsqueeze(1).expand(-1, L, -1, -1)  # [B, L, F, d]
         shift_spatial = shift.unsqueeze(1).expand(-1, L, -1, -1)  # [B, L, F, d]
         
-        # Apply FiLM conditioning to the latent features (pure FiLM)
-        modulated_latent = scale_spatial * latent_per_assay + shift_spatial  # [B, L, F, d]
+        # Apply FiLM conditioning to the latent features
+        # Clamp scale to prevent overflow/NaNs (e.g. exp(10) explodes in fp16)
+        scale_spatial = torch.clamp(scale_spatial, min=-4.0, max=4.0) 
+        modulated_latent = torch.exp(scale_spatial) * latent_per_assay + shift_spatial
         
         # Reshape back to [B, L, D]
         return modulated_latent.view(B, L, D)
@@ -1521,7 +1299,7 @@ class XTransformerEncoderBlock(nn.Module):
             dim=d_model,
             depth=1,  # Single block (will be stacked in ModuleList)
             heads=num_heads,
-            # use_rmsnorm=True,
+            use_rmsnorm=True,
             ff_mult=ff_mult,
             attn_dropout=dropout,
             ff_dropout=dropout,
@@ -1536,6 +1314,187 @@ class XTransformerEncoderBlock(nn.Module):
             Tensor of shape (B, L, d_model)
         """
         return self.encoder(x)
+
+# ---------------------------
+# Cross-Attention Fusion with Zero-Init Projection
+# ---------------------------
+class CrossAttentionFusion(nn.Module):
+    """
+    Cross-attention fusion with depthwise-preserved Q and full-DNA K/V.
+    Uses PyTorch's optimized scaled_dot_product_attention.
+    
+    - Pre-normalization with RMSNorm for stable training
+    - Q: depthwise projection preserves per-assay structure
+    - K/V: full DNA projections so each head sees all DNA features
+    """
+    def __init__(self, d_model, nhead=4, dropout=0.1):
+        super().__init__()
+        self.nhead = nhead
+        self.head_dim = d_model // nhead
+        assert d_model % nhead == 0, "d_model must be divisible by nhead"
+        
+        # Pre-normalization (RMSNorm for stability)
+        # Use PyTorch's native RMSNorm (available in PyTorch 2.4+)
+        self.signal_norm = nn.RMSNorm(d_model)
+        self.dna_norm = nn.RMSNorm(d_model)
+        
+        # Q: depthwise projection (preserves per-assay structure)
+        self.q_proj = nn.Conv1d(d_model, d_model, kernel_size=1, groups=nhead)
+        
+        # K/V: full DNA projections (each head sees all DNA features)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        
+        self.out_proj = nn.Linear(d_model, d_model)
+        self.dropout = dropout
+        
+        # Zero-init for stable training
+        nn.init.zeros_(self.out_proj.weight)
+        nn.init.zeros_(self.out_proj.bias)
+        
+    def forward(self, signal, dna):
+        """
+        Args:
+            signal: (B, L, d_model) - query source (epigenomic features)
+            dna: (B, L, d_model) - key/value source (DNA features)
+        Returns:
+            (B, L, d_model) - fused representation
+        """
+        B, L, d = signal.shape
+        
+        # Pre-normalize inputs
+        signal_normed = self.signal_norm(signal)
+        dna_normed = self.dna_norm(dna)
+        
+        # Q: depthwise projection on normalized signal
+        Q = self.q_proj(signal_normed.transpose(1, 2)).transpose(1, 2)
+        Q = Q.view(B, L, self.nhead, self.head_dim).transpose(1, 2)
+        
+        # K/V: full DNA projected and split into heads
+        K = self.k_proj(dna_normed).view(B, L, self.nhead, self.head_dim).transpose(1, 2)
+        V = self.v_proj(dna_normed).view(B, L, self.nhead, self.head_dim).transpose(1, 2)
+        
+        # PyTorch optimized attention (Flash Attention when available)
+        attn_output = F.scaled_dot_product_attention(
+            Q, K, V,
+            dropout_p=self.dropout if self.training else 0.0,
+            is_causal=False
+        )
+        
+        out = attn_output.transpose(1, 2).contiguous().view(B, L, d)
+        return signal + self.out_proj(out)
+
+class CrossAttentionFusionXT(nn.Module):
+    """
+    Cross-attention fusion using x-transformers library.
+    Conventional cross-attention where signal attends to DNA features.
+    
+    Uses x-transformers CrossAttender for optimized attention with:
+    - Rotary positional embeddings (optional)
+    - Flash attention support
+    - Pre-normalization
+    """
+    def __init__(self, d_model, nhead=4, dropout=0.1, use_rotary=True, depth=1):
+        super().__init__()
+        
+        if not XTRANSFORMERS_AVAILABLE:
+            raise ImportError("x-transformers is required for CrossAttentionFusionXT")
+        
+        self.d_model = d_model
+        self.nhead = nhead
+        
+        # x-transformers CrossAttender handles cross-attention
+        # CrossAttender wraps AttentionLayers with cross_attend=True
+        self.cross_attn = CrossAttender(
+            dim=d_model,
+            depth=depth,
+            heads=nhead,
+            attn_dropout=dropout,
+            ff_dropout=dropout,
+            rotary_pos_emb=use_rotary,
+            attn_flash=False,  # Use Flash Attention when available
+            pre_norm=True,  # Pre-normalization for stable training
+        )
+        
+    def forward(self, signal, dna):
+        """
+        Args:
+            signal: (B, L, d_model) - query source (epigenomic features)
+            dna: (B, L, d_model) - key/value source (DNA features)
+        Returns:
+            (B, L, d_model) - fused representation with residual connection
+        """
+        # CrossAttender: signal attends to dna context
+        out = self.cross_attn(signal, context=dna)
+        return out
+
+# ---------------------------
+# Hybrid Fusion (Cross-Attention + Concat-Linear)
+# ---------------------------
+class RMSNorm(nn.Module):
+    def __init__(self, dim, eps=1e-8):
+        super().__init__()
+        self.scale = dim ** -0.5
+        self.eps = eps
+        self.g = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x):
+        norm = torch.norm(x, dim=-1, keepdim=True) * self.scale
+        return x / norm.clamp(min=self.eps) * self.g
+
+class HybridFusion(nn.Module):
+    """
+    Combines cross-attention (position-specific) with concat+linear (full feature access).
+    
+    - Cross-attention path: position-specific DNA context routing
+    - Linear path: direct feature combination without bottleneck
+    - Learnable alpha parameter controls the balance between pathways
+    """
+    def __init__(self, d_model, nhead=4, dropout=0.1):
+        super().__init__()
+        
+        # Cross-attention path (position-specific routing)
+        # self.cross_attn = CrossAttentionFusion(d_model, nhead, dropout)
+        self.cross_attn = CrossAttentionFusionXT(d_model, nhead, dropout)
+        
+        # Linear path (direct feature combination, no bottleneck)
+        try:
+            self.linear_norm = nn.RMSNorm(2 * d_model)
+        except AttributeError:
+            self.linear_norm = RMSNorm(2 * d_model)
+            
+        self.linear_fusion = nn.Sequential(
+            nn.Linear(2 * d_model, d_model),
+            nn.GELU(),
+        )
+        # Zero-init the linear output for stable training
+        nn.init.zeros_(self.linear_fusion[0].weight)
+        nn.init.zeros_(self.linear_fusion[0].bias)
+        
+        # Learnable mixing parameter
+        # This biases the model to rely on concat+linear at first (alpha * attn + (1-alpha) * linear)
+        self.alpha = nn.Parameter(torch.tensor(0.0))
+        
+    def forward(self, signal, dna):
+        """
+        Args:
+            signal: (B, L, d_model) - epigenomic features
+            dna: (B, L, d_model) - DNA features
+        Returns:
+            (B, L, d_model) - fused representation
+        """
+        # Cross-attention path: position-specific DNA context
+        attn_out = self.cross_attn(signal, dna)
+        
+        # Linear path: direct feature combination (normalized)
+        concat_features = torch.cat([signal, dna], dim=-1)
+        concat_normed = self.linear_norm(concat_features)
+        linear_out = signal + self.linear_fusion(concat_normed)
+        
+        # Mix both pathways (sigmoid ensures alpha stays in [0, 1])
+        alpha = torch.sigmoid(self.alpha)
+        # print(alpha.item())
+        return alpha * attn_out + (1 - alpha) * linear_out
 
 # ---------------------------
 # Dual Attention Encoder Block (Post-Norm)
@@ -1702,8 +1661,13 @@ class ConvBlock(nn.Module):
         self.apply_act = apply_act
         
         # Create conv layer
+        if S == 1:
+            padding_val = "same"
+        else:
+            padding_val = (D * (W - 1)) // 2
+
         self.conv = nn.Conv1d(
-            in_C, out_C, kernel_size=W, dilation=D, stride=S, padding="same", groups=groups)
+            in_C, out_C, kernel_size=W, dilation=D, stride=S, groups=groups, padding=padding_val)
         
         # Apply normalization
         if self.normtype == "weight":
@@ -1736,6 +1700,40 @@ class ConvBlock(nn.Module):
             x = F.gelu(x)
         
         return x
+
+class ConvTower(nn.Module):
+    def __init__(self, in_C, out_C, W, S=1, D=1, pool_type="max", residuals=True, groups=1, pool_size=2, SE=False, norm="batch"):
+        super(ConvTower, self).__init__()
+        
+        if pool_type == "max" or pool_type == "attn" or pool_type == "avg":
+            self.do_pool = True
+        else:
+            self.do_pool = False
+        
+        if pool_type == "attn":
+            self.pool = SoftmaxPooling1D(pool_size)
+        elif pool_type == "max":
+            self.pool = nn.MaxPool1d(pool_size)
+        elif pool_type == "avg":
+            self.pool = nn.AvgPool1d(pool_size)
+        
+        self.conv1 = ConvBlock(in_C, out_C, W, S, D, norm=norm, groups=groups, apply_act=False)
+        self.resid = residuals
+        
+        if self.resid:
+            self.rconv = nn.Conv1d(in_C, out_C, kernel_size=1, stride=S, groups=groups)
+    
+    def forward(self, x):
+        y = self.conv1(x)  # Output before activation
+        
+        if self.resid:
+            y = y + self.rconv(x)
+        
+        y = F.gelu(y)  # Activation after residual
+                
+        if self.do_pool:
+            y = self.pool(y)
+        return y
 
 class DeconvBlock(nn.Module):
     def __init__(self, in_C, out_C, W, S, D, norm, groups=1, apply_act=False):
@@ -1800,41 +1798,6 @@ class DeconvTower(nn.Module):
             y = y + self.rdeconv(x)
         
         y = F.gelu(y)  # Activation after residual
-        return y
-
-class ConvTower(nn.Module):
-    def __init__(self, in_C, out_C, W, S=1, D=1, pool_type="max", residuals=True, groups=1, pool_size=2, SE=False, norm="batch"):
-        super(ConvTower, self).__init__()
-        
-        if pool_type == "max" or pool_type == "attn" or pool_type == "avg":
-            self.do_pool = True
-        else:
-            self.do_pool = False
-        
-        if pool_type == "attn":
-            self.pool = SoftmaxPooling1D(pool_size)
-        elif pool_type == "max":
-            self.pool = nn.MaxPool1d(pool_size)
-        elif pool_type == "avg":
-            self.pool = nn.AvgPool1d(pool_size)
-        
-        self.conv1 = ConvBlock(in_C, out_C, W, S, D, norm=norm, groups=groups, apply_act=False)
-        self.resid = residuals
-        
-        if self.resid:
-            self.rconv = nn.Conv1d(in_C, out_C, kernel_size=1, groups=groups)
-    
-    def forward(self, x):
-        y = self.conv1(x)  # Output before activation
-        
-        if self.resid:
-            y = y + self.rconv(x)
-        
-        y = F.gelu(y)  # Activation after residual
-                
-        if self.do_pool:
-            y = self.pool(y)
-        
         return y
 
 class SE_Block_1D(nn.Module):
@@ -2108,27 +2071,38 @@ class PositionalEncoding(nn.Module):
 #========================================================================================================#
 
 class NegativeBinomialLayer(nn.Module):
-    def __init__(self, input_dim, output_dim, FF=False):
+    def __init__(self, input_dim, output_dim, FF=False, eps=1e-6):
         super(NegativeBinomialLayer, self).__init__()
         self.FF = FF
+        self.eps = eps  # Small constant for numerical stability
+        
         if self.FF:
             self.feed_forward = FeedForwardNN(input_dim, input_dim, input_dim, n_hidden_layers=2)
         
-        # Linear layers with controlled initialization
-        self.linear_p = nn.Linear(input_dim, output_dim)
-        self.linear_n = nn.Linear(input_dim, output_dim)
+        # 1. Head for the Mean (mu)
+        self.linear_mean = nn.Linear(input_dim, output_dim)
         
+        # 2. Head for the Dispersion (n) - predict n directly for stability
+        # n controls overdispersion: large n -> Poisson-like, small n -> overdispersed
+        self.linear_n = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
         if self.FF:
             x = self.feed_forward(x)
         
-        p_logits = self.linear_p(x)
-        p = torch.sigmoid(p_logits)
-        
-        n_logits = self.linear_n(x)
-        n = F.softplus(n_logits)
+        # Predict Mean (mu) - must be positive
+        mu_logits = self.linear_mean(x)
+        mu = F.softplus(mu_logits) + self.eps
 
+        # Predict n (total_count/dispersion) directly - must be positive
+        n_logits = self.linear_n(x)
+        n = F.softplus(n_logits) + self.eps
+
+        # Convert to p using the codebase convention: mean = n(1-p)/p
+        # Solving for p: p = n / (n + mu)
+        p = n / (n + mu)
+
+        # Return p, n to match the existing interface of the codebase
         return p, n
 
 class GaussianLayer(nn.Module):

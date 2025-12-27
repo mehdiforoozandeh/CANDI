@@ -1393,6 +1393,7 @@ class CANDIDataHandler:
             must_have_chr_access (bool): Whether to require chromosome access for all experiments.
         """
         print(f"--- Setting up data looper for split: {split} ---")
+        self.split = split
         if includes is None: includes = self.includes
         self.must_have_chr_access = must_have_chr_access
         self._load_genomic_coords(mode=split)
@@ -1529,7 +1530,7 @@ class CANDIDataHandler:
 
         return False # Not end of epoch
 
-    def get_batch(self, side="x", y_prompt=False):
+    def get_batch(self, side="x", y_prompt=False, random_shift=True):
         """
         Constructs and returns a batch of data, always including one-hot encoded DNA.
         If side='y', it also includes p-value signal data.
@@ -1538,7 +1539,32 @@ class CANDIDataHandler:
         batch_loci_list = self.loci[current_chr][self.chr_loci_pointer : self.chr_loci_pointer + self.loci_batchsize]
         if not batch_loci_list: return None
 
-        one_hot_sequences = torch.stack([self._get_cached_onehot_for_locus(l) for l in batch_loci_list])
+        # Data Augmentation: Random Shift
+        # Randomly shift the start and end positions by +- (0 - 11) bp during training
+        if hasattr(self, 'split') and self.split == 'train' and random_shift:
+            augmented_loci_list = []
+            for l in batch_loci_list:
+                chrom, start, end = l[0], l[1], l[2]
+                shift = random.randint(-11, 11)
+                
+                # Check bounds if chr_sizes is available
+                if hasattr(self, 'chr_sizes') and chrom in self.chr_sizes:
+                    chr_len = self.chr_sizes[chrom]
+                    if start + shift < 0: shift = -start
+                    if end + shift > chr_len: shift = chr_len - end
+                else:
+                    # Fallback if chr_sizes not available (should be rare)
+                    if start + shift < 0: shift = -start
+
+                augmented_loci_list.append([chrom, start + shift, end + shift])
+            
+            # Use augmented loci, bypass cache to avoid memory explosion with random keys
+            one_hot_sequences = torch.stack([self._onehot_for_locus(l) for l in augmented_loci_list])
+            batch_loci_list = augmented_loci_list
+        else:
+            # Use cached DNA for fixed loci
+            one_hot_sequences = torch.stack([self._get_cached_onehot_for_locus(l) for l in batch_loci_list])
+            # batch_loci_list remains unchanged
 
         data_source = self.Y_loaded_data if side == "y" else self.loaded_data
         metadata_source = self.Y_loaded_metadata if side == "y" else self.loaded_metadata

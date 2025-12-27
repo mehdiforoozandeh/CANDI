@@ -83,7 +83,7 @@ class CANDI_TRAINER(object):
         # Training configuration with defaults
         self.training_params = {
             'optimizer': 'adamax',
-            'enable_validation': False,
+            'enable_validation': True,  # Enabled by default
             'DNA': True,
             "specific_ema_alpha": 0.005,
             'inner_epochs': 1,
@@ -138,20 +138,43 @@ class CANDI_TRAINER(object):
         self.checkpoint_dir = None
         self.current_checkpoint_path = None
         self.last_table_lines = 0
+        
+        # Initialize validation monitoring
+        self.val_freq = training_params.get('val_freq', 0.1)
+        self.validation_monitor = None  # Will be initialized in _setup if enabled
+        self.validation_progress_data = []
+        self.validation_progress_file = None
+        self.last_validation_batch = 0
 
     def _setup_optimizer_scheduler(self):
         """Setup optimizer and scheduler based on training parameters."""
         lr = self.training_params['learning_rate']
+        mom = self.training_params.get('momentum', 0.9)
+        b1 = self.training_params.get('beta1', 0.9)
+        b2 = self.training_params.get('beta2', 0.999)
+        
+        # Get weight decay with optimizer-specific defaults
+        optimizer_type = self.training_params['optimizer'].lower()
+        weight_decay = self.training_params.get('weight_decay')
+        
+        # Apply optimizer-specific defaults if weight_decay not explicitly set
+        if weight_decay is None:
+            if optimizer_type == 'adamax' or optimizer_type == 'adam':
+                weight_decay = 0.0  # Conservative default for Adam/Adamax
+            elif optimizer_type == 'adamw':
+                weight_decay = 0.01  # Conservative default for AdamW (can tune to 0.01-0.1)
+            else:  # sgd
+                weight_decay = 1e-4 # Conservative default for SGD (can tune to 1e-4 to 1e-5)
         
         # Setup optimizer
-        if self.training_params['optimizer'].lower() == 'adamax':
+        if optimizer_type == 'adamax':
             self.optimizer = torch.optim.Adamax(self.model.parameters(), lr=lr)
-        elif self.training_params['optimizer'].lower() == 'adam':
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-        elif self.training_params['optimizer'].lower() == 'adamw':
-            self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=0.01)
-        else:
-            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, momentum=0.9)
+        elif optimizer_type == 'adam':
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, betas=(b1, b2), weight_decay=weight_decay)
+        elif optimizer_type == 'adamw':
+            self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, betas=(b1, b2), weight_decay=weight_decay)
+        else:  # sgd
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, momentum=mom, weight_decay=weight_decay)
         
         # Scheduler will be created in train() with actual batch counts
         self.scheduler = None
@@ -185,31 +208,31 @@ class CANDI_TRAINER(object):
             if self.is_main_process:
                 print("Validation is enabled")
             try:
-                # Try to initialize MONITOR_VALIDATION from model.py
-                from model import MONITOR_VALIDATION
-                self.validator = MONITOR_VALIDATION(
-                    data_path=self.dataset_params['base_path'],
-                    context_length=self.training_params.get('context_length', 1200),
-                    batch_size=max(4, self.training_params.get('batch_size', 25) * 4),  # Use larger batch for validation
-                    must_have_chr_access=self.dataset_params.get('must_have_chr_access', False),
-                    DNA=self.training_params.get('DNA', True),
-                    eic=self.dataset_params.get('dataset_type') == 'eic',
+                # Initialize EIC_VALIDATION_MONITOR for EIC validation
+                from model import EIC_VALIDATION_MONITOR
+                # context_length in dataset_params is in bp, but we need it in bins for the monitor
+                # The monitor expects bins, so we get it from dataset_params and convert
+                context_length_bp = self.dataset_params.get('context_length', 1200 * 25)
+                context_length_bins = context_length_bp // 25  # Convert bp to bins
+                training_batch_size = self.training_params.get('batch_size', 25)
+                self.validation_monitor = EIC_VALIDATION_MONITOR(
+                    context_length=context_length_bins,
+                    training_batch_size=training_batch_size,
                     device=self.device
                 )
                 if self.is_main_process:
-                    print("Validation setup completed successfully")
+                    print("EIC validation monitor setup completed successfully")
+                    print(f"Validation frequency: {self.val_freq} (every {100.0 * self.val_freq:.1f}% of training)")
             except Exception as e:
                 if self.is_main_process:
-                    print(f"Warning: Failed to setup MONITOR_VALIDATION: {e}")
-                    print("Falling back to simplified validation")
-                # Use simplified validation as fallback
-                self.validator = "simplified"
-                if self.is_main_process:
-                    print("Simplified validation enabled as fallback")
+                    print(f"Warning: Failed to setup EIC_VALIDATION_MONITOR: {e}")
+                    import traceback
+                    traceback.print_exc()
+                self.validation_monitor = None
         else:
             if self.is_main_process:
                 print("Validation is disabled")
-            self.validator = None
+            self.validation_monitor = None
     
     def train(self):
         """
@@ -283,6 +306,8 @@ class CANDI_TRAINER(object):
                     result_dict = self._process_batch(batch)
                 except Exception as e:
                     if self.is_main_process:
+                        import traceback
+                        traceback.print_exc()
                         print(f"Warning: Failed to process batch {batch_idx}: {e}")
                     continue
                 
@@ -327,15 +352,77 @@ class CANDI_TRAINER(object):
                             if self.is_main_process:
                                 print(f"Warning: Scheduler step failed: {e}. Continuing with current learning rate.")
                             # Continue training without stepping the scheduler
+                
+                # Check if EIC validation should run
+                if self.enable_validation and self.validation_monitor is not None and self.is_main_process:
+                    # Calculate total batches across all epochs
+                    if hasattr(self, 'estimated_batches_per_epoch') and self.estimated_batches_per_epoch is not None:
+                        total_batches = self.estimated_batches_per_epoch * self.training_params['epochs']
+                        # Calculate current batch index across all epochs
+                        current_batch_idx = epoch * self.estimated_batches_per_epoch + batch_idx
+                        progress_pct = current_batch_idx / total_batches if total_batches > 0 else 0.0
+                        last_val_pct = self.last_validation_batch / total_batches if total_batches > 0 else 0.0
+                        if progress_pct - last_val_pct >= self.val_freq:
+                            try:
+                                val_results = self.validation_monitor.run_validation(
+                                    self.model.module if hasattr(self.model, 'module') else self.model,
+                                    current_batch_idx,
+                                    total_batches
+                                )
+                                self._record_validation_progress(val_results)
+                                self._save_validation_progress_csv(epoch)
+                                # Save checkpoint after validation
+                                if hasattr(self, 'model_name') and self.model_name and not self.training_params.get('no_save', False):
+                                    self._save_checkpoint(epoch, self.model_name)
+                                self.last_validation_batch = current_batch_idx
+                            except Exception as e:
+                                if self.is_main_process:
+                                    print(f"Warning: EIC validation failed: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                     
-            # Run validation at epoch end if enabled
+            # Run validation at epoch end if enabled (old MONITOR_VALIDATION system)
             validation_summary = None
-            if self.enable_validation and self.is_main_process:
+            if self.enable_validation and hasattr(self, 'validator') and self.validator is not None and self.is_main_process:
                 validation_summary, validation_metrics = self._validate()
                 
             # End epoch
             if self.is_main_process:
                 print(f"Epoch {epoch+1} complete - Processed {batch_count} batches")
+            
+            # Run validation at end of epoch if enabled
+            if self.enable_validation and self.validation_monitor is not None and self.is_main_process:
+                try:
+                    # Calculate current batch index for validation
+                    if hasattr(self, 'estimated_batches_per_epoch') and self.estimated_batches_per_epoch is not None:
+                        total_batches = self.estimated_batches_per_epoch * self.training_params['epochs']
+                        current_batch_idx = (epoch + 1) * self.estimated_batches_per_epoch  # End of epoch
+                        
+                        print(f"\n{'='*80}\nRunning EIC Validation at end of epoch {epoch+1}...\n{'='*80}")
+                        val_results = self.validation_monitor.run_validation(
+                            self.model.module if hasattr(self.model, 'module') else self.model,
+                            current_batch_idx,
+                            total_batches
+                        )
+                        self._record_validation_progress(val_results)
+                        self._save_validation_progress_csv(epoch)
+                        print(f"{'='*80}\nEIC Validation Complete\n{'='*80}\n")
+                    else:
+                        # Fallback if estimated_batches_per_epoch not available
+                        print(f"\n{'='*80}\nRunning EIC Validation at end of epoch {epoch+1}...\n{'='*80}")
+                        val_results = self.validation_monitor.run_validation(
+                            self.model.module if hasattr(self.model, 'module') else self.model,
+                            epoch * 1000,  # Rough estimate
+                            1000 * self.training_params['epochs']
+                        )
+                        self._record_validation_progress(val_results)
+                        self._save_validation_progress_csv(epoch)
+                        print(f"{'='*80}\nEIC Validation Complete\n{'='*80}\n")
+                except Exception as e:
+                    if self.is_main_process:
+                        print(f"Warning: EIC validation at epoch end failed: {e}")
+                        import traceback
+                        traceback.print_exc()
                 
             # Save progress at end of each epoch
             if self.is_main_process and self.progress_data:
@@ -565,7 +652,23 @@ class CANDI_TRAINER(object):
                 
                 # Gradient clipping with scaler
                 self.scaler.unscale_(self.optimizer)
-                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=2.0)
+                
+                clip_mode = self.training_params.get('clip_mode', 'norm')
+                clip_value = self.training_params.get('clip_value', 2.0)
+                
+                if clip_mode == 'norm':
+                    grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=clip_value)
+                else:
+                    # Calculate norm for logging
+                    parameters = [p for p in self.model.parameters() if p.grad is not None]
+                    if len(parameters) > 0:
+                        device = parameters[0].grad.device
+                        grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2.0).to(device) for p in parameters]), 2.0)
+                    else:
+                        grad_norm = torch.tensor(0.0, device=self.device)
+                        
+                    if clip_mode == 'value':
+                        torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=clip_value)
                 
                 # Optimizer step with scaler
                 self.scaler.step(self.optimizer)
@@ -575,8 +678,22 @@ class CANDI_TRAINER(object):
                 total_loss = total_loss.float()
                 total_loss.backward()
                 
-                # Gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=2.0)
+                clip_mode = self.training_params.get('clip_mode', 'norm')
+                clip_value = self.training_params.get('clip_value', 2.0)
+                
+                if clip_mode == 'norm':
+                    grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=clip_value)
+                else:
+                    # Calculate norm for logging
+                    parameters = [p for p in self.model.parameters() if p.grad is not None]
+                    if len(parameters) > 0:
+                        device = parameters[0].grad.device
+                        grad_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2.0).to(device) for p in parameters]), 2.0)
+                    else:
+                        grad_norm = torch.tensor(0.0, device=self.device)
+                        
+                    if clip_mode == 'value':
+                        torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=clip_value)
                 
                 # Optimizer step
                 self.optimizer.step()
@@ -703,7 +820,7 @@ class CANDI_TRAINER(object):
         # Calculate actual total steps
         num_total_steps = epochs * inner_epochs * batches_per_epoch
         # Use 20% of total steps for warmup 
-        warmup_steps = max(1, int(0.2 * num_total_steps))
+        warmup_steps = max(1, int(0.1 * num_total_steps))
         
         # Ensure we have at least 1 step for the cosine annealing phase
         cosine_steps = max(1, num_total_steps - warmup_steps)
@@ -1384,6 +1501,87 @@ class CANDI_TRAINER(object):
         if self.is_main_process:
             print(f"Progress updated in {self.progress_file} ({len(df)} records)")
     
+    def _record_validation_progress(self, val_results):
+        """Record validation metrics for CSV logging."""
+        if not val_results:
+            return
+        
+        # Add to validation progress data
+        self.validation_progress_data.append(val_results)
+    
+    def _save_validation_progress_csv(self, epoch=None):
+        """
+        Save validation progress data to CSV file.
+        
+        Args:
+            epoch: Current epoch number (for checkpoint naming if needed)
+        """
+        if not self.validation_progress_data:
+            return
+        
+        # Create filename if not already set (only once)
+        if self.validation_progress_file is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            self.validation_progress_file = Path(self.progress_dir) / f"validation_progress_{timestamp}.csv"
+            if self.is_main_process:
+                print(f"Validation progress will be saved to: {self.validation_progress_file}")
+        
+        # Create DataFrame from validation progress data
+        df = pd.DataFrame(self.validation_progress_data)
+        
+        # Ensure columns are in the correct order:
+        # 1. iteration, progress_pct
+        # 2. mean metrics (imp first, then ups)
+        # 3. per-assay-type metrics (imp first, then ups)
+        base_cols = ['iteration', 'progress_pct',
+                    'imp_count_nll_mean', 'imp_signal_nll_mean', 'imp_peak_bce_mean',
+                    'ups_count_nll_mean', 'ups_signal_nll_mean', 'ups_peak_bce_mean']
+        
+        # Get all other columns (per-assay-type metrics)
+        other_cols = [c for c in df.columns if c not in base_cols]
+        
+        # Sort other columns: imputed first, then upsampled, alphabetically within each group
+        imp_cols = sorted([c for c in other_cols if c.endswith('_imp_count_nll') or c.endswith('_imp_signal_nll') or c.endswith('_imp_peak_bce')])
+        ups_cols = sorted([c for c in other_cols if c.endswith('_ups_count_nll') or c.endswith('_ups_signal_nll') or c.endswith('_ups_peak_bce')])
+        
+        # Group by assay type: for each assay, add all three metrics together
+        assay_types = set()
+        for col in imp_cols + ups_cols:
+            if '_imp_' in col:
+                assay_type = col.replace('_imp_count_nll', '').replace('_imp_signal_nll', '').replace('_imp_peak_bce', '')
+                assay_types.add(assay_type)
+            elif '_ups_' in col:
+                assay_type = col.replace('_ups_count_nll', '').replace('_ups_signal_nll', '').replace('_ups_peak_bce', '')
+                assay_types.add(assay_type)
+        
+        # Reorder columns: base cols, then per-assay-type (imputed first, then upsampled)
+        ordered_cols = base_cols.copy()
+        for assay_type in sorted(assay_types):
+            # Add imputed metrics for this assay type
+            for suffix in ['_imp_count_nll', '_imp_signal_nll', '_imp_peak_bce']:
+                col = f'{assay_type}{suffix}'
+                if col in df.columns:
+                    ordered_cols.append(col)
+            # Add upsampled metrics for this assay type
+            for suffix in ['_ups_count_nll', '_ups_signal_nll', '_ups_peak_bce']:
+                col = f'{assay_type}{suffix}'
+                if col in df.columns:
+                    ordered_cols.append(col)
+        
+        # Add any remaining columns
+        for col in df.columns:
+            if col not in ordered_cols:
+                ordered_cols.append(col)
+        
+        # Reorder DataFrame
+        df = df[ordered_cols]
+        
+        # Save to CSV (overwrite existing file)
+        df.to_csv(self.validation_progress_file, index=False)
+        
+        if self.is_main_process:
+            print(f"Validation progress updated in {self.validation_progress_file} ({len(df)} records)")
+    
     def _record_progress(self, epoch, batch_idx, metrics, loss_dict, grad_norm, mask_info, batch_time, lr):
         """Record all progress metrics for CSV logging."""
         # Get EMA values if available
@@ -1685,23 +1883,27 @@ class CANDI_LOADER(object):
         separate_decoders = self.hyper_parameters["separate_decoders"]
         norm = self.hyper_parameters.get("norm", "batch")  # Default to "batch" for backward compatibility
         attention_type = self.hyper_parameters.get("attention_type", "dual")  # Default to "dual" for backward compatibility
+        output_ff = self.hyper_parameters.get("output_ff", False)  # Default to False for backward compatibility
         
         if self.DNA:
             if self.hyper_parameters["unet"]:
                 model = CANDI_UNET(
                     signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                     n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length, 
-                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
+                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type,
+                    output_ff=output_ff)
             else:
                 model = CANDI(
                     signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                     n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length, 
-                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
+                    separate_decoders=separate_decoders, norm=norm, attention_type=attention_type,
+                    output_ff=output_ff)
         else:
             model = CANDI(
                 signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers, nhead,
                 n_sab_layers, pool_size=pool_size, dropout=dropout, context_length=context_length,
-                separate_decoders=separate_decoders, norm=norm, attention_type=attention_type)
+                separate_decoders=separate_decoders, norm=norm, attention_type=attention_type,
+                output_ff=output_ff)
 
         model.load_state_dict(torch.load(self.model_path, map_location=self.device)) 
 
@@ -1797,9 +1999,9 @@ def create_argument_parser():
                            help='Base path to the datasets')
     data_group.add_argument('--num-loci', '-m', type=int, default=5000,
                            help='Number of genomic loci to generate for training')
-    data_group.add_argument('--context-length', type=int, default=1200,
+    data_group.add_argument('--context-length', type=int, default=3072,
                            help='Context length for genomic windows (in bins)')
-    data_group.add_argument('--loci-gen', type=str, default='full_chr', 
+    data_group.add_argument('--loci-gen', type=str, default='random', 
                            choices=['random', 'ccre', 'full_chr', 'gw'],
                            help='Strategy for generating genomic loci')
     data_group.add_argument('--must-have-chr-access', action='store_true',
@@ -1835,33 +2037,51 @@ def create_argument_parser():
                             help='Use shared decoder (overrides --separate-decoders)')
     model_group.add_argument('--unet', action='store_true',
                            help='Use U-Net skip connections')
-    model_group.add_argument('--norm-type', type=str, default='batch',
+    model_group.add_argument('--norm-type', type=str, default='layer',
                            choices=['batch', 'layer', 'group', 'instance', 'weight', 'rms', 'none'],
                            help='Normalization type for convolutional layers')
+    model_group.add_argument('--output-ff', action='store_true',
+                           help='Include feed-forward layers in output heads (NegBinom, Gaussian, Peak)')
     
     # === TRAINING CONFIGURATION ===
     training_group = parser.add_argument_group('Training Configuration')
     training_group.add_argument('--epochs', type=int, default=10,
                                help='Number of training epochs')
-    training_group.add_argument('--batch-size', type=int, default=25,
+    training_group.add_argument('--batch-size', type=int, default=45,
                                help='Training batch size')
-    training_group.add_argument('--learning-rate', '--lr', type=float, default=5e-4,
+    training_group.add_argument('--learning-rate', '--lr', type=float, default=1e-4,
                                help='Initial learning rate')
     training_group.add_argument('--optimizer', type=str, default='adamax',
                                choices=['adamax', 'adam', 'adamw', 'sgd'],
                                help='Optimizer type')
+    training_group.add_argument('--weight-decay', type=float, default=None,
+                               help='Weight decay (L2 penalty). If not specified, uses optimizer-specific defaults: Adam/Adamax=0.0, AdamW=0.0, SGD=0.0 (conservative)')
+    training_group.add_argument('--momentum', type=float, default=0.9,
+                               help='Momentum factor for SGD (default: 0.9)')
+    training_group.add_argument('--beta1', type=float, default=0.9,
+                               help='Beta1 for Adam/AdamW/Adamax (default: 0.9)')
+    training_group.add_argument('--beta2', type=float, default=0.999,
+                               help='Beta2 for Adam/AdamW/Adamax (default: 0.999)')
     # Scheduler is always cosine (linear warmup + cosine annealing)
     training_group.add_argument('--inner-epochs', type=int, default=1,
                                help='Number of inner epochs per batch')
-    training_group.add_argument('--enable-validation', action='store_true',
-                               help='Enable validation during training')
+    training_group.add_argument('--disable-validation', action='store_true',
+                               help='Disable validation monitoring during training (enabled by default)')
+    training_group.add_argument('--val-freq', type=float, default=0.1,
+                               help='Validation frequency as fraction of total training (e.g., 0.1 = every 10%)')
+
+    training_group.add_argument('--clip-mode', type=str, default='norm',
+                               choices=['norm', 'value', 'none'],
+                               help='Gradient clipping mode: norm, value, or none (default: norm)')
+    training_group.add_argument('--clip-value', type=float, default=2.0,
+                               help='Maximum gradient norm or value for clipping (default: 2.0)')
 
     training_group.add_argument('--count-weight', type=float, default=0.5,
                                help='Weight for count loss in multi-task learning (default: 0.5)')
     training_group.add_argument('--pval-weight', type=float, default=1.0,
                                help='Weight for p-value loss in multi-task learning (default: 1.0)')
-    training_group.add_argument('--peak-weight', type=float, default=0.1,
-                               help='Weight for peak loss in multi-task learning (default: 0.1)')
+    training_group.add_argument('--peak-weight', type=float, default=0.25,
+                               help='Weight for peak loss in multi-task learning (default: 0.25)')
 
     training_group.add_argument('--obs-weight', type=float, default=0.25,
                                help='Weight for observed (upsampling) losses (default: 0.25)')
@@ -1871,9 +2091,9 @@ def create_argument_parser():
     training_group.add_argument('--reverse-complement-prob', type=float, default=0.5,
                                help='Probability of applying reverse complement augmentation per batch (0.0=disabled, 1.0=always, default: 0.5)')
     
-    training_group.add_argument('--p-full-loci', type=float, default=0.75,
+    training_group.add_argument('--p-full-loci', type=float, default=1.0,
                                help='Probability of applying full loci masking (mask same loci across all assays) (default: 0.75)')
-    training_group.add_argument('--p-full-assay', type=float, default=0.75,
+    training_group.add_argument('--p-full-assay', type=float, default=1.0,
                                help='Probability of applying full assay masking (default: 0.75)')
     training_group.add_argument('--p-chunks', type=float, default=0.0,
                                help='Probability of applying independent chunk masking per assay (default: 0.0)')
@@ -1947,7 +2167,7 @@ def create_argument_parser():
         except Exception:
             raise argparse.ArgumentTypeError("dsf-list must be a comma-separated list of positive integers (e.g., 1,2,4)")
     advanced_group.add_argument(
-        '--dsf-list', type=parse_dsf_list, default=[1, 2],
+        '--dsf-list', type=parse_dsf_list, default=[1, 2, 4],
         help='Downsampling factors to use as a comma-separated list of positive integers (e.g., --dsf-list 1,2,4)'
     )
     
@@ -2075,7 +2295,8 @@ def create_model_from_args(args, signal_dim, num_sequencing_platforms=10, num_ru
             num_sequencing_platforms=num_sequencing_platforms,
             num_runtypes=num_runtypes,
             norm=args.norm_type,
-            attention_type=args.attention_type
+            attention_type=args.attention_type,
+            output_ff=args.output_ff
         )
     else:
         model = CANDI(
@@ -2094,7 +2315,8 @@ def create_model_from_args(args, signal_dim, num_sequencing_platforms=10, num_ru
             num_sequencing_platforms=num_sequencing_platforms,
             num_runtypes=num_runtypes,
             norm=args.norm_type,
-            attention_type=args.attention_type
+            attention_type=args.attention_type,
+            output_ff=args.output_ff
         )
     
     return model
@@ -2230,6 +2452,10 @@ def main():
     except ValueError as e:
         print(f"❌ {e}")
         return 1
+        
+    # Handle mixed precision logic
+    if args.no_mixed_precision:
+        args.mixed_precision = False
     
     # Set random seed
     if args.seed is not None:
@@ -2291,10 +2517,15 @@ def main():
     training_params = {
         'optimizer': args.optimizer,
         'learning_rate': args.learning_rate,
+        'weight_decay': args.weight_decay,
+        'momentum': args.momentum,
+        'beta1': args.beta1,
+        'beta2': args.beta2,
         'epochs': args.epochs,
         'batch_size': args.batch_size,
         'inner_epochs': args.inner_epochs,
-        'enable_validation': args.enable_validation,
+        'enable_validation': not args.disable_validation,  # Enabled by default unless --disable-validation
+        'val_freq': args.val_freq,
         'use_mixed_precision': args.mixed_precision,
         'specific_ema_alpha': args.specific_ema_alpha,
         'progress_dir': args.progress_dir,
@@ -2311,9 +2542,11 @@ def main():
         'p_chunks': args.p_chunks,
         'mask_fraction': args.mask_fraction,
         'chunk_size': args.chunk_size,
-        'reverse_complement_prob': args.reverse_complement_prob
+        'reverse_complement_prob': args.reverse_complement_prob,
+        'clip_mode': args.clip_mode,
+        'clip_value': args.clip_value
     }
-
+    
     # Create temporary dataset to get signal_dim and metadata information
     temp_dataset = CANDIIterableDataset(**dataset_params)
     signal_dim = len(temp_dataset.aliases['experiment_aliases'])
@@ -2373,6 +2606,7 @@ def main():
         # Update trainer's progress_dir to use the model directory
         trainer.progress_dir = str(model_dir)
         trainer.progress_file = None  # Reset progress file to use new directory
+        trainer.validation_progress_file = None  # Reset validation progress file to use new directory
         trainer.model_name = model_name  # Set model name for checkpoint saving
     
     # Start training
