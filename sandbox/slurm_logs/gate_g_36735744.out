@@ -1,0 +1,30 @@
+[gate_g] host=fc10511 h5=sandbox/data/sandbox.h5 regime=type2_loci run_dir=sandbox/runs/gate_g_type2_loci
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-1e434305-9071-f499-c736-f80657148d4f)
+{
+  "run_dir": "sandbox/runs/gate_g_type2_loci",
+  "checks": {
+    "resolved_config_exists": {
+      "ok": true,
+      "path": "sandbox/runs/gate_g_type2_loci/resolved_config.yaml"
+    },
+    "wall_clock": {
+      "ok": true,
+      "elapsed_seconds": 39.991,
+      "budget_seconds": 5400
+    },
+    "resolved_config_round_trip": {
+      "ok": true,
+      "detail": "ok"
+    },
+    "parity_ok_present": {
+      "ok": true,
+      "path": "/project/6014832/mforooz/EpiDenoise/sandbox/data/parity.ok"
+    },
+    "metrics_jsonl_nonempty": {
+      "ok": true,
+      "path": "sandbox/runs/gate_g_type2_loci/metrics.jsonl"
+    }
+  },
+  "ok": true
+}
+[gate_g] DONE

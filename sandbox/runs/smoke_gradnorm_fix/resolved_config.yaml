@@ -1,0 +1,112 @@
+data:
+  h5_path: sandbox/data/sandbox.h5
+  regime: type2_loci
+  context_length: 768
+  resolution: 25
+  signal_transform: arcsinh
+  num_workers: 0
+  region_stratified_loss: true
+  h5_cache_ram: true
+  ram_cache_max_bytes: 10737418240
+model:
+  n_cnn_layers: 3
+  expansion_factor: 2
+  n_transformer_layers: 2
+  nhead: 4
+  dropout: 0.02
+  metadata_embedding_dim_mult: 4
+  mask_stem: true
+  decoder_type: fixed
+  separate_decoders: true
+  signal_dist: gaussian
+training:
+  epochs: 1
+  batch_size: 16
+  grad_accum_steps: 1
+  seed: 42
+  strict_determinism: false
+  device: null
+  run_dir: sandbox/runs/smoke_gradnorm_fix
+  amp: false
+  augment_reverse_complement_prob: 0.0
+  max_train_batches: 1
+  eval_each_epoch: false
+  eval_max_batches: 0
+  steps_per_epoch: 0
+  optimizer:
+    name: adamax
+    adam:
+      lr: 0.001
+      beta1: 0.9
+      beta2: 0.999
+      eps: 0.001
+      weight_decay: 0.0
+      amsgrad: false
+    adamw:
+      lr: 0.0003
+      beta1: 0.9
+      beta2: 0.999
+      eps: 0.001
+      weight_decay: 0.01
+      amsgrad: false
+    adamax:
+      lr: 0.0001
+      beta1: 0.9
+      beta2: 0.999
+      eps: 0.001
+      weight_decay: 0.0
+    sgd:
+      lr: 0.01
+      momentum: 0.9
+      dampening: 0.0
+      weight_decay: 0.0
+      nesterov: false
+  schedule:
+    name: cosine
+    warmup_frac: 0.1
+    min_lr_ratio: 0.1
+  grad:
+    clip_norm: 1.0
+    clip_log_window: 100
+  masking:
+    p_full_assay: 0.8
+    p_full_loci: 0.5
+    p_chunks: 0.0
+    mask_fraction: 0.2
+    chunk_size: 40
+  loss_weights:
+    count_weight: 1.0
+    pval_weight: 1.0
+    peak_weight: 1.0
+    obs_weight: 1.0
+    imp_weight: 1.0
+  dsf:
+    dsf_list:
+    - 1
+    - 2
+    - 4
+    - 8
+    sampling: uniform
+    eval_dsf: '1'
+eval:
+  eic_metadata_path: data/eic_metadata.csv
+  use_canonical_missing_meta: true
+  meta_sensitivity_probe_every_n_steps: 100
+  probe_depth_lo: 22
+  probe_depth_hi: 24
+  probe_read_length_lo: 36
+  probe_read_length_hi: 100
+  probe_run_types:
+  - 0
+  - 1
+  probe_num_windows: 16
+  eval_every_n_epochs: 1
+  eval_imp_prefixes:
+  - V_
+  - B_
+wandb:
+  project: candi_sandbox
+  entity: null
+  mode: disabled
+  run_name: null
+  tags: []

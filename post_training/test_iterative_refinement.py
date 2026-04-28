@@ -115,7 +115,21 @@ def compute_metrics(y_true, y_pred, n_pred, upsampled_idx, imputed_idx):
         
     return res
 
-def create_frame(data, mu_pred, n_pred, history_metrics, iter_idx, biosample, chrom, start_loci, resolution, save_path):
+def create_frame(
+    data,
+    nb_mu_pred,
+    n_pred,
+    gauss_mu_pred,
+    gauss_std_pred,
+    peak_prob_pred,
+    history_metrics,
+    iter_idx,
+    biosample,
+    chrom,
+    start_loci,
+    resolution,
+    save_path,
+):
     """
     Create a single frame with metrics plots and tracks.
     """
@@ -133,13 +147,13 @@ def create_frame(data, mu_pred, n_pred, history_metrics, iter_idx, biosample, ch
     spacer_h = 1.0
     total_h = metrics_h + spacer_h + F * track_h
     
-    fig = plt.figure(figsize=(20, total_h))
-    gs = GridSpec(F + 2, 3, figure=fig, height_ratios=[metrics_h, spacer_h] + [track_h]*F)
+    fig = plt.figure(figsize=(36, total_h))
+    gs = GridSpec(F + 2, 6, figure=fig, height_ratios=[metrics_h, spacer_h] + [track_h] * F)
     
     # --- Metrics Plots (Top Row) ---
-    ax_pearson = fig.add_subplot(gs[0, 0])
-    ax_spearman = fig.add_subplot(gs[0, 1])
-    ax_error = fig.add_subplot(gs[0, 2])
+    ax_pearson = fig.add_subplot(gs[0, 0:2])
+    ax_spearman = fig.add_subplot(gs[0, 2:4])
+    ax_error = fig.add_subplot(gs[0, 4:6])
     
     iterations = range(len(history_metrics))
     
@@ -187,8 +201,11 @@ def create_frame(data, mu_pred, n_pred, history_metrics, iter_idx, biosample, ch
         assay_name = expnames[f] if f < len(expnames) else f"Assay_{f}"
         
         ax_gt = fig.add_subplot(gs[row, 0])
-        ax_mu = fig.add_subplot(gs[row, 1])
-        ax_n = fig.add_subplot(gs[row, 2])
+        ax_nb_mu = fig.add_subplot(gs[row, 1])
+        ax_nb_n = fig.add_subplot(gs[row, 2])
+        ax_g_mu = fig.add_subplot(gs[row, 3])
+        ax_g_std = fig.add_subplot(gs[row, 4])
+        ax_peak = fig.add_subplot(gs[row, 5])
         
         # Plot GT
         gt_max = 0
@@ -213,32 +230,61 @@ def create_frame(data, mu_pred, n_pred, history_metrics, iter_idx, biosample, ch
         ax_gt.spines['right'].set_visible(False)
         ax_gt.set_xticks([])
         
-        # Plot Mu
-        mu_vals = mu_pred[:, f].numpy()
-        ax_mu.fill_between(x_coords, 0, mu_vals, step='post', color='red', alpha=0.8)
-        mu_max = mu_vals.max()
-        if mu_max > 0: ax_mu.set_ylim(0, mu_max*1.1)
-        ax_mu.spines['top'].set_visible(False)
-        ax_mu.spines['right'].set_visible(False)
-        ax_mu.set_xticks([])
+        # Plot NB Mu (Mean)
+        nb_mu_vals = nb_mu_pred[:, f].numpy()
+        ax_nb_mu.fill_between(x_coords, 0, nb_mu_vals, step='post', color='red', alpha=0.8)
+        nb_mu_max = nb_mu_vals.max()
+        if nb_mu_max > 0: ax_nb_mu.set_ylim(0, nb_mu_max * 1.1)
+        ax_nb_mu.spines['top'].set_visible(False)
+        ax_nb_mu.spines['right'].set_visible(False)
+        ax_nb_mu.set_xticks([])
         
-        # Plot N
+        # Plot NB N (Dispersion)
         n_vals = n_pred[:, f].numpy()
-        ax_n.fill_between(x_coords, 0, n_vals, step='post', color='purple', alpha=0.8)
+        ax_nb_n.fill_between(x_coords, 0, n_vals, step='post', color='purple', alpha=0.8)
         n_max = n_vals.max()
-        if n_max > 0: ax_n.set_ylim(0, n_max*1.1)
-        ax_n.spines['top'].set_visible(False)
-        ax_n.spines['right'].set_visible(False)
-        ax_n.set_xticks([])
+        if n_max > 0: ax_nb_n.set_ylim(0, n_max * 1.1)
+        ax_nb_n.spines['top'].set_visible(False)
+        ax_nb_n.spines['right'].set_visible(False)
+        ax_nb_n.set_xticks([])
+
+        # Plot Gaussian Mu
+        gmu_vals = gauss_mu_pred[:, f].numpy()
+        ax_g_mu.fill_between(x_coords, 0, gmu_vals, step='post', color='darkorange', alpha=0.8)
+        gmu_max = gmu_vals.max()
+        if gmu_max > 0: ax_g_mu.set_ylim(0, gmu_max * 1.1)
+        ax_g_mu.spines['top'].set_visible(False)
+        ax_g_mu.spines['right'].set_visible(False)
+        ax_g_mu.set_xticks([])
+
+        # Plot Gaussian Std
+        gstd_vals = gauss_std_pred[:, f].numpy()
+        ax_g_std.fill_between(x_coords, 0, gstd_vals, step='post', color='goldenrod', alpha=0.8)
+        gstd_max = gstd_vals.max()
+        if gstd_max > 0: ax_g_std.set_ylim(0, gstd_max * 1.1)
+        ax_g_std.spines['top'].set_visible(False)
+        ax_g_std.spines['right'].set_visible(False)
+        ax_g_std.set_xticks([])
+
+        # Plot Peak Probability
+        peak_vals = peak_prob_pred[:, f].numpy()
+        ax_peak.fill_between(x_coords, 0, peak_vals, step='post', color='teal', alpha=0.8)
+        ax_peak.set_ylim(0, 1.05)
+        ax_peak.spines['top'].set_visible(False)
+        ax_peak.spines['right'].set_visible(False)
+        ax_peak.set_xticks([])
         
         # Titles
         if f == 0:
             ax_gt.set_title('Ground Truth', fontsize=12, fontweight='bold')
-            ax_mu.set_title('Predicted Mean', fontsize=12, fontweight='bold')
-            ax_n.set_title('Predicted Dispersion', fontsize=12, fontweight='bold')
+            ax_nb_mu.set_title('NB μ (Mean)', fontsize=12, fontweight='bold')
+            ax_nb_n.set_title('NB n (Dispersion)', fontsize=12, fontweight='bold')
+            ax_g_mu.set_title('Gaussian μ', fontsize=12, fontweight='bold')
+            ax_g_std.set_title('Gaussian σ', fontsize=12, fontweight='bold')
+            ax_peak.set_title('Peak Prob', fontsize=12, fontweight='bold')
 
         if f == F - 1:
-            for ax in [ax_gt, ax_mu, ax_n]:
+            for ax in [ax_gt, ax_nb_mu, ax_nb_n, ax_g_mu, ax_g_std, ax_peak]:
                 ax.set_xticks(xtick_locs)
                 ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
                 ax.set_xlabel(f'Genomic Position ({chrom})')
@@ -286,9 +332,14 @@ def iterative_loop(model, data, device, iterations=10, unmask_metadata=True, out
     for t in range(iterations + 1):
         print(f"Iter {t}...", end=" ", flush=True)
         
-        mu, n = run_inference(model, current_X, current_mX, data['mY'], data['seq'], device)
-        mu_cpu = mu.cpu()
+        nb_mu, n, gauss_mu, gauss_std, peak_prob = run_inference(
+            model, current_X, current_mX, data['mY'], data['seq'], device
+        )
+        nb_mu_cpu = nb_mu.cpu()
         n_cpu = n.cpu()
+        gauss_mu_cpu = gauss_mu.cpu()
+        gauss_std_cpu = gauss_std.cpu()
+        peak_prob_cpu = peak_prob.cpu()
         
         # Metrics & Visualization
         Y_merged = data['Y_T'].clone()
@@ -296,14 +347,27 @@ def iterative_loop(model, data, device, iterations=10, unmask_metadata=True, out
         for f in imputed_idx:
             Y_merged[:, :, f] = data['Y_V'][:, :, f]
             
-        mets = compute_metrics(Y_merged[0], mu_cpu[0], n_cpu[0], 
+        mets = compute_metrics(Y_merged[0], nb_mu_cpu[0], n_cpu[0], 
                                data['available_T_indices'], imputed_idx)
         history_metrics.append(mets)
         print(f"P: {mets.get('imputed_pearson',0):.3f}")
         
         frame_path = output_dir / f"frame_{t:03d}.png"
-        create_frame(data, mu_cpu[0], n_cpu[0], history_metrics, t, 
-                     args.biosample, args.chrom, args.start_loci, args.resolution, frame_path)
+        create_frame(
+            data,
+            nb_mu_cpu[0],
+            n_cpu[0],
+            gauss_mu_cpu[0],
+            gauss_std_cpu[0],
+            peak_prob_cpu[0],
+            history_metrics,
+            t,
+            args.biosample,
+            args.chrom,
+            args.start_loci,
+            args.resolution,
+            frame_path,
+        )
         
         if t < iterations:
             # === PREPARE INPUT FOR NEXT ITERATION ===
@@ -312,13 +376,13 @@ def iterative_loop(model, data, device, iterations=10, unmask_metadata=True, out
             if args.sample:
                 # Recalculate probs from mu and n
                 n_t = n.to(current_X.device)
-                mu_t = mu.to(current_X.device)
+                mu_t = nb_mu.to(current_X.device)
                 # PyTorch probs = mu / (n + mu) based on _utils.py check
                 probs = mu_t / (n_t + mu_t + 1e-6)
                 nb_dist = torch.distributions.NegativeBinomial(total_count=n_t, probs=probs)
                 pred_vals = nb_dist.sample()
             else:
-                pred_vals = mu.to(current_X.device)
+                pred_vals = nb_mu.to(current_X.device)
             
             # 2. Update Input Buffer
             x_signal = current_X[:, :, :signal_dim].clone()

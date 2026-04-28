@@ -1,0 +1,1759 @@
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+wandb: Currently logged in as: mforooz (mforoozz) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Changes to your `wandb` environment variables will be ignored because your `wandb` session has already started. For more information on how to modify your settings with `wandb.init()` arguments, please refer to https://wandb.me/wandb-init.
+wandb: creating run
+wandb: Tracking run with wandb version 0.21.2
+wandb: Run data is saved locally in /project/6014832/mforooz/EpiDenoise/wandb/run-20260425_213144-fbgse19f
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run baseline_assay_mask_only
+wandb: ⭐️ View project at https://wandb.ai/mforoozz/candi_sandbox
+wandb: 🚀 View run at https://wandb.ai/mforoozz/candi_sandbox/runs/fbgse19f
+[sandbox] Loaded canonical metadata for 8 assay types from data/eic_metadata.csv
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 0,
+  "eval": {
+    "den_pval_mse_gw": 0.5238275916168564,
+    "den_pval_rmse_gw": 0.7047510743141174,
+    "den_pval_pearson_gw": 0.017937656151939575,
+    "den_pval_spearman_gw": 0.03376210687120105,
+    "den_count_mse_gw": 38.0746147338497,
+    "den_count_rmse_gw": 4.5943490235429065,
+    "den_count_pearson_gw": -0.0061828291884586705,
+    "den_count_spearman_gw": 0.010364247172377527,
+    "imp_pval_mse_gw": 2.8600203055961457,
+    "imp_pval_rmse_gw": 1.6911594376844519,
+    "imp_pval_pearson_gw": -1.5936435435084122e-06,
+    "imp_count_mse_gw": 16.836745899097593,
+    "imp_count_rmse_gw": 3.048144492448545,
+    "imp_count_pearson_gw": 0.0008285243381453934,
+    "imp_count_spearman_gw": 0.052567521870496195,
+    "den_peak_auroc_gw": 0.47383577771571256,
+    "den_pval_mse_dsf1": 0.5238275916168564,
+    "den_pval_rmse_dsf1": 0.7047510743141174,
+    "den_pval_pearson_dsf1": 0.017937656151939575,
+    "den_pval_spearman_dsf1": 0.03376210687120105,
+    "imp_pval_mse_dsf1": 2.8600203055961457,
+    "imp_pval_rmse_dsf1": 1.6911594376844519,
+    "imp_pval_pearson_dsf1": -1.5936435435084122e-06,
+    "den_pval_mse_1obs": 10.665727146362004,
+    "den_pval_rmse_1obs": 2.892989671544025,
+    "den_pval_pearson_1obs": -0.011513818401573716,
+    "den_pval_spearman_1obs": 0.01398234521946649,
+    "imp_pval_mse_1obs": 2.8600203055961457,
+    "imp_pval_rmse_1obs": 1.6911594376844519,
+    "imp_pval_pearson_1obs": -1.5936435435084122e-06
+  }
+}
+{
+  "epoch": 0,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 0.9937304854393005,
+    "probe/readlen_mse": 1.2409739724716928e-07,
+    "probe/runtype_mse": 2.944089771972358e-07
+  }
+}
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:243: UserWarning: The epoch parameter in `scheduler.step()` was not necessary and is being deprecated where possible. Please use `scheduler.step()` to step the scheduler. During the deprecation, if epoch is different from None, the closed form is used instead of the new chainable form, where available. Please open an issue if you are unable to replicate your use case: https://github.com/pytorch/pytorch/issues/new/choose.
+  warnings.warn(EPOCH_DEPRECATION_WARNING, UserWarning)
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 1,
+  "eval": {
+    "den_pval_mse_gw": 0.4969264029672271,
+    "den_pval_rmse_gw": 0.6886711418628693,
+    "den_pval_pearson_gw": 0.026222078365543366,
+    "den_pval_spearman_gw": 0.05055900931294649,
+    "den_count_mse_gw": 35.77703777190886,
+    "den_count_rmse_gw": 4.609662698287713,
+    "den_count_pearson_gw": 0.0178075143883593,
+    "den_count_spearman_gw": 0.031018738716902954,
+    "imp_pval_mse_gw": 2.84538054933735,
+    "imp_pval_rmse_gw": 1.6868255091648476,
+    "imp_pval_pearson_gw": 4.3782779859130267e-08,
+    "imp_count_mse_gw": 17.517346220857956,
+    "imp_count_rmse_gw": 3.1054068231115153,
+    "imp_count_pearson_gw": 0.015787561293965316,
+    "imp_count_spearman_gw": 0.06073798795645138,
+    "den_peak_auroc_gw": 0.46058277482948085,
+    "den_pval_mse_dsf1": 0.4969264029672271,
+    "den_pval_rmse_dsf1": 0.6886711418628693,
+    "den_pval_pearson_dsf1": 0.026222078365543366,
+    "den_pval_spearman_dsf1": 0.05055900931294649,
+    "imp_pval_mse_dsf1": 2.84538054933735,
+    "imp_pval_rmse_dsf1": 1.6868255091648476,
+    "imp_pval_pearson_dsf1": 4.3782779859130267e-08,
+    "den_pval_mse_1obs": 9.854312014030782,
+    "den_pval_rmse_1obs": 2.798811930574869,
+    "den_pval_pearson_1obs": -0.011093197058136483,
+    "den_pval_spearman_1obs": 0.0008876771935978582,
+    "imp_pval_mse_1obs": 2.84538054933735,
+    "imp_pval_rmse_1obs": 1.6868255091648476,
+    "imp_pval_pearson_1obs": 4.3782779859130267e-08
+  }
+}
+{
+  "epoch": 1,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 0.9990034699440002,
+    "probe/readlen_mse": 1.1289434951322619e-06,
+    "probe/runtype_mse": 9.876870308289654e-07
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 2,
+  "eval": {
+    "den_pval_mse_gw": 0.48125024924152776,
+    "den_pval_rmse_gw": 0.679183628214033,
+    "den_pval_pearson_gw": 0.024846446948159656,
+    "den_pval_spearman_gw": 0.05745889640405442,
+    "den_count_mse_gw": 42.09397933043932,
+    "den_count_rmse_gw": 4.700907797405594,
+    "den_count_pearson_gw": 0.02162770234625848,
+    "den_count_spearman_gw": 0.02563566303175908,
+    "imp_pval_mse_gw": 2.821948331945083,
+    "imp_pval_rmse_gw": 1.679864990944956,
+    "imp_pval_pearson_gw": -3.734195126535091e-07,
+    "imp_count_mse_gw": 21.40563161232892,
+    "imp_count_rmse_gw": 3.400832039468429,
+    "imp_count_pearson_gw": 0.023145978526194013,
+    "imp_count_spearman_gw": 0.06208124770231153,
+    "den_peak_auroc_gw": 0.48388997211568546,
+    "den_pval_mse_dsf1": 0.48125024924152776,
+    "den_pval_rmse_dsf1": 0.679183628214033,
+    "den_pval_pearson_dsf1": 0.024846446948159656,
+    "den_pval_spearman_dsf1": 0.05745889640405442,
+    "imp_pval_mse_dsf1": 2.821948331945083,
+    "imp_pval_rmse_dsf1": 1.679864990944956,
+    "imp_pval_pearson_dsf1": -3.734195126535091e-07,
+    "den_pval_mse_1obs": 9.813533552383122,
+    "den_pval_rmse_1obs": 2.8289224207401276,
+    "den_pval_pearson_1obs": -0.001197591748725819,
+    "den_pval_spearman_1obs": -0.0038310345540104166,
+    "imp_pval_mse_1obs": 2.821948331945083,
+    "imp_pval_rmse_1obs": 1.679864990944956,
+    "imp_pval_pearson_1obs": -3.734195126535091e-07
+  }
+}
+{
+  "epoch": 2,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.001818299293518,
+    "probe/readlen_mse": 5.139393579156604e-06,
+    "probe/runtype_mse": 4.165898189967265e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 3,
+  "eval": {
+    "den_pval_mse_gw": 0.45819689764788274,
+    "den_pval_rmse_gw": 0.6606343929704867,
+    "den_pval_pearson_gw": 0.026147343136051705,
+    "den_pval_spearman_gw": 0.0752261004535059,
+    "den_count_mse_gw": 37.5862899077566,
+    "den_count_rmse_gw": 4.625967585726788,
+    "den_count_pearson_gw": 0.03413751221906798,
+    "den_count_spearman_gw": 0.04157353431052583,
+    "imp_pval_mse_gw": 2.7853632721246457,
+    "imp_pval_rmse_gw": 1.668937692455217,
+    "imp_pval_pearson_gw": -1.8387667712632344e-07,
+    "imp_count_mse_gw": 15.731210048292198,
+    "imp_count_rmse_gw": 2.9462556745491777,
+    "imp_count_pearson_gw": 0.03404044844301454,
+    "imp_count_spearman_gw": 0.06540785346272318,
+    "den_peak_auroc_gw": 0.4646803579839115,
+    "den_pval_mse_dsf1": 0.45819689764788274,
+    "den_pval_rmse_dsf1": 0.6606343929704867,
+    "den_pval_pearson_dsf1": 0.026147343136051705,
+    "den_pval_spearman_dsf1": 0.0752261004535059,
+    "imp_pval_mse_dsf1": 2.7853632721246457,
+    "imp_pval_rmse_dsf1": 1.668937692455217,
+    "imp_pval_pearson_dsf1": -1.8387667712632344e-07,
+    "den_pval_mse_1obs": 9.463020762330608,
+    "den_pval_rmse_1obs": 2.7819274130620455,
+    "den_pval_pearson_1obs": 0.0024424494522942326,
+    "den_pval_spearman_1obs": 0.007196090353446062,
+    "imp_pval_mse_1obs": 2.7853632721246457,
+    "imp_pval_rmse_1obs": 1.668937692455217,
+    "imp_pval_pearson_1obs": -1.8387667712632344e-07
+  }
+}
+{
+  "epoch": 3,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.003595232963562,
+    "probe/readlen_mse": 1.2278513167984784e-05,
+    "probe/runtype_mse": 9.101448995352257e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 4,
+  "eval": {
+    "den_pval_mse_gw": 0.4642149821708077,
+    "den_pval_rmse_gw": 0.6609985620567673,
+    "den_pval_pearson_gw": 0.027657981413013705,
+    "den_pval_spearman_gw": 0.07979613539640028,
+    "den_count_mse_gw": 28.87044663413575,
+    "den_count_rmse_gw": 4.170836846295156,
+    "den_count_pearson_gw": 0.04009917963527474,
+    "den_count_spearman_gw": 0.037453682777813385,
+    "imp_pval_mse_gw": 2.7420258241541244,
+    "imp_pval_rmse_gw": 1.655899171735726,
+    "imp_pval_pearson_gw": -4.973715734693355e-08,
+    "imp_count_mse_gw": 25.280394488689947,
+    "imp_count_rmse_gw": 3.684423988940669,
+    "imp_count_pearson_gw": 0.02401381228678385,
+    "imp_count_spearman_gw": 0.06021509053976278,
+    "den_peak_auroc_gw": 0.4870607379354802,
+    "den_pval_mse_dsf1": 0.4642149821708077,
+    "den_pval_rmse_dsf1": 0.6609985620567673,
+    "den_pval_pearson_dsf1": 0.027657981413013705,
+    "den_pval_spearman_dsf1": 0.07979613539640028,
+    "imp_pval_mse_dsf1": 2.7420258241541244,
+    "imp_pval_rmse_dsf1": 1.655899171735726,
+    "imp_pval_pearson_dsf1": -4.973715734693355e-08,
+    "den_pval_mse_1obs": 10.28360780916716,
+    "den_pval_rmse_1obs": 2.8736237836511513,
+    "den_pval_pearson_1obs": -0.008030071977708232,
+    "den_pval_spearman_1obs": -0.013070733890801645,
+    "imp_pval_mse_1obs": 2.7420258241541244,
+    "imp_pval_rmse_1obs": 1.655899171735726,
+    "imp_pval_pearson_1obs": -4.973715734693355e-08
+  }
+}
+{
+  "epoch": 4,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0048643350601196,
+    "probe/readlen_mse": 1.3079511518299114e-05,
+    "probe/runtype_mse": 3.883505087287631e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 5,
+  "eval": {
+    "den_pval_mse_gw": 0.44818606364883873,
+    "den_pval_rmse_gw": 0.6512680908567027,
+    "den_pval_pearson_gw": 0.02804968210320543,
+    "den_pval_spearman_gw": 0.08814159984038114,
+    "den_count_mse_gw": 27.994744563573285,
+    "den_count_rmse_gw": 4.190825656840675,
+    "den_count_pearson_gw": 0.04464575858161736,
+    "den_count_spearman_gw": 0.04290427111204883,
+    "imp_pval_mse_gw": 2.699277592640297,
+    "imp_pval_rmse_gw": 1.6429400934892542,
+    "imp_pval_pearson_gw": -5.4223754445131944e-08,
+    "imp_count_mse_gw": 19.84512701922772,
+    "imp_count_rmse_gw": 3.380294426983478,
+    "imp_count_pearson_gw": 0.0412589358416952,
+    "imp_count_spearman_gw": 0.07247156925780057,
+    "den_peak_auroc_gw": 0.4736438349791317,
+    "den_pval_mse_dsf1": 0.44818606364883873,
+    "den_pval_rmse_dsf1": 0.6512680908567027,
+    "den_pval_pearson_dsf1": 0.02804968210320543,
+    "den_pval_spearman_dsf1": 0.08814159984038114,
+    "imp_pval_mse_dsf1": 2.699277592640297,
+    "imp_pval_rmse_dsf1": 1.6429400934892542,
+    "imp_pval_pearson_dsf1": -5.4223754445131944e-08,
+    "den_pval_mse_1obs": 10.281551415983,
+    "den_pval_rmse_1obs": 2.931083525481977,
+    "den_pval_pearson_1obs": -0.010284999327268451,
+    "den_pval_spearman_1obs": -0.01077931186669249,
+    "imp_pval_mse_1obs": 2.699277592640297,
+    "imp_pval_rmse_1obs": 1.6429400934892542,
+    "imp_pval_pearson_1obs": -5.4223754445131944e-08
+  }
+}
+{
+  "epoch": 5,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0056893825531006,
+    "probe/readlen_mse": 1.8197546523879282e-05,
+    "probe/runtype_mse": 6.984118044783827e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 6,
+  "eval": {
+    "den_pval_mse_gw": 0.43722576863671603,
+    "den_pval_rmse_gw": 0.6407631867026028,
+    "den_pval_pearson_gw": 0.02955090202158317,
+    "den_pval_spearman_gw": 0.08946326062753804,
+    "den_count_mse_gw": 29.26766180835272,
+    "den_count_rmse_gw": 4.331529702010908,
+    "den_count_pearson_gw": 0.036138951893103934,
+    "den_count_spearman_gw": 0.038438065715497585,
+    "imp_pval_mse_gw": 2.6670886114531873,
+    "imp_pval_rmse_gw": 1.6331110725215836,
+    "imp_pval_pearson_gw": -6.888248187092983e-08,
+    "imp_count_mse_gw": 26.68584739226921,
+    "imp_count_rmse_gw": 3.810968840823454,
+    "imp_count_pearson_gw": 0.04147433939814458,
+    "imp_count_spearman_gw": 0.0664421052098469,
+    "den_peak_auroc_gw": 0.46868496192803366,
+    "den_pval_mse_dsf1": 0.43722576863671603,
+    "den_pval_rmse_dsf1": 0.6407631867026028,
+    "den_pval_pearson_dsf1": 0.02955090202158317,
+    "den_pval_spearman_dsf1": 0.08946326062753804,
+    "imp_pval_mse_dsf1": 2.6670886114531873,
+    "imp_pval_rmse_dsf1": 1.6331110725215836,
+    "imp_pval_pearson_dsf1": -6.888248187092983e-08,
+    "den_pval_mse_1obs": 9.879173154893675,
+    "den_pval_rmse_1obs": 2.822844443352599,
+    "den_pval_pearson_1obs": -0.010929341712127146,
+    "den_pval_spearman_1obs": -0.015502726061440836,
+    "imp_pval_mse_1obs": 2.6670886114531873,
+    "imp_pval_rmse_1obs": 1.6331110725215836,
+    "imp_pval_pearson_1obs": -6.888248187092983e-08
+  }
+}
+{
+  "epoch": 6,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0065218210220337,
+    "probe/readlen_mse": 3.073421976296231e-05,
+    "probe/runtype_mse": 5.608987521554809e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 7,
+  "eval": {
+    "den_pval_mse_gw": 0.443808795001946,
+    "den_pval_rmse_gw": 0.6451477988770133,
+    "den_pval_pearson_gw": 0.02854294438101964,
+    "den_pval_spearman_gw": 0.08175419946686,
+    "den_count_mse_gw": 46.54183117653194,
+    "den_count_rmse_gw": 4.924746416117015,
+    "den_count_pearson_gw": 0.04449672245733669,
+    "den_count_spearman_gw": 0.041291857681426986,
+    "imp_pval_mse_gw": 2.6443846132241045,
+    "imp_pval_rmse_gw": 1.626140877312305,
+    "imp_pval_pearson_gw": -3.6668562878904754e-08,
+    "imp_count_mse_gw": 25.603381508705663,
+    "imp_count_rmse_gw": 3.6305128219080904,
+    "imp_count_pearson_gw": 0.03746443939870041,
+    "imp_count_spearman_gw": 0.06686403425354706,
+    "den_peak_auroc_gw": 0.4817342311462896,
+    "den_pval_mse_dsf1": 0.443808795001946,
+    "den_pval_rmse_dsf1": 0.6451477988770133,
+    "den_pval_pearson_dsf1": 0.02854294438101964,
+    "den_pval_spearman_dsf1": 0.08175419946686,
+    "imp_pval_mse_dsf1": 2.6443846132241045,
+    "imp_pval_rmse_dsf1": 1.626140877312305,
+    "imp_pval_pearson_dsf1": -3.6668562878904754e-08,
+    "den_pval_mse_1obs": 10.793870409068308,
+    "den_pval_rmse_1obs": 2.9677506128424094,
+    "den_pval_pearson_1obs": -0.02052588831649796,
+    "den_pval_spearman_1obs": -0.030399946618761577,
+    "imp_pval_mse_1obs": 2.6443846132241045,
+    "imp_pval_rmse_1obs": 1.626140877312305,
+    "imp_pval_pearson_1obs": -3.6668562878904754e-08
+  }
+}
+{
+  "epoch": 7,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0068366527557373,
+    "probe/readlen_mse": 2.6925335987471044e-05,
+    "probe/runtype_mse": 1.23423887998797e-05
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 8,
+  "eval": {
+    "den_pval_mse_gw": 0.4464439139946511,
+    "den_pval_rmse_gw": 0.6424126507420289,
+    "den_pval_pearson_gw": 0.025853536602593714,
+    "den_pval_spearman_gw": 0.08117719912609697,
+    "den_count_mse_gw": 49.97985052513449,
+    "den_count_rmse_gw": 4.907731236595857,
+    "den_count_pearson_gw": 0.04328913845979274,
+    "den_count_spearman_gw": 0.039513809545413656,
+    "imp_pval_mse_gw": 2.6360272846969903,
+    "imp_pval_rmse_gw": 1.6235654728085387,
+    "imp_pval_pearson_gw": -4.107178271231581e-08,
+    "imp_count_mse_gw": 15.518245226027918,
+    "imp_count_rmse_gw": 3.1013360444237206,
+    "imp_count_pearson_gw": 0.05202379542535317,
+    "imp_count_spearman_gw": 0.07243681013706695,
+    "den_peak_auroc_gw": 0.4607799660493862,
+    "den_pval_mse_dsf1": 0.4464439139946511,
+    "den_pval_rmse_dsf1": 0.6424126507420289,
+    "den_pval_pearson_dsf1": 0.025853536602593714,
+    "den_pval_spearman_dsf1": 0.08117719912609697,
+    "imp_pval_mse_dsf1": 2.6360272846969903,
+    "imp_pval_rmse_dsf1": 1.6235654728085387,
+    "imp_pval_pearson_dsf1": -4.107178271231581e-08,
+    "den_pval_mse_1obs": 10.625856046613894,
+    "den_pval_rmse_1obs": 2.940284572149578,
+    "den_pval_pearson_1obs": -0.007049090041331702,
+    "den_pval_spearman_1obs": -0.0124096806664054,
+    "imp_pval_mse_1obs": 2.6360272846969903,
+    "imp_pval_rmse_1obs": 1.6235654728085387,
+    "imp_pval_pearson_1obs": -4.107178271231581e-08
+  }
+}
+{
+  "epoch": 8,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.007090449333191,
+    "probe/readlen_mse": 1.6757450794102624e-05,
+    "probe/runtype_mse": 4.261247340764385e-06
+  }
+}
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:43: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+{
+  "epoch": 9,
+  "eval": {
+    "den_pval_mse_gw": 0.42445389240195874,
+    "den_pval_rmse_gw": 0.6329563624764744,
+    "den_pval_pearson_gw": 0.026575534928796468,
+    "den_pval_spearman_gw": 0.08840857771032477,
+    "den_count_mse_gw": 29.420410598579206,
+    "den_count_rmse_gw": 4.249422543927243,
+    "den_count_pearson_gw": 0.049347078902524356,
+    "den_count_spearman_gw": 0.041120360513990734,
+    "imp_pval_mse_gw": 2.6283296136295093,
+    "imp_pval_rmse_gw": 1.6211921303879981,
+    "imp_pval_pearson_gw": -3.6287416400691476e-08,
+    "imp_count_mse_gw": 19.716867366257837,
+    "imp_count_rmse_gw": 3.400779706590316,
+    "imp_count_pearson_gw": 0.046861517727009805,
+    "imp_count_spearman_gw": 0.07263674485843981,
+    "den_peak_auroc_gw": 0.45273112367401763,
+    "den_pval_mse_dsf1": 0.42445389240195874,
+    "den_pval_rmse_dsf1": 0.6329563624764744,
+    "den_pval_pearson_dsf1": 0.026575534928796468,
+    "den_pval_spearman_dsf1": 0.08840857771032477,
+    "imp_pval_mse_dsf1": 2.6283296136295093,
+    "imp_pval_rmse_dsf1": 1.6211921303879981,
+    "imp_pval_pearson_dsf1": -3.6287416400691476e-08,
+    "den_pval_mse_1obs": 10.147251168363972,
+    "den_pval_rmse_1obs": 2.89719032770709,
+    "den_pval_pearson_1obs": -0.014391903228993454,
+    "den_pval_spearman_1obs": -0.020392940059189096,
+    "imp_pval_mse_1obs": 2.6283296136295093,
+    "imp_pval_rmse_1obs": 1.6211921303879981,
+    "imp_pval_pearson_1obs": -3.6287416400691476e-08
+  }
+}
+{
+  "epoch": 9,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0072190761566162,
+    "probe/readlen_mse": 1.4151291907182895e-05,
+    "probe/runtype_mse": 4.9493660299049225e-06
+  }
+}
+wandb: updating run metadata
+wandb: uploading history steps 620-620, summary, console lines 1668-1710
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                     epoch ▁▂▃▃▄▅▆▆▇█
+wandb:            grad/clip_norm ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:              grad/clipped ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb: grad/clipped_frac_running ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:  grad/clipped_frac_window ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                   grad/lr ▂▃▄▄▅▇▇████████▆▆▆▆▆▅▅▅▅▅▃▃▃▃▃▂▂▂▂▂▁▁▁▁▁
+wandb:        grad/pre_clip_norm ▂▄▂▁▂▂▂▂▃▂▅▂▁▂▁▂▂▁▁▁▁▃▄▂▅▅▄▁▃▃▃▅▁█▁▁▃▅▄▄
+wandb:            loss/count_imp ▁▅▄▃▄▃█▂▄▂▄▂▂▂▃▁▂▄▃▂▂▄▂▂▃▃▃▃▃▃█▂▂█▂▃█▁▁▅
+wandb:            loss/count_obs ▃▃▁▃▂▂▂█▃▁▁▁▂▁▁▂▁▂▂▁▂▁▂▂▃▃▂▄▂▂▂▂▁▆▂▃▃▂▂▃
+wandb:             loss/peak_imp ▆▆▅█▄▆▅▅▁▆▅▄▅▆▁▅▅▁▁▆▅▁▅▁▁▁▅▁▄▃▆▁▆▆▁▃▆▄▄▃
+wandb:                       +45 ...
+wandb: 
+wandb: Run summary:
+wandb:                     epoch 9
+wandb:            grad/clip_norm 1
+wandb:              grad/clipped 1
+wandb: grad/clipped_frac_running 1
+wandb:  grad/clipped_frac_window 1
+wandb:                   grad/lr 1e-05
+wandb:        grad/pre_clip_norm 27.74637
+wandb:            loss/count_imp 1.99689
+wandb:            loss/count_obs 1.99689
+wandb:             loss/peak_imp 0.28824
+wandb:                       +45 ...
+wandb: 
+wandb: 🚀 View run baseline_assay_mask_only at: https://wandb.ai/mforoozz/candi_sandbox/runs/fbgse19f
+wandb: ⭐️ View project at: https://wandb.ai/mforoozz/candi_sandbox
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260425_213144-fbgse19f/logs
+Finished 10 epoch(s), global_step=620, elapsed=611.0s

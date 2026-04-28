@@ -6,6 +6,9 @@ This script loads a pretrained CANDI model and visualizes:
 1. Ground truth (T_* in green for upsampled, V_* in blue for imputation targets)
 2. Predicted mu (mean) of Negative Binomial distribution (red)
 3. Predicted n (dispersion parameter) of Negative Binomial distribution (purple)
+4. Gaussian mu (mean) (orange)
+5. Gaussian std (standard deviation) (gold)
+6. Peak probability (teal)
 
 Following the data loading pattern from EIC_VALIDATION_MONITOR in model.py.
 """
@@ -22,6 +25,7 @@ matplotlib.use('Agg')  # Non-interactive backend, faster for saving files
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.colors import ListedColormap
+import math
 
 # Add project root to path to allow imports
 project_root = Path(__file__).parent.parent
@@ -29,6 +33,7 @@ sys.path.insert(0, str(project_root))
 
 from data import CANDIDataHandler
 from model import CANDI
+from _utils import Gaussian, NegativeBinomial, Laplace
 
 # Token dictionary (same as in EIC_VALIDATION_MONITOR)
 TOKEN_DICT = {"missing_mask": -1, "cloze_mask": -2, "pad": -3}
@@ -100,7 +105,8 @@ def load_model_from_checkpoint(model_path, device='cuda' if torch.cuda.is_availa
     output_ff = config.get('output_ff', False)
     
     # Get metadata dimensions
-    num_sequencing_platforms = config.get('num_sequencing_platforms', 10)
+    # Support both new 'num_assays' and old 'num_sequencing_platforms' for backward compatibility
+    num_assays = config.get('num_assays', config.get('num_sequencing_platforms', 35))
     num_runtypes = config.get('num_runtypes', 2)
     
     # Create model
@@ -119,7 +125,7 @@ def load_model_from_checkpoint(model_path, device='cuda' if torch.cuda.is_availa
             pos_enc=pos_enc,
             expansion_factor=expansion_factor,
             separate_decoders=separate_decoders,
-            num_sequencing_platforms=num_sequencing_platforms,
+            num_assays=num_assays,
             num_runtypes=num_runtypes,
             norm=norm,
             attention_type=attention_type
@@ -138,7 +144,7 @@ def load_model_from_checkpoint(model_path, device='cuda' if torch.cuda.is_availa
             pos_enc=pos_enc,
             expansion_factor=expansion_factor,
             separate_decoders=separate_decoders,
-            num_sequencing_platforms=num_sequencing_platforms,
+            num_assays=num_assays,
             num_runtypes=num_runtypes,
             norm=norm,
             attention_type=attention_type,
@@ -313,8 +319,11 @@ def run_inference(model, X, mX, mY, seq, device):
         device: Device to run on
     
     Returns:
-        mu_pred: Predicted mean [B, L, F]
-        n_pred: Predicted dispersion parameter [B, L, F]
+        nb_mu_pred: Negative Binomial mean [B, L, F]
+        n_pred: Negative Binomial dispersion parameter [B, L, F]
+        gauss_mu_pred: Gaussian mean [B, L, F]
+        gauss_std_pred: Gaussian standard deviation [B, L, F]
+        peak_prob_pred: Peak probability [B, L, F]
     """
     # Apply masking (convert missing to cloze)
     X = X.clone()
@@ -340,23 +349,63 @@ def run_inference(model, X, mX, mY, seq, device):
     p_pred = outputs_p.float().cpu()
     
     # Compute mu from n and p: mean = n * (1-p) / p
-    mu_pred = n_pred * (1 - p_pred) / p_pred
+    nb_mu_pred = n_pred * (1 - p_pred) / p_pred
+
+    # Signal outputs (Gaussian or Laplace) based on dist_type if available, else assume Gaussian for now
+    # Check model.dist_type if accessible, or infer from dimensions/config
+    # Here we assume model returns either (mu, var) or (mu, log_b)
+    # Since we don't pass dist_type explicitly here, we can check attribute
+    dist_type = getattr(model, 'dist_type', 'gaussian')
     
-    return mu_pred, n_pred
+    if dist_type == 'laplace':
+        laplace_mu_pred = outputs_mu.float().cpu()
+        laplace_log_b_pred = outputs_var.float().cpu() # 2nd output is log_b
+        # Return expected value and scale for visualization
+        # For Laplace, mean = mu, std = sqrt(2) * b
+        gauss_mu_pred = laplace_mu_pred
+        # clamp log_b to avoid overflow
+        log_b = torch.clamp(laplace_log_b_pred, min=-10.0, max=10.0)
+        b = torch.exp(log_b)
+        gauss_std_pred = math.sqrt(2) * b
+    else:
+        # Gaussian outputs: model returns var; we plot std = sqrt(var)
+        gauss_mu_pred = outputs_mu.float().cpu()
+        gauss_var_pred = outputs_var.float().cpu()
+        gauss_std_pred = torch.sqrt(torch.clamp(gauss_var_pred, min=1e-8))
+
+    # Peak output: probability in [0, 1]
+    peak_prob_pred = outputs_peak.float().cpu()
+    
+    return nb_mu_pred, n_pred, gauss_mu_pred, gauss_std_pred, peak_prob_pred
 
 
-def visualize_outputs(data, mu_pred, n_pred, biosample, chrom, start_loci, save_path, resolution=25):
+def visualize_outputs(
+    data,
+    nb_mu_pred,
+    n_pred,
+    gauss_mu_pred,
+    gauss_std_pred,
+    peak_prob_pred,
+    biosample,
+    chrom,
+    start_loci,
+    save_path,
+    resolution=25,
+):
     """
     Create visualization with tracks using fast fill_between rendering.
     
     Structure:
     - Rows: Assays (F rows)
-    - Columns: 3 (Ground Truth, Predicted Mu, Predicted N)
+    - Columns: 6 (Ground Truth, NB μ, NB n, Gaussian μ, Gaussian σ, Peak prob)
     
     Args:
         data: Dictionary from load_eic_validation_data
-        mu_pred: Predicted mean [B, L, F]
-        n_pred: Predicted dispersion [B, L, F]
+        nb_mu_pred: Negative Binomial mean [B, L, F]
+        n_pred: Negative Binomial dispersion [B, L, F]
+        gauss_mu_pred: Gaussian mean [B, L, F]
+        gauss_std_pred: Gaussian standard deviation [B, L, F]
+        peak_prob_pred: Peak probability [B, L, F]
         biosample: Biosample name
         chrom: Chromosome
         start_loci: Start position
@@ -378,8 +427,11 @@ def visualize_outputs(data, mu_pred, n_pred, biosample, chrom, start_loci, save_
     batch_idx = 0
     Y_T_vis = Y_T[batch_idx].clone().float()  # [L, F]
     Y_V_vis = Y_V[batch_idx].clone().float()  # [L, F]
-    mu_vis = mu_pred[batch_idx].clone().float()  # [L, F]
+    nb_mu_vis = nb_mu_pred[batch_idx].clone().float()  # [L, F]
     n_vis = n_pred[batch_idx].clone().float()  # [L, F]
+    gauss_mu_vis = gauss_mu_pred[batch_idx].clone().float()  # [L, F]
+    gauss_std_vis = gauss_std_pred[batch_idx].clone().float()  # [L, F]
+    peak_prob_vis = peak_prob_pred[batch_idx].clone().float()  # [L, F]
     
     L, F = Y_T_vis.shape
     
@@ -393,11 +445,11 @@ def visualize_outputs(data, mu_pred, n_pred, biosample, chrom, start_loci, save_
     
     # Create figure and axes
     # Share x axis across all plots
-    fig, axes = plt.subplots(F, 3, figsize=(24, total_height), sharex=True)
+    fig, axes = plt.subplots(F, 6, figsize=(48, total_height), sharex=True)
     
     # Handle F=1 case where axes is 1D
     if F == 1:
-        axes = np.array([axes])
+        axes = axes[np.newaxis, :]
     
     # X-axis ticks (only on bottom rows)
     num_xticks = 10
@@ -412,8 +464,11 @@ def visualize_outputs(data, mu_pred, n_pred, biosample, chrom, start_loci, save_
         
         # Row axes
         ax_gt = axes[f_idx, 0]
-        ax_mu = axes[f_idx, 1]
-        ax_n = axes[f_idx, 2]
+        ax_nb_mu = axes[f_idx, 1]
+        ax_nb_n = axes[f_idx, 2]
+        ax_g_mu = axes[f_idx, 3]
+        ax_g_std = axes[f_idx, 4]
+        ax_peak = axes[f_idx, 5]
         
         # --- Column 1: Ground Truth ---
         gt_max = 0
@@ -469,42 +524,73 @@ def visualize_outputs(data, mu_pred, n_pred, biosample, chrom, start_loci, save_
             ax_gt.text(0.98, 0.85, f"Max: {gt_max:.1f}", transform=ax_gt.transAxes, ha='right', fontsize=8)
         
         # --- Column 2: Predicted Mu ---
-        mu_vals = mu_vis[:, f_idx].numpy()
+        mu_vals = nb_mu_vis[:, f_idx].numpy()
         
         # FAST RENDER
-        ax_mu.fill_between(x_coords, 0, mu_vals, step='post', color='red', alpha=0.8)
+        ax_nb_mu.fill_between(x_coords, 0, mu_vals, step='post', color='red', alpha=0.8)
         
         # Remove spines
-        ax_mu.spines['top'].set_visible(False)
-        ax_mu.spines['right'].set_visible(False)
+        ax_nb_mu.spines['top'].set_visible(False)
+        ax_nb_mu.spines['right'].set_visible(False)
         
         mu_max = mu_vals.max()
         if mu_max > 0:
-            ax_mu.set_ylim(0, mu_max * 1.1)
-            ax_mu.text(0.98, 0.85, f"Max: {mu_max:.1f}", transform=ax_mu.transAxes, ha='right', fontsize=8)
+            ax_nb_mu.set_ylim(0, mu_max * 1.1)
+            ax_nb_mu.text(0.98, 0.85, f"Max: {mu_max:.1f}", transform=ax_nb_mu.transAxes, ha='right', fontsize=8)
             
         # --- Column 3: Predicted N ---
         n_vals = n_vis[:, f_idx].numpy()
         
         # FAST RENDER
-        ax_n.fill_between(x_coords, 0, n_vals, step='post', color='purple', alpha=0.8)
+        ax_nb_n.fill_between(x_coords, 0, n_vals, step='post', color='purple', alpha=0.8)
         
         # Remove spines
-        ax_n.spines['top'].set_visible(False)
-        ax_n.spines['right'].set_visible(False)
+        ax_nb_n.spines['top'].set_visible(False)
+        ax_nb_n.spines['right'].set_visible(False)
         
         n_max = n_vals.max()
         if n_max > 0:
-            ax_n.set_ylim(0, n_max * 1.1)
-            ax_n.text(0.98, 0.85, f"Max: {n_max:.1f}", transform=ax_n.transAxes, ha='right', fontsize=8)
+            ax_nb_n.set_ylim(0, n_max * 1.1)
+            ax_nb_n.text(0.98, 0.85, f"Max: {n_max:.1f}", transform=ax_nb_n.transAxes, ha='right', fontsize=8)
+
+        # --- Column 4: Gaussian Mu ---
+        gmu_vals = gauss_mu_vis[:, f_idx].numpy()
+        ax_g_mu.fill_between(x_coords, 0, gmu_vals, step='post', color='darkorange', alpha=0.8)
+        ax_g_mu.spines['top'].set_visible(False)
+        ax_g_mu.spines['right'].set_visible(False)
+        gmu_max = gmu_vals.max()
+        if gmu_max > 0:
+            ax_g_mu.set_ylim(0, gmu_max * 1.1)
+            ax_g_mu.text(0.98, 0.85, f"Max: {gmu_max:.3g}", transform=ax_g_mu.transAxes, ha='right', fontsize=8)
+
+        # --- Column 5: Gaussian Std ---
+        gstd_vals = gauss_std_vis[:, f_idx].numpy()
+        ax_g_std.fill_between(x_coords, 0, gstd_vals, step='post', color='goldenrod', alpha=0.8)
+        ax_g_std.spines['top'].set_visible(False)
+        ax_g_std.spines['right'].set_visible(False)
+        gstd_max = gstd_vals.max()
+        if gstd_max > 0:
+            ax_g_std.set_ylim(0, gstd_max * 1.1)
+            ax_g_std.text(0.98, 0.85, f"Max: {gstd_max:.3g}", transform=ax_g_std.transAxes, ha='right', fontsize=8)
+
+        # --- Column 6: Peak Probability ---
+        peak_vals = peak_prob_vis[:, f_idx].numpy()
+        ax_peak.fill_between(x_coords, 0, peak_vals, step='post', color='teal', alpha=0.8)
+        ax_peak.spines['top'].set_visible(False)
+        ax_peak.spines['right'].set_visible(False)
+        ax_peak.set_ylim(0, 1.05)
+        ax_peak.text(0.98, 0.85, f"Max: {peak_vals.max():.2f}", transform=ax_peak.transAxes, ha='right', fontsize=8)
 
     # Set Column Titles (only on top row)
     axes[0, 0].set_title('Ground Truth\n(Green=Input, Blue=Target)', fontsize=14, fontweight='bold')
-    axes[0, 1].set_title('Predicted μ (Mean)', fontsize=14, fontweight='bold', color='darkred')
-    axes[0, 2].set_title('Predicted n (Dispersion)', fontsize=14, fontweight='bold', color='indigo')
+    axes[0, 1].set_title('NB μ (Mean)', fontsize=14, fontweight='bold', color='darkred')
+    axes[0, 2].set_title('NB n (Dispersion)', fontsize=14, fontweight='bold', color='indigo')
+    axes[0, 3].set_title('Gaussian μ (Mean)', fontsize=14, fontweight='bold', color='darkorange')
+    axes[0, 4].set_title('Gaussian σ (Std)', fontsize=14, fontweight='bold', color='goldenrod')
+    axes[0, 5].set_title('Peak Probability', fontsize=14, fontweight='bold', color='teal')
     
     # Set X-axis labels (only on bottom row)
-    for col in range(3):
+    for col in range(6):
         ax = axes[F-1, col]
         ax.set_xticks(xtick_locs)
         ax.set_xticklabels(xtick_labels, rotation=45, ha='right')
@@ -658,11 +744,14 @@ def main():
     
     # Run inference following EIC_VALIDATION_MONITOR._predict pattern
     print("Running inference...")
-    mu_pred, n_pred = run_inference(
+    nb_mu_pred, n_pred, gauss_mu_pred, gauss_std_pred, peak_prob_pred = run_inference(
         model, data['X'], data['mX'], data['mY'], data['seq'], device
     )
-    print(f"  mu_pred shape: {mu_pred.shape}")
+    print(f"  nb_mu_pred shape: {nb_mu_pred.shape}")
     print(f"  n_pred shape: {n_pred.shape}")
+    print(f"  gauss_mu_pred shape: {gauss_mu_pred.shape}")
+    print(f"  gauss_std_pred shape: {gauss_std_pred.shape}")
+    print(f"  peak_prob_pred shape: {peak_prob_pred.shape}")
     
     # Determine save path
     model_path = Path(args.model_path)
@@ -677,7 +766,7 @@ def main():
     # Visualize
     print("Creating visualization...")
     visualize_outputs(
-        data, mu_pred, n_pred,
+        data, nb_mu_pred, n_pred, gauss_mu_pred, gauss_std_pred, peak_prob_pred,
         biosample, args.chrom, args.start_loci, save_path,
         resolution=args.resolution
     )

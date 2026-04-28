@@ -1,0 +1,15 @@
+# Thin overlay on code defaults (`SandboxConfig` in `sandbox/config_types.py`).
+# Merge order: dataclass defaults → this file → extra `--config` files → dotted CLI flags.
+# Only entries that differ from the dataclass defaults need to appear here.
+
+data:
+  # Load the full H5 into RAM once per iterator — avoids repeated disk I/O on small files.
+  h5_cache_ram: true
+  ram_cache_max_bytes: 10737418240  # 10 GiB
+
+training:
+  grad:
+    clip_norm: 1.0
+  schedule:
+    warmup_frac: 0.1
+  augment_reverse_complement_prob: 0.0

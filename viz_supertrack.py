@@ -46,7 +46,8 @@ class SupertrackVisualizer:
                  sweep_param: str, sweep_values: List,
                  baseline_spec_path: str, uniform_prompt: bool = False,
                  locus: List = None, dsf: int = 1, output_dir: str = None,
-                 context_length: int = 1200, resolution: int = 25, DNA: bool = True):
+                 context_length: int = 1200, resolution: int = 25, DNA: bool = True,
+                 tracks_only: bool = False, visual_loci_only: bool = False):
         """
         Initialize supertrack visualizer.
         
@@ -79,6 +80,8 @@ class SupertrackVisualizer:
         self.uniform_prompt = uniform_prompt
         self.locus = locus if locus is not None else ["chr21", 0, 46709983]
         self.dsf = dsf
+        self.tracks_only = tracks_only
+        self.visual_loci_only = visual_loci_only
         # Create output directory structure: bios-name/assay-name/task_sweep-param
         base_output_dir = output_dir if output_dir is not None else model_dir
         self.output_dir = os.path.join(
@@ -111,12 +114,15 @@ class SupertrackVisualizer:
         self.predictions_cache = {}
         
         # Define example gene coordinates (from viz.py lines 174-183)
+        self.example_gene_loci_bp = [
+            (33481539, 33588914),  # GART
+            (25800151, 26235914),  # APP
+            (31589009, 31745788),  # SOD1
+            (39526359, 39802081),  # B3GALT5
+            (33577551, 33919338),  # ITSN1
+        ]
         self.example_gene_coords = [
-            (33481539 // resolution, 33588914 // resolution),  # GART
-            (25800151 // resolution, 26235914 // resolution),  # APP
-            (31589009 // resolution, 31745788 // resolution),  # SOD1
-            (39526359 // resolution, 39802081 // resolution),  # B3GALT5
-            (33577551 // resolution, 33919338 // resolution),  # ITSN1
+            (s // resolution, e // resolution) for s, e in self.example_gene_loci_bp
         ]
         self.gene_names = ['GART', 'APP', 'SOD1', 'B3GALT5', 'ITSN1']
         
@@ -124,6 +130,8 @@ class SupertrackVisualizer:
         print(f"  Sweep parameter: {sweep_param}")
         print(f"  Sweep values: {sweep_values}")
         print(f"  Uniform prompt mode: {uniform_prompt}")
+        print(f"  Tracks-only mode: {tracks_only}")
+        print(f"  Visual-loci-only mode: {visual_loci_only}")
         print(f"  Output directory: {self.output_dir}")
     
     def _load_baseline_spec(self, spec_path: str) -> Dict:
@@ -161,6 +169,25 @@ class SupertrackVisualizer:
         
         return spec
     
+    def _has_ground_truth_for_task(self) -> bool:
+        """Fast pre-check: skip heavy sweeps when assay has no evaluable GT."""
+        probe_locus = self.locus
+        if self.visual_loci_only and len(self.example_gene_loci_bp) > 0:
+            s, e = self.example_gene_loci_bp[0]
+            probe_locus = ["chr21", int(s), int(e)]
+        try:
+            _, info = self.predictor._determine_imp_target(
+                self.assay_name, self.bios_name, self.task, probe_locus, self.dsf
+            )
+        except Exception as e:
+            print(f"Ground-truth precheck failed: {e}")
+            return False
+        if self.task == "denoise":
+            return bool(info.get("available_in_input", False))
+        if self.dataset_type == "merged":
+            return bool(info.get("available_in_target", False))
+        return bool(info.get("available_in_T", False) or info.get("available_in_B", False))
+
     def run_sweep(self):
         """Execute parameter sweep across all sweep values."""
         results_list = []
@@ -168,6 +195,11 @@ class SupertrackVisualizer:
         print("\n" + "=" * 80)
         print(f"Running parameter sweep: {self.sweep_param}")
         print("=" * 80)
+        if not self._has_ground_truth_for_task():
+            print("⚠️  Skipping sweep: selected assay has no evaluable ground truth for this task.")
+            self.results_df = pd.DataFrame()
+            self.predictions_cache = {}
+            return
         
         for i, sweep_value in enumerate(self.sweep_values):
             print(f"\n[{i+1}/{len(self.sweep_values)}] Testing {self.sweep_param} = {sweep_value}")
@@ -178,20 +210,53 @@ class SupertrackVisualizer:
             
             # Run prediction
             start_time = time.time()
-            result = self.predictor.predict_single_assay(
-                bios_name=self.bios_name,
-                assay_name=self.assay_name,
-                task=self.task,
-                locus=self.locus,
-                dsf=self.dsf,
-                fill_y_prompt_spec=sweep_spec,
-                fill_prompt_mode="none"  # Always use spec, not fill
-            )
+            if self.visual_loci_only:
+                per_gene_results = []
+                for gidx, (start_bp, end_bp) in enumerate(self.example_gene_loci_bp):
+                    gene_locus = ["chr21", int(start_bp), int(end_bp)]
+                    print(f"  Gene {self.gene_names[gidx]} locus: {gene_locus}")
+                    r = self.predictor.predict_single_assay(
+                        bios_name=self.bios_name,
+                        assay_name=self.assay_name,
+                        task=self.task,
+                        locus=gene_locus,
+                        dsf=self.dsf,
+                        fill_y_prompt_spec=sweep_spec,
+                        fill_prompt_mode="none"
+                    )
+                    per_gene_results.append(r)
+                result = {"per_gene": per_gene_results, "loci_bp": self.example_gene_loci_bp}
+            else:
+                result = self.predictor.predict_single_assay(
+                    bios_name=self.bios_name,
+                    assay_name=self.assay_name,
+                    task=self.task,
+                    locus=self.locus,
+                    dsf=self.dsf,
+                    fill_y_prompt_spec=sweep_spec,
+                    fill_prompt_mode="none"  # Always use spec, not fill
+                )
             elapsed = time.time() - start_time
             print(f"  Prediction completed in {elapsed:.2f}s")
-            
-            # Compute metrics
-            metrics = self.predictor.compute_metrics(result, quick=False)
+
+            if self.tracks_only:
+                metrics = {
+                    'bios': self.bios_name,
+                    'assay': self.assay_name,
+                    'task': self.task,
+                    'comparison': self.task,
+                    'C_MSE-GW': np.nan,
+                    'C_Pearson-GW': np.nan,
+                    'C_Spearman-GW': np.nan,
+                    'P_MSE-GW': np.nan,
+                    'P_Pearson-GW': np.nan,
+                    'P_Spearman-GW': np.nan,
+                    'Peak_AUCROC-GW': np.nan,
+                    'metrics_skipped': True,
+                }
+            else:
+                # Compute metrics
+                metrics = self.predictor.compute_metrics(result, quick=False)
             
             # Check if metrics computation failed
             if "error" in metrics:
@@ -211,11 +276,17 @@ class SupertrackVisualizer:
                     'P_Spearman-GW': np.nan,
                     'Peak_AUCROC-GW': np.nan,
                 }
+            elif metrics.get("metrics_skipped", False):
+                print("  Tracks-only mode: skipped metric computation by design.")
             else:
                 # Print key metrics
                 print(f"  C_Pearson-GW:  {metrics.get('C_Pearson-GW', np.nan):.4f}")
                 print(f"  P_Pearson-GW:  {metrics.get('P_Pearson-GW', np.nan):.4f}")
                 print(f"  Peak_AUCROC-GW: {metrics.get('Peak_AUCROC-GW', np.nan):.4f}")
+                if "metric_warnings" in metrics and len(metrics["metric_warnings"]) > 0:
+                    print("  Metric warnings:")
+                    for w in metrics["metric_warnings"]:
+                        print(f"    - {w}")
             
             # Add sweep information
             metrics['sweep_param'] = self.sweep_param
@@ -386,6 +457,8 @@ class SupertrackVisualizer:
         
         n_genes = len(self.example_gene_coords)
         n_sweeps = len(self.sweep_values)
+        first_entry = self.predictions_cache[self.sweep_values[0]]
+        per_gene_mode = isinstance(first_entry, dict) and "per_gene" in first_entry
         
         # Layout: 5 columns (genes) × multiple rows
         # Rows organized in 3 groups (count, pval, peak)
@@ -410,9 +483,14 @@ class SupertrackVisualizer:
             
             # Row: Observed count
             ax = fig.add_subplot(gs[row_idx, col_idx])
-            obs_count = self.predictions_cache[self.sweep_values[0]]['ground_truth']['count']
-            if obs_count is not None:
-                obs_count_region = obs_count[gene_coord[0]:gene_coord[1]]
+            if per_gene_mode:
+                obs_count = self.predictions_cache[self.sweep_values[0]]["per_gene"][col_idx]['ground_truth']['count']
+                obs_count_region = np.asarray(obs_count).reshape(-1) if obs_count is not None else np.array([])
+                x_values = range(gene_coord[0], gene_coord[0] + len(obs_count_region))
+            else:
+                obs_count = self.predictions_cache[self.sweep_values[0]]['ground_truth']['count']
+                obs_count_region = np.asarray(obs_count[gene_coord[0]:gene_coord[1]]).reshape(-1) if obs_count is not None else np.array([])
+            if obs_count_region.size > 0:
                 ax.fill_between(x_values, 0, obs_count_region, color=color_observed, alpha=0.7)
             ax.set_ylabel('Obs Count', fontsize=8)
             ax.set_xticklabels([])
@@ -427,9 +505,14 @@ class SupertrackVisualizer:
             # Rows: Predicted counts for each sweep value
             for sweep_val in self.sweep_values:
                 ax = fig.add_subplot(gs[row_idx, col_idx])
-                pred_count = self.predictions_cache[sweep_val]['predictions']['count']
-                pred_count_region = pred_count[gene_coord[0]:gene_coord[1]]
-                ax.fill_between(x_values, 0, pred_count_region, color=color_predicted, alpha=0.7)
+                if per_gene_mode:
+                    pred_count = self.predictions_cache[sweep_val]["per_gene"][col_idx]['predictions']['count']
+                    pred_count_region = np.asarray(pred_count).reshape(-1)
+                else:
+                    pred_count = self.predictions_cache[sweep_val]['predictions']['count']
+                    pred_count_region = np.asarray(pred_count[gene_coord[0]:gene_coord[1]]).reshape(-1)
+                if pred_count_region.size > 0:
+                    ax.fill_between(x_values, 0, pred_count_region, color=color_predicted, alpha=0.7)
                 # Format sweep value for label
                 if isinstance(sweep_val, float):
                     label = f'{self.sweep_param}={sweep_val:.1e}'
@@ -449,9 +532,14 @@ class SupertrackVisualizer:
             
             # Row: Observed p-value
             ax = fig.add_subplot(gs[row_idx, col_idx])
-            obs_pval = self.predictions_cache[self.sweep_values[0]]['ground_truth']['pval']
-            if obs_pval is not None:
-                obs_pval_region = np.sinh(obs_pval[gene_coord[0]:gene_coord[1]])  # arcsinh transform
+            if per_gene_mode:
+                obs_pval = self.predictions_cache[self.sweep_values[0]]["per_gene"][col_idx]['ground_truth']['pval']
+                obs_pval_region = np.sinh(np.asarray(obs_pval).reshape(-1)) if obs_pval is not None else np.array([])
+                x_values = range(gene_coord[0], gene_coord[0] + len(obs_pval_region))
+            else:
+                obs_pval = self.predictions_cache[self.sweep_values[0]]['ground_truth']['pval']
+                obs_pval_region = np.sinh(np.asarray(obs_pval[gene_coord[0]:gene_coord[1]]).reshape(-1)) if obs_pval is not None else np.array([])
+            if obs_pval_region.size > 0:
                 ax.fill_between(x_values, 0, obs_pval_region, color=color_observed, alpha=0.7)
             ax.set_ylabel('Obs P-val', fontsize=8)
             ax.set_xticklabels([])
@@ -464,9 +552,14 @@ class SupertrackVisualizer:
             # Rows: Predicted p-values for each sweep value
             for sweep_val in self.sweep_values:
                 ax = fig.add_subplot(gs[row_idx, col_idx])
-                pred_pval = self.predictions_cache[sweep_val]['predictions']['pval']
-                pred_pval_region = np.sinh(pred_pval[gene_coord[0]:gene_coord[1]])
-                ax.fill_between(x_values, 0, pred_pval_region, color=color_predicted, alpha=0.7)
+                if per_gene_mode:
+                    pred_pval = self.predictions_cache[sweep_val]["per_gene"][col_idx]['predictions']['pval']
+                    pred_pval_region = np.sinh(np.asarray(pred_pval).reshape(-1))
+                else:
+                    pred_pval = self.predictions_cache[sweep_val]['predictions']['pval']
+                    pred_pval_region = np.sinh(np.asarray(pred_pval[gene_coord[0]:gene_coord[1]]).reshape(-1))
+                if pred_pval_region.size > 0:
+                    ax.fill_between(x_values, 0, pred_pval_region, color=color_predicted, alpha=0.7)
                 # Format sweep value for label
                 if isinstance(sweep_val, float):
                     label = f'{self.sweep_param}={sweep_val:.1e}'
@@ -486,9 +579,14 @@ class SupertrackVisualizer:
             
             # Row: Observed peak
             ax = fig.add_subplot(gs[row_idx, col_idx])
-            obs_peak = self.predictions_cache[self.sweep_values[0]]['ground_truth']['peak']
-            if obs_peak is not None:
-                obs_peak_region = obs_peak[gene_coord[0]:gene_coord[1]]
+            if per_gene_mode:
+                obs_peak = self.predictions_cache[self.sweep_values[0]]["per_gene"][col_idx]['ground_truth']['peak']
+                obs_peak_region = np.asarray(obs_peak).reshape(-1) if obs_peak is not None else np.array([])
+                x_values = range(gene_coord[0], gene_coord[0] + len(obs_peak_region))
+            else:
+                obs_peak = self.predictions_cache[self.sweep_values[0]]['ground_truth']['peak']
+                obs_peak_region = np.asarray(obs_peak[gene_coord[0]:gene_coord[1]]).reshape(-1) if obs_peak is not None else np.array([])
+            if obs_peak_region.size > 0:
                 ax.fill_between(x_values, 0, obs_peak_region, color=color_observed, alpha=0.7)
             ax.set_ylabel('Obs Peak', fontsize=8)
             ax.set_xticklabels([])
@@ -501,9 +599,14 @@ class SupertrackVisualizer:
             # Rows: Predicted peaks for each sweep value
             for i, sweep_val in enumerate(self.sweep_values):
                 ax = fig.add_subplot(gs[row_idx, col_idx])
-                pred_peak = self.predictions_cache[sweep_val]['predictions']['peak_scores']
-                pred_peak_region = pred_peak[gene_coord[0]:gene_coord[1]]
-                ax.fill_between(x_values, 0, pred_peak_region, color=color_predicted, alpha=0.7)
+                if per_gene_mode:
+                    pred_peak = self.predictions_cache[sweep_val]["per_gene"][col_idx]['predictions']['peak_scores']
+                    pred_peak_region = np.asarray(pred_peak).reshape(-1)
+                else:
+                    pred_peak = self.predictions_cache[sweep_val]['predictions']['peak_scores']
+                    pred_peak_region = np.asarray(pred_peak[gene_coord[0]:gene_coord[1]]).reshape(-1)
+                if pred_peak_region.size > 0:
+                    ax.fill_between(x_values, 0, pred_peak_region, color=color_predicted, alpha=0.7)
                 # Format sweep value for label
                 if isinstance(sweep_val, float):
                     label = f'{self.sweep_param}={sweep_val:.1e}'
@@ -556,15 +659,15 @@ Examples:
                            --sweep-param depth \\
                            --sweep-values "10000000,30000000,50000000,100000000"
 
-  # Sweep over sequencing platforms
+  # Sweep over run type
   python viz_supertrack.py --model-dir models/my_model \\
                            --data-path /path/to/DATA_CANDI_MERGED \\
                            --bios-name GM12878 \\
                            --assay-name H3K27ac \\
                            --task impute \\
                            --dataset merged \\
-                           --sweep-param sequencing_platform \\
-                           --sweep-values "Illumina HiSeq 2000,Illumina HiSeq 4000,Illumina NovaSeq 6000"
+                           --sweep-param run_type \\
+                           --sweep-values "single-ended,paired-ended"
 
   # Uniform prompt test (apply to all assays)
   python viz_supertrack.py --model-dir models/my_model \\
@@ -595,7 +698,7 @@ Examples:
     
     # Sweep-specific arguments
     parser.add_argument('--sweep-param', type=str, required=True,
-                       choices=['depth', 'read_length', 'sequencing_platform', 'run_type'],
+                       choices=['depth', 'read_length', 'run_type'],
                        help='Metadata parameter to sweep')
     parser.add_argument('--sweep-values', type=str, required=True,
                        help='Comma-separated values to test (e.g., "10000000,30000000,50000000")')
@@ -607,6 +710,10 @@ Examples:
                        help='JSON file with baseline metadata (default: prompts/merged_mode.json)')
     parser.add_argument('--uniform-prompt', action='store_true',
                        help='Apply swept value to all 35 assays (extreme test)')
+    parser.add_argument('--tracks-only', action='store_true',
+                       help='Only run forward passes and generate genomic tracks (skip metrics/summary plots).')
+    parser.add_argument('--visual-loci-only', action='store_true',
+                       help='Run inference only on the predefined visualization loci (much faster than whole chr21).')
     parser.add_argument('--locus', type=str, nargs=3, default=['chr21', '0', '46709983'],
                        help='Genomic locus as chrom start end (default: chr21 0 46709983)')
     parser.add_argument('--dsf', type=int, default=1,
@@ -645,7 +752,9 @@ Examples:
             uniform_prompt=args.uniform_prompt,
             locus=locus,
             dsf=args.dsf,
-            output_dir=args.output_dir
+            output_dir=args.output_dir,
+            tracks_only=args.tracks_only,
+            visual_loci_only=args.visual_loci_only
         )
         
         # Run parameter sweep
@@ -653,18 +762,24 @@ Examples:
         visualizer.run_sweep()
         sweep_time = time.time() - start_time
         
-        # Save metrics CSV
-        print("\nSaving results...")
-        visualizer.save_results()
-        
-        # Generate visualizations
-        print("\nGenerating visualizations...")
-        if args.sweep_param in ['depth', 'read_length']:
-            visualizer.plot_metrics_summary_continuous()
+        if len(visualizer.predictions_cache) == 0:
+            print("No predictions were generated (likely no evaluable ground truth for selected assay/task).")
         else:
-            visualizer.plot_metrics_summary_categorical()
-        
-        visualizer.plot_genomic_tracks()
+            if not args.tracks_only:
+                # Save metrics CSV
+                print("\nSaving results...")
+                visualizer.save_results()
+                
+                # Generate visualizations
+                print("\nGenerating visualizations...")
+                if args.sweep_param in ['depth', 'read_length']:
+                    visualizer.plot_metrics_summary_continuous()
+                else:
+                    visualizer.plot_metrics_summary_categorical()
+            else:
+                print("\nTracks-only mode: skipping metric CSV and summary metric plots.")
+            
+            visualizer.plot_genomic_tracks()
         
         print("\n" + "=" * 80)
         print("✅ All tasks completed successfully!")

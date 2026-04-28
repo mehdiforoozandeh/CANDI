@@ -58,7 +58,8 @@ def set_global_seed(seed):
 # ========= CANDI Data Handler =========
 class CANDIDataHandler:
     def __init__(self, base_path, resolution=25, dataset_type="merged", DNA=True, 
-                 bios_batchsize=8, loci_batchsize=16, dsf_list=[1, 2, 4]):
+                 bios_batchsize=8, loci_batchsize=16, dsf_list=[1, 2, 4], signal_transform="arcsinh",
+                 enable_per_assay_dsf_sampling=False, per_assay_dsf_sampling_mode="uniform"):
         """
         load files like navigation, aliases, split, etc.
         if any of the files don't exist, generate them
@@ -74,12 +75,16 @@ class CANDIDataHandler:
             bios_batchsize: Number of biosamples to process in each batch (default: 8)
             loci_batchsize: Number of loci to process in each batch (default: 16)
             dsf_list: List of downsampling factors to use (default: [1, 2, 4])
+            signal_transform: Signal transformation to apply ('arcsinh', 'log1p', 'none') (default: 'arcsinh')
         """
         self.base_path = base_path
         self.resolution = resolution
         self.dataset_type = dataset_type
         self.DNA = DNA
         self.max_thread_workers = 4
+        self.signal_transform = signal_transform
+        self.enable_per_assay_dsf_sampling = enable_per_assay_dsf_sampling
+        self.per_assay_dsf_sampling_mode = per_assay_dsf_sampling_mode
         
         # Hierarchical batching parameters
         self.bios_batchsize = bios_batchsize
@@ -116,6 +121,9 @@ class CANDIDataHandler:
         # DNA sequence cache: locus tuple -> one-hot tensor
         self.dna_cache = {}
         self.stat_lookup = None
+        self.current_state_dsf_info = {}
+        self.ccre_df = None
+        self.ccre_intervals = None
 
         # self._load_fasta()
         self._load_blacklist()
@@ -144,7 +152,9 @@ class CANDIDataHandler:
             self.metadata = pd.read_csv(metadatafile)
 
         self.unique_assays = self.metadata['assay_name'].unique()
+        
         # Build stable, reproducible platform mapping (sorted), with an 'unknown' bucket at 0
+        # NOTE: Platform mapping kept for backward compatibility but NOT used in metadata tensor
         platforms = sorted([str(x) for x in self.metadata['sequencing_platform'].dropna().unique()])
         self.sequencing_platform_to_id = {"unknown": 0}
         for i, p in enumerate(platforms, start=1):
@@ -157,6 +167,32 @@ class CANDIDataHandler:
         self.unique_run_types = self.metadata['run_type'].unique()
         self.unique_labs = self.metadata['lab'].unique()
         self.unique_biosample_names = self.metadata['biosample_name'].unique()
+        
+        # Build assay_to_id mapping based on experiment_aliases order (stable, reproducible)
+        # This replaces sequencing_platform in metadata tensor as per issue_supertrack.md ToDo 1
+        # Control gets a special ID = num_assays (one past the last regular assay)
+        self._build_assay_to_id_mapping()
+    
+    def _build_assay_to_id_mapping(self):
+        """Build assay_to_id mapping from experiment_aliases order."""
+        # Must be called after _load_alias()
+        if not hasattr(self, 'aliases') or 'experiment_aliases' not in self.aliases:
+            # Fallback: will be built later when aliases are loaded
+            self.assay_to_id = {}
+            self.id_to_assay = {}
+            self.num_assays = 0
+            return
+        
+        self.assay_to_id = {}
+        for i, assay in enumerate(self.aliases["experiment_aliases"].keys()):
+            self.assay_to_id[assay] = i
+        
+        self.id_to_assay = {v: k for k, v in self.assay_to_id.items()}
+        self.num_assays = len(self.assay_to_id)
+        print(f"Number of assays: {self.num_assays}")
+
+        # Special ID for control (one past the last regular assay)
+        self.control_assay_id = self.num_assays
 
     def _load_navigation(self):
         with open(self.navigation_path, 'r') as navigationfile:
@@ -190,6 +226,36 @@ class CANDIDataHandler:
                     blacklist[chrom] = IntervalTree()
                 blacklist[chrom].addi(start, end)
         self.blacklist = blacklist
+
+    def _load_ccre_index(self):
+        """Load cCRE BED once as both a DataFrame and IntervalTree index."""
+        if self.ccre_df is not None and self.ccre_intervals is not None:
+            return
+
+        ccres = pd.read_csv(self.ccre_filename, sep="\t", header=None)
+        ccres.columns = ["chrom", "start", "end", "id1", "id2", "desc"]
+        ccres = ccres[ccres["chrom"].isin(self.chr_sizes.keys())]
+        ccres = ccres.sort_values(["chrom", "start"]).reset_index(drop=True)
+
+        ccre_intervals = {}
+        for row in ccres.itertuples(index=False):
+            chrom = str(row.chrom)
+            start = int(row.start)
+            end = int(row.end)
+            if chrom not in ccre_intervals:
+                ccre_intervals[chrom] = IntervalTree()
+            ccre_intervals[chrom].addi(start, end)
+
+        self.ccre_df = ccres
+        self.ccre_intervals = ccre_intervals
+
+    def _overlaps_ccre(self, chrom, start, end):
+        """Return True if a region overlaps any indexed cCRE."""
+        self._load_ccre_index()
+        tree = self.ccre_intervals.get(chrom)
+        if tree is None:
+            return False
+        return len(tree.overlap(start, end)) > 0
     
     def _load_split(self):
         if not os.path.exists(self.split_path):
@@ -514,7 +580,7 @@ class CANDIDataHandler:
             json.dump(self.split_dict, splitfile)
 
     # ========= Generating Genomic Loci =========
-    def _generate_genomic_loci(self, m, context_length, strategy="random"):
+    def _generate_genomic_loci(self, m, context_length, strategy="random", ccre_fraction=0.3):
         
         """
         Generate genomic loci according to the requested strategy.
@@ -522,15 +588,18 @@ class CANDIDataHandler:
         Parameters
         ----------
         m : int
-            Number of regions to generate (used by 'random' and 'ccre'; ignored by 'full_chr' and 'gw').
+            Number of regions to generate (used by 'random', 'ccre', and 'mixture'; ignored by 'full_chr' and 'gw').
         context_length : int
             Window length (bp) for each region.
         strategy : str
-            One of {'random', 'ccre', 'full_chr', 'gw'}:
+            One of {'random', 'ccre', 'mixture', 'full_chr', 'gw'}:
             - 'random': sample windows genome-wide proportional to chromosome sizes without overlap.
             - 'ccre'  : sample windows centered within randomly chosen cCREs (requires a BED in data/).
+            - 'mixture': sample an explicit mixture of cCRE-centered windows and random non-cCRE windows.
             - 'full_chr': tile specified chromosomes into back-to-back windows of context_length.
             - 'gw'    : like 'full_chr' but for (chr1..chr22, chrX), excluding chr21 to match prior logic.
+        ccre_fraction : float
+            Fraction of loci reserved for cCRE-centered sampling when `strategy='mixture'`.
 
         Notes
         -----
@@ -541,6 +610,9 @@ class CANDIDataHandler:
         - self.is_region_allowed(chr, start, end): callable returning True if window is valid
         """
 
+        if strategy == "mixture" and not (0.0 <= float(ccre_fraction) <= 1.0):
+            raise ValueError(f"ccre_fraction must be in [0, 1], got {ccre_fraction}")
+
         self.context_length = context_length
         # Initialize the container for resulting regions (each is [chrom, start, end]).
         self.m_regions = []
@@ -550,101 +622,127 @@ class CANDIDataHandler:
             # Overlap if any interval satisfies: start <= e and end >= s.
             return any(es <= e and ee >= s for es, ee in existing)
 
+        def _sample_random_regions(target_count, used_regions, allow_ccre_overlap=True):
+            """Sample up to target_count random windows, optionally excluding cCRE overlap."""
+            if target_count <= 0:
+                return 0
+
+            start_count = len(self.m_regions)
+            target_per_chr = {}
+            placed_per_chr = {c: 0 for c in used_regions.keys()}
+            for c in used_regions.keys():
+                target_per_chr[c] = int(target_count * (self.chr_sizes[c] / self.genomesize)) + 1
+
+            def _candidate_allowed(chrom, start, end):
+                if not self._is_region_allowed(chrom, start, end):
+                    return False
+                if (not allow_ccre_overlap) and self._overlaps_ccre(chrom, start, end):
+                    return False
+                return True
+
+            for c in used_regions.keys():
+                size = self.chr_sizes[c]
+                attempts = 0
+                max_attempts = max(100, target_per_chr[c] * 20)
+                while (
+                    placed_per_chr[c] < target_per_chr[c]
+                    and (len(self.m_regions) - start_count) < target_count
+                    and attempts < max_attempts
+                ):
+                    max_start_bins = max(0, (size - context_length) // self.resolution)
+                    rand_start = random.randint(0, max_start_bins) * self.resolution
+                    rand_end = rand_start + context_length
+                    if not _overlaps(used_regions[c], rand_start, rand_end):
+                        if _candidate_allowed(c, rand_start, rand_end):
+                            self.m_regions.append([c, rand_start, rand_end])
+                            used_regions[c].append((rand_start, rand_end))
+                            placed_per_chr[c] += 1
+                    attempts += 1
+
+            fill_attempts = 0
+            max_fill_attempts = max(1000, target_count * 50)
+            while (len(self.m_regions) - start_count) < target_count and used_regions and fill_attempts < max_fill_attempts:
+                c = random.choice(list(used_regions.keys()))
+                size = self.chr_sizes[c]
+                max_start_bins = max(0, (size - context_length) // self.resolution)
+                rand_start = random.randint(0, max_start_bins) * self.resolution
+                rand_end = rand_start + context_length
+                if not _overlaps(used_regions[c], rand_start, rand_end):
+                    if _candidate_allowed(c, rand_start, rand_end):
+                        self.m_regions.append([c, rand_start, rand_end])
+                        used_regions[c].append((rand_start, rand_end))
+                fill_attempts += 1
+
+            return len(self.m_regions) - start_count
+
+        def _sample_ccre_regions(target_count, used_regions):
+            """Sample up to target_count cCRE-centered windows."""
+            if target_count <= 0:
+                return 0
+
+            self._load_ccre_index()
+            if self.ccre_df is None or len(self.ccre_df) == 0:
+                return 0
+
+            start_count = len(self.m_regions)
+            attempts, max_attempts = 0, max(1000, target_count * 20)
+            while (len(self.m_regions) - start_count) < target_count and attempts < max_attempts:
+                attempts += 1
+                row = self.ccre_df.sample(n=1).iloc[0]
+                chrom = str(row["chrom"])
+
+                ccre_center = (int(row["start"]) + int(row["end"])) // 2
+                raw_start = ccre_center - (context_length // 2)
+                rand_start = (raw_start // self.resolution) * self.resolution
+                rand_end = rand_start + context_length
+
+                if rand_start < 0 or rand_end > self.chr_sizes[chrom]:
+                    continue
+                if not self._is_region_allowed(chrom, rand_start, rand_end):
+                    continue
+                if not _overlaps(used_regions[chrom], rand_start, rand_end):
+                    self.m_regions.append([chrom, rand_start, rand_end])
+                    used_regions[chrom].append((rand_start, rand_end))
+
+            return len(self.m_regions) - start_count
+
         # -----------------------------
         # Strategy: RANDOM
         # -----------------------------
         if strategy == "random":
-            # Chromosomes to consider (exclude chr21 by default to mirror prior behavior).
-            # Track used intervals per chromosome to prevent overlaps.
             used_regions = {c: [] for c in self.chr_sizes.keys()}
-            # Generate a proportional target count per chromosome based on its size.
-            # We also track how many we actually place to later top-up to a total of m.
-            target_per_chr = {}
-            placed_per_chr = {c: 0 for c in used_regions.keys()}
-            for c in used_regions.keys():
-                # Proportional count; +1 ensures each chromosome gets at least an attempt.
-                target_per_chr[c] = int(m * (self.chr_sizes[c] / self.genomesize)) + 1
-
-            # First pass: place up to target_per_chr[c] non-overlapping windows per chromosome.
-            for c in used_regions.keys():
-                # Local variables for readability.
-                size = self.chr_sizes[c]
-                # Place windows until we meet the per-chromosome target (or exhaust attempts).
-                while placed_per_chr[c] < target_per_chr[c] and len(self.m_regions) < m:
-                    # Sample a start index snapped to resolution within valid range.
-                    max_start_bins = max(0, (size - context_length) // self.resolution)
-                    rand_start = random.randint(0, max_start_bins) * self.resolution
-                    rand_end = rand_start + context_length
-                    # Enforce non-overlap and genome-specific constraints.
-                    if not _overlaps(used_regions[c], rand_start, rand_end):
-                        if self._is_region_allowed(c, rand_start, rand_end):
-                            # Record and update tracking structures.
-                            self.m_regions.append([c, rand_start, rand_end])
-                            used_regions[c].append((rand_start, rand_end))
-                            placed_per_chr[c] += 1
-
-            # Second pass: if we undershot m (due to overlaps/filters), keep sampling globally to fill.
-            while len(self.m_regions) < m and used_regions:
-                # Randomly pick a chromosome among those we’re using.
-                c = random.choice(list(used_regions.keys()))
-                size = self.chr_sizes[c]
-                # Draw a candidate window aligned to resolution.
-                max_start_bins = max(0, (size - context_length) // self.resolution)
-                rand_start = random.randint(0, max_start_bins) * self.resolution
-                rand_end = rand_start + context_length
-                # Accept if it doesn’t overlap and passes region filter.
-                if not _overlaps(used_regions[c], rand_start, rand_end):
-                    if self._is_region_allowed(c, rand_start, rand_end):
-                        self.m_regions.append([c, rand_start, rand_end])
-                        used_regions[c].append((rand_start, rand_end))
-
-            # Done with 'random' strategy; return for clarity.
+            _sample_random_regions(m, used_regions, allow_ccre_overlap=True)
             return
 
         # -----------------------------
         # Strategy: CCRE
         # -----------------------------
         if strategy == "ccre":
-            # Read BED into DataFrame.
-            ccres = pd.read_csv(self.ccre_filename, sep="\t", header=None)
-            # Assign column names for readability.
-            ccres.columns = ["chrom", "start", "end", "id1", "id2", "desc"]
-            # Keep chromosomes present in chr_sizes (consistent genome build) and not excluded.
-            ccres = ccres[ccres["chrom"].isin(self.chr_sizes.keys())]
-            # Sort for stable sampling (optional but nice).
-            ccres = ccres.sort_values(["chrom", "start"]).reset_index(drop=True)
+            used_regions = {c: [] for c in self.chr_sizes.keys()}
+            added = _sample_ccre_regions(m, used_regions)
+            if added < m:
+                print(f"Warning: requested {m} cCRE loci but only generated {added}.")
+            return
 
-            # Track used regions per chromosome to enforce non-overlap.
-            used_regions = {c: [] for c in ccres["chrom"].unique()}
-
-            # Sample until we have m valid windows (or exhaust reasonable attempts).
-            # Guard against pathological cases by capping total attempts.
-            attempts, max_attempts = 0, m * 10
-            while len(self.m_regions) < m and attempts < max_attempts and len(ccres) > 0:
-                attempts += 1
-                # Randomly pick a cCRE row.
-                row = ccres.sample(n=1).iloc[0]
-                # Compute the valid start bin range inside this cCRE, snapped to self.resolution.
-                start_bin = row["start"] // self.resolution
-                end_bin = row["end"] // self.resolution
-                # If the cCRE is too small (no bin), skip.
-                if end_bin <= start_bin:
-                    continue
-                # Draw a random start within cCRE, on-resolution.
-                rand_start = random.randint(start_bin, end_bin-1) * self.resolution
-                # Define the window end.
-                rand_end = rand_start + context_length
-                # Ensure window stays within the chromosome bounds.
-                if rand_start < 0 or rand_end > self.chr_sizes[row["chrom"]]:
-                    continue
-                # Enforce non-overlap and region-level constraints.
-                if self._is_region_allowed(row["chrom"], rand_start, rand_end):
-                    if not _overlaps(used_regions[row["chrom"]], rand_start, rand_end):
-                        # Record the accepted window.
-                        self.m_regions.append([row["chrom"], rand_start, rand_end])
-                        used_regions[row["chrom"]].append((rand_start, rand_end))
-
-            # Done with 'ccre' strategy; return for clarity.
+        # -----------------------------
+        # Strategy: MIXTURE (cCRE + non-cCRE random)
+        # -----------------------------
+        if strategy == "mixture":
+            used_regions = {c: [] for c in self.chr_sizes.keys()}
+            target_ccre = int(round(float(m) * float(ccre_fraction)))
+            added_ccre = _sample_ccre_regions(target_ccre, used_regions)
+            remaining = max(0, m - len(self.m_regions))
+            added_non_ccre = _sample_random_regions(remaining, used_regions, allow_ccre_overlap=False)
+            print(
+                "Mixture loci generation: "
+                f"requested_ccre={target_ccre}, realized_ccre={added_ccre}, "
+                f"realized_non_ccre={added_non_ccre}, total={len(self.m_regions)}"
+            )
+            if len(self.m_regions) < m:
+                print(
+                    f"Warning: requested {m} mixture loci but only generated {len(self.m_regions)} "
+                    f"with ccre_fraction={ccre_fraction:.3f}."
+                )
             return
 
         # -----------------------------
@@ -680,7 +778,7 @@ class CANDIDataHandler:
         # -----------------------------
         # Unknown strategy: raise a helpful error
         # -----------------------------
-        raise ValueError(f"Unknown strategy '{strategy}'. Expected one of: 'random', 'ccre', 'full_chr', 'gw'.")
+        raise ValueError(f"Unknown strategy '{strategy}'. Expected one of: 'random', 'ccre', 'mixture', 'full_chr', 'gw'.")
 
     # ========= Helper Functions =========
     def _get_DNA_sequence(self, chrom, start, end):
@@ -819,63 +917,148 @@ class CANDIDataHandler:
         
         return region
 
-    # ========= Data Loading =========
-    def load_bios_Counts(self, bios_name, locus, DSF=1, f_format="npz"): # count data 
+    def _get_count_experiments(self, bios_name):
         exps = list(self.navigation[bios_name].keys())
-
         if "RNA-seq" in exps:
             exps.remove("RNA-seq")
-
         if "chipseq-control" in exps:
             exps.remove("chipseq-control")
+        return exps
+
+    def _get_assay_base_dir(self, bios_name, assay):
+        if self.merge_ct and self.eic == False:
+            return "/".join(self.navigation[bios_name][assay][0].split("/")[:-1])
+        return os.path.join(self.base_path, bios_name, assay)
+
+    def _get_available_assay_dsfs(self, bios_name, assay, chrom, f_format="npz"):
+        base_dir = self._get_assay_base_dir(bios_name, assay)
+        available = []
+        for dsf in self.dsf_list:
+            signal_path = os.path.join(base_dir, f"signal_DSF{dsf}_res{self.resolution}", f"{chrom}.{f_format}")
+            metadata_path = os.path.join(base_dir, f"signal_DSF{dsf}_res{self.resolution}", "metadata.json")
+            if os.path.exists(signal_path) and os.path.exists(metadata_path):
+                available.append(dsf)
+        return available
+
+    def _get_available_control_dsfs(self, bios_name, chrom, f_format="npz"):
+        control_path = os.path.join(self.base_path, bios_name, "chipseq-control")
+        if not os.path.exists(control_path):
+            return []
+        available = []
+        for dsf in self.dsf_list:
+            signal_path = os.path.join(control_path, f"signal_DSF{dsf}_res{self.resolution}", f"{chrom}.{f_format}")
+            metadata_path = os.path.join(control_path, f"signal_DSF{dsf}_res{self.resolution}", "metadata.json")
+            if os.path.exists(signal_path) and os.path.exists(metadata_path):
+                available.append(dsf)
+        return available
+
+    def _sample_per_assay_dsf_info(self, bios_name, chrom):
+        exps = self._get_count_experiments(bios_name)
+        x_dsf_map = {}
+        y_dsf_map = {}
+        x_dsf_tensor = torch.full((self.signal_dim,), -1, dtype=torch.int64)
+        y_dsf_tensor = torch.full((self.signal_dim,), -1, dtype=torch.int64)
+        transition_counts = {"upsampled": 0, "downsampled": 0, "same": 0, "missing": 0}
+
+        for i, assay in enumerate(self.aliases["experiment_aliases"].keys()):
+            if assay not in exps:
+                transition_counts["missing"] += 1
+                continue
+
+            available_dsfs = self._get_available_assay_dsfs(bios_name, assay, chrom)
+            if len(available_dsfs) == 0:
+                transition_counts["missing"] += 1
+                continue
+
+            # Uniform independent sampling from assay-available DSFs.
+            x_dsf = int(random.choice(available_dsfs))
+            y_dsf = int(random.choice(available_dsfs))
+            x_dsf_map[assay] = x_dsf
+            y_dsf_map[assay] = y_dsf
+            x_dsf_tensor[i] = x_dsf
+            y_dsf_tensor[i] = y_dsf
+
+            # Lower DSF means higher effective depth.
+            # So y_dsf < x_dsf is upsampling (toward deeper target).
+            if y_dsf < x_dsf:
+                transition_counts["upsampled"] += 1
+            elif y_dsf > x_dsf:
+                transition_counts["downsampled"] += 1
+            else:
+                transition_counts["same"] += 1
+
+        control_available_dsfs = self._get_available_control_dsfs(bios_name, chrom)
+        control_x_dsf = int(random.choice(control_available_dsfs)) if len(control_available_dsfs) > 0 else -1
+
+        return {
+            "x_dsf_map": x_dsf_map,
+            "y_dsf_map": y_dsf_map,
+            "x_dsf_tensor": x_dsf_tensor,
+            "y_dsf_tensor": y_dsf_tensor,
+            "transition_counts": transition_counts,
+            "control_x_dsf": control_x_dsf,
+            "control_non1": int(control_x_dsf not in (-1, 1)),
+        }
+
+    # ========= Data Loading =========
+    def load_bios_Counts(self, bios_name, locus, DSF=1, f_format="npz"): # count data 
+        exps = self._get_count_experiments(bios_name)
 
         loaded_data = {}
         loaded_metadata = {}
 
-        npz_files = []
+        file_specs = []
         for e in exps:
-            if self.merge_ct and self.eic==False:
-                l =    os.path.join("/".join(self.navigation[bios_name][e][0].split("/")[:-1]), f"signal_DSF{DSF}_res{self.resolution}", f"{locus[0]}.{f_format}")
-                jsn1 = os.path.join("/".join(self.navigation[bios_name][e][0].split("/")[:-1]), f"signal_DSF{DSF}_res{self.resolution}", "metadata.json")
-                jsn2 = os.path.join("/".join(self.navigation[bios_name][e][0].split("/")[:-1]), "file_metadata.json")
-
+            assay_dsf = DSF.get(e, 1) if isinstance(DSF, dict) else DSF
+            if self.merge_ct and self.eic == False:
+                base_dir = "/".join(self.navigation[bios_name][e][0].split("/")[:-1])
+                l = os.path.join(base_dir, f"signal_DSF{assay_dsf}_res{self.resolution}", f"{locus[0]}.{f_format}")
+                jsn1 = os.path.join(base_dir, f"signal_DSF{assay_dsf}_res{self.resolution}", "metadata.json")
+                jsn2 = os.path.join(base_dir, "file_metadata.json")
             else:
-                l = os.path.join(self.base_path, bios_name, e, f"signal_DSF{DSF}_res{self.resolution}", f"{locus[0]}.{f_format}")
-                jsn1 = os.path.join(self.base_path, bios_name, e, f"signal_DSF{DSF}_res{self.resolution}", "metadata.json")
-                jsn2 = os.path.join(self.base_path, bios_name, e, "file_metadata.json")
+                base_dir = os.path.join(self.base_path, bios_name, e)
+                l = os.path.join(base_dir, f"signal_DSF{assay_dsf}_res{self.resolution}", f"{locus[0]}.{f_format}")
+                jsn1 = os.path.join(base_dir, f"signal_DSF{assay_dsf}_res{self.resolution}", "metadata.json")
+                jsn2 = os.path.join(base_dir, "file_metadata.json")
 
-            npz_files.append(l)
-            
+            # Skip assays where requested DSF file is absent. Caller handles missing assays.
+            if not os.path.exists(l) or not os.path.exists(jsn1) or not os.path.exists(jsn2):
+                continue
+
+            file_specs.append((e, l, jsn1, jsn2))
+
             # Use retry logic for file reads to handle transient NFS issues
             def read_json1():
                 with open(jsn1, 'r') as jsnfile:
                     return json.load(jsnfile)
-            
+
             def read_json2():
                 with open(jsn2, 'r') as jsnfile:
                     return json.load(jsnfile)
-            
+
             md1 = retry_on_io_error(read_json1)
             md2 = retry_on_io_error(read_json2)
 
             md = {
-                "depth":md1["depth"], "sequencing_platform": md2["sequencing_platform"], 
-                "read_length":md2["read_length"], "run_type":md2["run_type"] 
+                "depth": md1["depth"], "sequencing_platform": md2["sequencing_platform"],
+                "read_length": md2["read_length"], "run_type": md2["run_type"]
             }
             loaded_metadata[e] = md
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_thread_workers) as executor:
+            npz_files = [x[1] for x in file_specs]
             for result in executor.map(self._load_npz, npz_files):
                 if result is not None:
                     for exp, data in result.items():
                         if len(locus) == 1:
                             loaded_data[exp] = data.astype(np.int16)
-                                
                         else:
                             start_bin = int(locus[1]) // self.resolution
                             end_bin = int(locus[2]) // self.resolution
                             loaded_data[exp] = data[start_bin:end_bin]
-            
+
+        # Ensure metadata only exists for assays with loaded count data
+        loaded_metadata = {k: v for k, v in loaded_metadata.items() if k in loaded_data}
         return loaded_data, loaded_metadata
 
     def load_bios_BW(self, bios_name, locus, f_format="npz", arcsinh=True): # signal data 
@@ -900,12 +1083,24 @@ class CANDIDataHandler:
         with ThreadPoolExecutor(max_workers=self.max_thread_workers) as executor:
             loaded = list(executor.map(self._load_npz, npz_files))
         
+        # Use self.signal_transform if arcsinh is the default True (backward compatibility)
+        # If arcsinh is explicitly set to False, respect it (for legacy code)
+        apply_transform = arcsinh
+        transform = self.signal_transform if apply_transform else 'none'
+        
+        # DEBUG: Confirm transformation
+        # print(f"[DEBUG] load_bios_BW: apply_transform={apply_transform}, self.signal_transform={self.signal_transform}, FINAL transform={transform}")
+        # if self.signal_transform == 'none' and apply_transform:
+        #      print(f"[DEBUG] load_bios_BW: WARNING - signal_transform is 'none' but arcsinh=True requested.")
+        
         if len(locus) == 1:
             for l in loaded:
                 for exp, data in l.items():
-                    if arcsinh:
+                    if transform == 'arcsinh':
                         loaded_data[exp] = np.arcsinh(data).astype(np.float16)
-                    else:
+                    elif transform == 'log1p':
+                        loaded_data[exp] = np.log1p(data).astype(np.float16)
+                    else:  # 'none'
                         loaded_data[exp] = data.astype(np.float16)
             return loaded_data
 
@@ -914,9 +1109,11 @@ class CANDIDataHandler:
             end_bin = int(locus[2]) // self.resolution
             for l in loaded:
                 for exp, data in l.items():
-                    if arcsinh:
+                    if transform == 'arcsinh':
                         loaded_data[exp] = np.arcsinh(data[start_bin:end_bin])
-                    else:
+                    elif transform == 'log1p':
+                        loaded_data[exp] = np.log1p(data[start_bin:end_bin])
+                    else:  # 'none'
                         loaded_data[exp] = data[start_bin:end_bin]
             return loaded_data
 
@@ -1015,6 +1212,17 @@ class CANDIDataHandler:
 
     # ========= Making BiosampleTensors =========
     def make_bios_tensor_Counts(self, loaded_data, loaded_metadata, missing_value=-1): # count data 
+        """
+        Create count data tensor and metadata tensor for a biosample.
+        
+        Metadata tensor layout (per assay): [depth_log2, assay_id, read_length, run_type]
+        - depth_log2: log2 of sequencing depth
+        - assay_id: categorical ID for assay type (e.g., H3K4me3=0, CTCF=1, etc.)
+        - read_length: read length in bp
+        - run_type: 0=single-end, 1=paired-end
+        
+        Note: sequencing_platform was removed per issue_supertrack.md ToDo 1.
+        """
         dtensor = []
         mdtensor = []
         availability = []
@@ -1034,13 +1242,14 @@ class CANDIDataHandler:
 
                 readl = loaded_metadata[assay]['read_length'][list(loaded_metadata[assay]['read_length'].keys())[0]]
 
-                sequencing_platform = loaded_metadata[assay]['sequencing_platform'][list(loaded_metadata[assay]['sequencing_platform'].keys())[0]]
-                # Encode platform to stable int id (unknown->0)
-                platform_id = self.sequencing_platform_to_id.get(str(sequencing_platform), 0)
+                # Use assay_id instead of platform_id (per issue_supertrack.md ToDo 1)
+                assay_id = self.assay_to_id.get(assay, i)  # Fallback to loop index
 
                 mdtensor.append([
-                    np.log2(loaded_metadata[assay]['depth']), platform_id,
-                    readl, runt])
+                    np.log2(loaded_metadata[assay]['depth']), 
+                    assay_id,
+                    readl, 
+                    runt])
 
             else:
                 dtensor.append([missing_value for _ in range(L)])
@@ -1093,7 +1302,14 @@ class CANDIDataHandler:
         return dtensor, availability
 
     def make_bios_tensor_Control(self, loaded_data, loaded_metadata, missing_value=-1):
-        """Format control data for ONE biosample into tensors."""
+        """
+        Format control data for ONE biosample into tensors.
+        
+        Metadata tensor layout: [depth_log2, assay_id, read_length, run_type]
+        - assay_id: Uses control_assay_id (= num_assays, special ID for control)
+        
+        Note: sequencing_platform was removed per issue_supertrack.md ToDo 1.
+        """
         if loaded_data and "chipseq-control" in loaded_data:
             L = len(loaded_data["chipseq-control"])
             
@@ -1103,9 +1319,11 @@ class CANDIDataHandler:
             run_type_str = str(meta['run_type']).lower()
             runt = 0 if "single" in run_type_str else (1 if "pair" in run_type_str else 0)
             readl = meta['read_length'] if meta['read_length'] is not None else 50
-            platform_id = self.sequencing_platform_to_id.get(str(meta['sequencing_platform']), 0)
             
-            mdtensor = np.array([[np.log2(meta['depth'])], [platform_id], [readl], [runt]])  # (4, 1)
+            # Use control_assay_id instead of platform_id (per issue_supertrack.md ToDo 1)
+            control_id = getattr(self, 'control_assay_id', self.num_assays if hasattr(self, 'num_assays') else 0)
+            
+            mdtensor = np.array([[np.log2(meta['depth'])], [control_id], [readl], [runt]])  # (4, 1)
             availability = np.array([1])  # (1,)
             
         else:
@@ -1169,16 +1387,19 @@ class CANDIDataHandler:
         return data, metadata, availability
 
     def init_stat_lookup(self):
-        # Build per-assay lookup only once per call
+        """
+        Build per-assay statistics lookup for prompt filling.
+        
+        Note: assay_id is now the column index (fixed per assay), not sampled.
+        Platform-based stats are removed per issue_supertrack.md ToDo 1.
+        """
         self.stat_lookup = {}
-        for assay in self.aliases["experiment_aliases"].keys():
+        for i, assay in enumerate(self.aliases["experiment_aliases"].keys()):
             assay_df = self.metadata[self.metadata['assay_name'] == assay]
             if assay_df.empty:
                 self.stat_lookup[assay] = None
                 continue
-            # Platform id mode (most frequent) mapped through sequencing_platform_to_id
-            platforms = [self.sequencing_platform_to_id.get(str(x), 0) for x in assay_df['sequencing_platform'].dropna().values]
-            platform_mode = int(pd.Series(platforms).mode().iloc[0]) if len(platforms) else 0
+            
             # Run type id: 0 for single, 1 for pair (mode)
             run_types = assay_df['run_type'].dropna().astype(str).values
             run_ids = [1 if ('pair' in r.lower()) else 0 for r in run_types]
@@ -1187,19 +1408,18 @@ class CANDIDataHandler:
             # Compute depth statistics (median and mode)
             depth_log2_median = float(np.nanmedian(np.log2(assay_df['depth'].astype(float)))) if 'depth' in assay_df else 0.0
             depth_log2_vals = np.log2(assay_df['depth'].dropna().astype(float).values) if 'depth' in assay_df else np.array([0.0])
-            # For mode, round to nearest integer (or use most frequent rounded value)
             depth_log2_mode = float(pd.Series(np.round(depth_log2_vals)).mode().iloc[0]) if len(depth_log2_vals) > 0 else depth_log2_median
             
             # Compute read_length statistics (median and mode)
             read_length_median = float(np.nanmedian(assay_df['read_length'].astype(float))) if 'read_length' in assay_df else 50.0
             read_length_vals = assay_df['read_length'].dropna().astype(float).values if 'read_length' in assay_df else np.array([50.0])
-            # For mode, round to nearest integer (or use most frequent rounded value)
             read_length_mode = float(pd.Series(np.round(read_length_vals)).mode().iloc[0]) if len(read_length_vals) > 0 else read_length_median
             
+            # assay_id is fixed per column (= i), not sampled
             self.stat_lookup[assay] = {
                 "depth_log2_median": depth_log2_median,
                 "depth_log2_mode": depth_log2_mode,
-                "platform_mode": platform_mode,
+                "assay_id": i,  # Fixed per column, replaces platform_mode
                 "read_length_median": read_length_median,
                 "read_length_mode": read_length_mode,
                 "run_type_mode": run_mode,
@@ -1208,25 +1428,40 @@ class CANDIDataHandler:
         return self.stat_lookup
 
     # ========= Filling in Prompt =========
-    def fill_in_prompt(self, md, missing_value=-1, sample=True, use_mode=False):
+    def fill_in_prompt(self, md, missing_value=-1, sample=True, use_mode=False, fill_missing=False):
         """
-        Fill missing assay metadata columns (marked by missing_value) either by sampling from
-        dataset metadata per assay (sample=True) or by using median/mode statistics (sample=False).
+        Fill missing assay metadata columns (marked by missing_value).
+        
+        IMPORTANT (issue_supertrack.md ToDo 2): By default (fill_missing=False), this function
+        does NOT fill missing target metadata. If a target is missing, y_meta stays as -1.
+        This prevents the model from learning to ignore prompts due to prompt/target mismatch.
 
         Args:
-            md: Metadata tensor [4, E] where rows are [depth_log2, platform_id, read_length, run_type_id]
+            md: Metadata tensor [B, 4, E] or [4, E] where rows are [depth_log2, assay_id, read_length, run_type_id]
             missing_value: Value that indicates missing metadata (default: -1)
             sample: If True, randomly sample from dataset distribution; if False, use statistics
-            use_mode: If True and sample=False, use mode for all fields; if False, use median for numeric fields and mode for categorical
+            use_mode: If True and sample=False, use mode for all fields; if False, use median for numeric
+            fill_missing: If True, fill missing columns with sampled/statistical values (OLD BEHAVIOR).
+                         If False (default, NEW BEHAVIOR), leave missing columns as -1.
 
-        Expected md shape: [4, E] where rows are [depth_log2, platform_id, read_length, run_type_id].
+        Expected md shape: [B, 4, E] or [4, E] where rows are [depth_log2, assay_id, read_length, run_type_id].
+        Note: assay_id (index 1) is FIXED per column and should NOT be filled/sampled.
         """
+        
+        # If fill_missing is False (default), return unchanged (per issue_supertrack.md ToDo 2)
+        if not fill_missing:
+            return md
         
         if self.stat_lookup is None:
             self.init_stat_lookup()
 
-        # md is [4, E]
-        filled = md.clone().squeeze(0)
+        # Handle both [B, 4, E] and [4, E] shapes
+        needs_squeeze = md.dim() == 3
+        if needs_squeeze:
+            filled = md.clone().squeeze(0)
+        else:
+            filled = md.clone()
+            
         num_assays = filled.shape[1]
         for i, (assay, alias) in enumerate(self.aliases["experiment_aliases"].items()):
             if i >= num_assays:
@@ -1238,30 +1473,28 @@ class CANDIDataHandler:
                     if len(assay_df) > 0:
                         # Sample per field with fallbacks
                         depth_vals = np.log2(assay_df['depth'].dropna().astype(float).values) if 'depth' in assay_df else [0.0]
-                        platform_vals = [self.sequencing_platform_to_id.get(str(x), 0) for x in assay_df['sequencing_platform'].dropna().values] or [0]
                         readlen_vals = assay_df['read_length'].dropna().astype(float).values if 'read_length' in assay_df else [50.0]
                         runt_vals = [1 if ('pair' in str(x).lower()) else 0 for x in assay_df['run_type'].dropna().values] or [1]
                         filled[0, i] = float(random.choice(depth_vals))
-                        filled[1, i] = float(random.choice(platform_vals))
+                        filled[1, i] = float(i)  # assay_id is fixed per column
                         filled[2, i] = float(random.choice(readlen_vals))
                         filled[3, i] = float(random.choice(runt_vals))
                 else:
                     stats = self.stat_lookup.get(assay)
                     if stats is not None:
                         if use_mode:
-                            # Use mode for all fields
                             filled[0, i] = stats["depth_log2_mode"]
-                            filled[1, i] = stats["platform_mode"]
+                            filled[1, i] = float(i)  # assay_id is fixed per column
                             filled[2, i] = stats["read_length_mode"]
                             filled[3, i] = stats["run_type_mode"]
                         else:
-                            # Use median for numeric fields, mode for categorical
                             filled[0, i] = stats["depth_log2_median"]
-                            filled[1, i] = stats["platform_mode"]
+                            filled[1, i] = float(i)  # assay_id is fixed per column
                             filled[2, i] = stats["read_length_median"]
                             filled[3, i] = stats["run_type_mode"]
 
-        filled = filled.unsqueeze(0)
+        if needs_squeeze:
+            filled = filled.unsqueeze(0)
         return filled
  
     def fill_in_prompt_manual(self, md, manual_spec, missing_value=-1, overwrite=True):
@@ -1270,22 +1503,20 @@ class CANDIDataHandler:
         manual_spec format: { assay_name: { metadata_name: value, ... }, ... }
         Accepted metadata_name keys (case-insensitive):
         - depth or depth_log2
-        - sequencing_platform or platform_id
         - read_length
         - run_type or run_type_id (single->0, pair->1)
+        
+        NOTE: assay_id (index 1) is FIXED per column and cannot be overwritten.
+        sequencing_platform/platform_id keys are ignored (removed per issue_supertrack.md ToDo 1).
+        
         If overwrite=False, only fills entries equal to missing_value.
-        md shape: [4, E] with rows [depth_log2, platform_id, read_length, run_type_id].
+        md shape: [4, E] with rows [depth_log2, assay_id, read_length, run_type_id].
         """
         if md is None:
             return md
         filled = md.clone()
         # Map assay -> column index
         assay_to_idx = {assay: i for i, (assay, alias) in enumerate(self.aliases["experiment_aliases"].items())}
-
-        def to_platform_id(v):
-            if isinstance(v, (int, float)):
-                return int(v)
-            return int(self.sequencing_platform_to_id.get(str(v), 0))
 
         def to_run_type_id(v):
             if isinstance(v, (int, float)):
@@ -1298,28 +1529,27 @@ class CANDIDataHandler:
             i = assay_to_idx[assay]
             # Current column values
             cur = filled[:, i]
+            
             # depth/depth_log2
-            for k in fields.keys():
-                key = str(k).lower()
-                if key in ("depth", "depth_log2", "sequencing_platform", "platform_id", "read_length", "run_type", "run_type_id"):
-                    # decide overwrite condition per row after computing value
-                    pass
             if "depth" in fields or "depth_log2" in fields:
                 if "depth_log2" in fields:
                     val = float(fields["depth_log2"])
                 else:
-                    val = float(np.log2(float(fields["depth"])) )
+                    val = float(np.log2(float(fields["depth"])))
                 if overwrite or cur[0].item() == missing_value:
                     filled[0, i] = val
-            if "sequencing_platform" in fields or "platform_id" in fields:
-                src = fields.get("platform_id", fields.get("sequencing_platform"))
-                pid = float(to_platform_id(src))
-                if overwrite or cur[1].item() == missing_value:
-                    filled[1, i] = pid
+                    
+            # assay_id (index 1) is FIXED per column - always set to column index
+            # Ignore any manual assay_id/platform_id specification
+            filled[1, i] = float(i)
+            
+            # read_length
             if "read_length" in fields:
                 rl = float(fields["read_length"])
                 if overwrite or cur[2].item() == missing_value:
                     filled[2, i] = rl
+                    
+            # run_type
             if "run_type" in fields or "run_type_id" in fields:
                 src = fields.get("run_type_id", fields.get("run_type"))
                 rt = float(to_run_type_id(src))
@@ -1372,9 +1602,46 @@ class CANDIDataHandler:
         return mapped_trn_data
 
     # ========= Integrated Data Looping and Batching =========
+    def _biosample_availability_proxy(self, bios_name):
+        """Simple per-biosample proxy for expected query load."""
+        return len(self.navigation.get(bios_name, {}))
+
+    def _balanced_round_robin_bios_order(self, keys, num_buckets=5, shuffle_within_buckets=True):
+        """
+        Build a mixed-availability ordering using quantile buckets and round-robin merge.
+        Returns (ordered_keys, bucket_sizes).
+        """
+        if len(keys) <= 1:
+            return list(keys), [len(keys)]
+
+        scored = sorted(
+            keys,
+            key=lambda k: self._biosample_availability_proxy(k),
+            reverse=True,
+        )
+
+        buckets_np = np.array_split(np.array(scored, dtype=object), num_buckets)
+        buckets = [list(b.tolist()) for b in buckets_np if len(b) > 0]
+        bucket_sizes = [len(b) for b in buckets]
+
+        if shuffle_within_buckets:
+            for bucket in buckets:
+                random.shuffle(bucket)
+
+        ordered = []
+        max_len = max(len(b) for b in buckets)
+        for i in range(max_len):
+            for bucket in buckets:
+                if i < len(bucket):
+                    ordered.append(bucket[i])
+
+        return ordered, bucket_sizes
+
     def setup_datalooper(self, m, context_length, bios_batchsize, loci_batchsize,
-                        loci_gen_strategy="random", split="train", bios_min_exp_avail_threshold=3,
-                        shuffle_bios=True, dsf_list=[1, 2, 4], includes=None, excludes=[], must_have_chr_access=False):
+                        loci_gen_strategy="random", ccre_fraction=0.3, split="train", bios_min_exp_avail_threshold=3,
+                        shuffle_bios=True, dsf_list=[1, 2, 4], includes=None, excludes=[], must_have_chr_access=False,
+                        enable_per_assay_dsf_sampling=False, per_assay_dsf_sampling_mode="uniform",
+                        balanced_bios_order=True):
         """
         Configures the data handler for iterating through epochs of data.
 
@@ -1383,7 +1650,8 @@ class CANDIDataHandler:
             context_length (int): The length of each genomic locus in base pairs.
             bios_batchsize (int): Number of biosamples per batch.
             loci_batchsize (int): Number of loci per batch.
-            loci_gen_strategy (str): Strategy for generating loci ('random', 'ccre', 'gw', 'chrN').
+            loci_gen_strategy (str): Strategy for generating loci ('random', 'ccre', 'mixture', 'gw', 'chrN').
+            ccre_fraction (float): Fraction of loci to draw from cCREs when loci_gen_strategy='mixture'.
             split (str): The dataset split to use ('train', 'val', 'test').
             bios_min_exp_avail_threshold (int): Minimum number of available experiments for a biosample to be included.
             shuffle_bios (bool): Whether to shuffle the order of biosamples.
@@ -1391,6 +1659,7 @@ class CANDIDataHandler:
             includes (list): List of experiment types to include. Defaults to all standard types.
             excludes (list): List of experiment types to exclude.
             must_have_chr_access (bool): Whether to require chromosome access for all experiments.
+            balanced_bios_order (bool): Whether to use balanced biosample ordering for train split.
         """
         print(f"--- Setting up data looper for split: {split} ---")
         self.split = split
@@ -1399,7 +1668,7 @@ class CANDIDataHandler:
         self._load_genomic_coords(mode=split)
         
         print(f"Generating {m} loci using '{loci_gen_strategy}' strategy...")
-        self._generate_genomic_loci(m, context_length, strategy=loci_gen_strategy)
+        self._generate_genomic_loci(m, context_length, strategy=loci_gen_strategy, ccre_fraction=ccre_fraction)
         print(f"Generated {len(self.m_regions)} regions.")
         
         # Reload and filter navigation for the specific split and criteria
@@ -1417,10 +1686,20 @@ class CANDIDataHandler:
             elif must_have_chr_access and self.has_chr_access(bios) == False:
                 del self.navigation[bios]
         
-        if shuffle_bios:
-            keys = list(self.navigation.keys())
-            random.shuffle(keys)
+        keys = list(self.navigation.keys())
+        if split == "train" and balanced_bios_order and len(keys) > 0:
+            ordered_keys, bucket_sizes = self._balanced_round_robin_bios_order(
+                keys,
+                num_buckets=5,
+                shuffle_within_buckets=shuffle_bios,
+            )
+            self.navigation = {key: self.navigation[key] for key in ordered_keys}
+            print(f"Balanced bios order: enabled (5 buckets), bucket_sizes={bucket_sizes}")
+        else:
+            if shuffle_bios:
+                random.shuffle(keys)
             self.navigation = {key: self.navigation[key] for key in keys}
+            print(f"Balanced bios order: disabled (split={split})")
 
         self.signal_dim = len(self.aliases["experiment_aliases"])
         self.num_regions = len(self.m_regions)
@@ -1430,6 +1709,8 @@ class CANDIDataHandler:
         self.bios_batchsize = bios_batchsize
         self.loci_batchsize = loci_batchsize
         self.dsf_list = dsf_list
+        self.enable_per_assay_dsf_sampling = enable_per_assay_dsf_sampling
+        self.per_assay_dsf_sampling_mode = per_assay_dsf_sampling_mode
         self.num_batches = math.ceil(self.num_bios / self.bios_batchsize)
 
         self.loci = {}
@@ -1452,21 +1733,38 @@ class CANDIDataHandler:
 
         batch_bios_list = list(self.navigation.keys())[self.bios_pointer: self.bios_pointer + self.bios_batchsize]
         current_chr = list(self.loci.keys())[self.chr_pointer]
+        self.current_state_dsf_info = {}
 
         self.loaded_data, self.loaded_metadata, self.loaded_control, self.loaded_control_metadata = [], [], [], []
         # Pre-loading data for biosamples
         for bios in batch_bios_list:
-            d, md = self.load_bios_Counts(bios, [current_chr], self.dsf_list[self.dsf_pointer])
+            if self.enable_per_assay_dsf_sampling:
+                info = self._sample_per_assay_dsf_info(bios, current_chr)
+                self.current_state_dsf_info[bios] = info
+                d, md = self.load_bios_Counts(bios, [current_chr], info["x_dsf_map"])
+            else:
+                d, md = self.load_bios_Counts(bios, [current_chr], self.dsf_list[self.dsf_pointer])
             self.loaded_data.append(d)
             self.loaded_metadata.append(md)
 
-            c, cm = self.load_bios_Control(bios, [current_chr], self.dsf_list[self.dsf_pointer])
+            if self.enable_per_assay_dsf_sampling:
+                control_dsf = self.current_state_dsf_info[bios]["control_x_dsf"]
+                c, cm = self.load_bios_Control(bios, [current_chr], DSF=control_dsf if control_dsf != -1 else 1)
+            else:
+                c, cm = self.load_bios_Control(bios, [current_chr], self.dsf_list[self.dsf_pointer])
             self.loaded_control.append(c)
             self.loaded_control_metadata.append(cm)
         
         self.Y_loaded_data, self.Y_loaded_metadata = [], []
-        self.Y_loaded_data = self.loaded_data.copy()
-        self.Y_loaded_metadata = self.loaded_metadata.copy()
+        if self.enable_per_assay_dsf_sampling:
+            for bios in batch_bios_list:
+                info = self.current_state_dsf_info[bios]
+                d_y, md_y = self.load_bios_Counts(bios, [current_chr], info["y_dsf_map"])
+                self.Y_loaded_data.append(d_y)
+                self.Y_loaded_metadata.append(md_y)
+        else:
+            self.Y_loaded_data = self.loaded_data.copy()
+            self.Y_loaded_metadata = self.loaded_metadata.copy()
 
         self.Y_loaded_pval = []
         for bios in batch_bios_list:
@@ -1501,19 +1799,46 @@ class CANDIDataHandler:
             batch_bios_list = list(self.navigation.keys())[self.bios_pointer: self.bios_pointer + self.bios_batchsize]
             current_chr = list(self.loci.keys())[self.chr_pointer]
             current_dsf = self.dsf_list[self.dsf_pointer]
+            self.current_state_dsf_info = {}
             
             # Updating pointers and pre-loading data
             self.loaded_data, self.loaded_metadata, self.loaded_control, self.loaded_control_metadata = [], [], [], []
             for bios in batch_bios_list:
-                d, md = self.load_bios_Counts(bios, [current_chr], current_dsf)
+                if self.enable_per_assay_dsf_sampling:
+                    info = self._sample_per_assay_dsf_info(bios, current_chr)
+                    self.current_state_dsf_info[bios] = info
+                    d, md = self.load_bios_Counts(bios, [current_chr], info["x_dsf_map"])
+                else:
+                    d, md = self.load_bios_Counts(bios, [current_chr], current_dsf)
                 self.loaded_data.append(d)
                 self.loaded_metadata.append(md)
 
-                c, cm = self.load_bios_Control(bios, [current_chr], current_dsf)
+                if self.enable_per_assay_dsf_sampling:
+                    control_dsf = self.current_state_dsf_info[bios]["control_x_dsf"]
+                    c, cm = self.load_bios_Control(bios, [current_chr], DSF=control_dsf if control_dsf != -1 else 1)
+                else:
+                    c, cm = self.load_bios_Control(bios, [current_chr], current_dsf)
                 self.loaded_control.append(c)
                 self.loaded_control_metadata.append(cm)
             
-            if self.dsf_pointer == 0:
+            if self.enable_per_assay_dsf_sampling:
+                self.Y_loaded_data, self.Y_loaded_metadata = [], []
+                for bios in batch_bios_list:
+                    info = self.current_state_dsf_info[bios]
+                    d_y, md_y = self.load_bios_Counts(bios, [current_chr], info["y_dsf_map"])
+                    self.Y_loaded_data.append(d_y)
+                    self.Y_loaded_metadata.append(md_y)
+
+                self.Y_loaded_pval = []
+                for bios in batch_bios_list:
+                    self.Y_loaded_pval.append(
+                        self.load_bios_BW(bios, [current_chr]))
+
+                self.Y_loaded_peaks = []
+                for bios in batch_bios_list:
+                    self.Y_loaded_peaks.append(
+                        self.load_bios_Peaks(bios, [current_chr]))
+            elif self.dsf_pointer == 0:
                 self.Y_loaded_data, self.Y_loaded_metadata = [], []
                 self.Y_loaded_data = self.loaded_data.copy()
                 self.Y_loaded_metadata = self.loaded_metadata.copy()
@@ -1662,10 +1987,14 @@ class CANDIIterableDataset(CANDIDataHandler, torch.utils.data.IterableDataset):
             DNA=kwargs.get("DNA", True),
             bios_batchsize=1,  # Force to 1
             loci_batchsize=1,  # Force to 1
-            dsf_list=kwargs.get("dsf_list", [1, 2])
+            dsf_list=kwargs.get("dsf_list", [1, 2]),
+            signal_transform=kwargs.get("signal_transform", "arcsinh"),
+            enable_per_assay_dsf_sampling=kwargs.get("enable_per_assay_dsf_sampling", False),
+            per_assay_dsf_sampling_mode=kwargs.get("per_assay_dsf_sampling_mode", "uniform"),
         )
 
         print(f"CANDIIterableDataset initialized with bios_batchsize={self.bios_batchsize}, loci_batchsize={self.loci_batchsize}, dsf_list={self.dsf_list}")
+        print(f"Signal transformation: {self.signal_transform}")
         self.kwargs = kwargs
         self.fill_prompt_mode = kwargs.get("fill_prompt_mode", "sample")
         print(f"Fill-in-prompt mode: {self.fill_prompt_mode}")
@@ -1681,17 +2010,31 @@ class CANDIIterableDataset(CANDIDataHandler, torch.utils.data.IterableDataset):
             bios_batchsize=1,
             loci_batchsize=1,
             loci_gen_strategy=self.kwargs.get("loci_gen_strategy", "random"),
+            ccre_fraction=self.kwargs.get("ccre_fraction", 0.3),
             split=self.kwargs.get("split", "train"),
             shuffle_bios=self.kwargs.get("shuffle_bios", True),
             dsf_list=self.kwargs.get("dsf_list", [1, 2, 4]),
             includes=self.kwargs.get("includes"),
             excludes=self.kwargs.get("excludes", []),
             must_have_chr_access=self.kwargs.get("must_have_chr_access", False),
-            bios_min_exp_avail_threshold=self.kwargs.get("bios_min_exp_avail_threshold", 0)
+            bios_min_exp_avail_threshold=self.kwargs.get("bios_min_exp_avail_threshold", 0),
+            enable_per_assay_dsf_sampling=self.kwargs.get("enable_per_assay_dsf_sampling", False),
+            per_assay_dsf_sampling_mode=self.kwargs.get("per_assay_dsf_sampling_mode", "uniform"),
+            balanced_bios_order=self.kwargs.get("balanced_bios_order", True),
         )
 
         # --- 2. Shard the Data for Parallel Loading ---
         biosample_keys = list(self.navigation.keys())
+        # Ensure all ranks/workers compute the same pre-shard ordering.
+        # This avoids overlap/missing samples when sharding by strided islice.
+        shuffle_bios = self.kwargs.get("shuffle_bios", True)
+        if shuffle_bios:
+            shard_seed = int(self.kwargs.get("seed", 42))
+            rng = random.Random(shard_seed)
+            rng.shuffle(biosample_keys)
+        else:
+            biosample_keys = sorted(biosample_keys)
+
         world_size = 1
         rank = 0
         if dist.is_available() and dist.is_initialized():
@@ -1736,6 +2079,22 @@ class CANDIIterableDataset(CANDIDataHandler, torch.utils.data.IterableDataset):
             if y_batch is None: break
             y_data, y_meta, y_avail, y_pval, y_peaks, y_dna = y_batch
 
+            dsf_info = self.current_state_dsf_info.get(current_biosample_name, None)
+            if dsf_info is None:
+                # Backward-compatible defaults for legacy/global DSF mode.
+                x_dsf_tensor = torch.full((self.signal_dim,), int(current_dsf), dtype=torch.int64)
+                y_dsf_tensor = torch.full((self.signal_dim,), 1, dtype=torch.int64)
+                dsf_transition_counts = torch.tensor([0, 0, int(self.signal_dim)], dtype=torch.int64)  # up/down/same
+                control_x_dsf = torch.tensor(int(current_dsf), dtype=torch.int64)
+            else:
+                x_dsf_tensor = dsf_info["x_dsf_tensor"].clone()
+                y_dsf_tensor = dsf_info["y_dsf_tensor"].clone()
+                tc = dsf_info["transition_counts"]
+                dsf_transition_counts = torch.tensor(
+                    [int(tc["upsampled"]), int(tc["downsampled"]), int(tc["same"])], dtype=torch.int64
+                )
+                control_x_dsf = torch.tensor(int(dsf_info["control_x_dsf"]), dtype=torch.int64)
+
             sample = {
                 "sample_id": sample_id, # For validation
                 "x_data": x_data.squeeze(0), "x_meta": x_meta.squeeze(0),
@@ -1746,6 +2105,10 @@ class CANDIIterableDataset(CANDIDataHandler, torch.utils.data.IterableDataset):
                 "y_data": y_data.squeeze(0), "y_meta": y_meta.squeeze(0),
                 "y_avail": y_avail.squeeze(0), "y_pval": y_pval.squeeze(0),
                 "y_peaks": y_peaks.squeeze(0), "y_dna": y_dna.squeeze(0),
+                "x_dsf": x_dsf_tensor,
+                "y_dsf": y_dsf_tensor,
+                "dsf_transition_counts": dsf_transition_counts,
+                "control_x_dsf": control_x_dsf,
             }
             yield sample
             epoch_finished = self._update_batch_pointers()

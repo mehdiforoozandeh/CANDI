@@ -1,0 +1,75 @@
+[gate_f] host=fc10517 h5=sandbox/data/sandbox.h5 attempt=3 run_dir=sandbox/runs/gate_f_attempt3
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-f9827d4d-437a-e9e1-76a6-8070e84849cf)
+{
+  "run_dir": "sandbox/runs/gate_f_attempt3",
+  "checks": {
+    "total_decreasing": {
+      "ok": false,
+      "values": [
+        0.13051774576306344,
+        0.08300503138452768,
+        0.1248908458277583
+      ]
+    },
+    "monotonic_any": {
+      "ok": true,
+      "details": {
+        "den_pval_pearson_gw": {
+          "direction": "increasing",
+          "ok": false,
+          "values": [
+            0.18803035949822516,
+            0.22314870157279074,
+            0.18153885807842016
+          ]
+        },
+        "imp_pval_pearson_gw": {
+          "direction": "increasing",
+          "ok": true,
+          "values": [
+            0.08094232485574834,
+            0.08326587606878842,
+            0.10119739262496724
+          ]
+        },
+        "den_pval_mse_gw": {
+          "direction": "decreasing",
+          "ok": false,
+          "values": [
+            0.13051774576306344,
+            0.08300503138452768,
+            0.1248908458277583
+          ]
+        },
+        "den_peak_auroc_gw": {
+          "direction": "increasing",
+          "ok": false,
+          "values": [
+            0.5142787098884583,
+            0.45551797747612,
+            0.5379867553710938
+          ]
+        }
+      }
+    },
+    "pearson_floor": {
+      "ok": false,
+      "value": 0.18153885807842016,
+      "floor": 0.3
+    },
+    "auroc_floor": {
+      "ok": false,
+      "value": 0.5379867553710938,
+      "floor": 0.7
+    },
+    "probe_finite": {
+      "ok": true,
+      "probe": {
+        "probe/depth_count_ratio": 0.9632700681686401,
+        "probe/readlen_mse": 3.9726292015984654e-05,
+        "probe/runtype_mse": 8.720397454453632e-05
+      }
+    }
+  },
+  "ok": false
+}

@@ -1,0 +1,3 @@
+[baseline] host=fc10909 partition=gpubase_bygpu_b1 job=37341540 name=dsf1_only batch=32 h5=sandbox/data/sandbox.h5 epochs=200 seed=42 regime_config=sandbox/configs/type1_chr19.yaml
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-d41b7602-0641-fdb8-daa9-58e2736208db)
+  MIG 1g.10gb     Device  0: (UUID: MIG-2a70a849-048e-5672-84df-d6a244f9c4f0)

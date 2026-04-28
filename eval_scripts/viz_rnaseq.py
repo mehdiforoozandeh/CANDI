@@ -567,11 +567,11 @@ class RNASeqEvaluator:
         # 2. Denoised P-val (upsampling for available assays only)
         print("Running denoised predictions...")
         if self.predictor.DNA:
-            n_den, p_den, mu_den, var_den, peak_den = self.predictor.predict(
+            n_den, p_den, mu_den, var_den, df_den, peak_den = self.predictor.predict(
                 X, mX, mY, avX, seq, imp_target=[]
             )
         else:
-            n_den, p_den, mu_den, var_den, peak_den = self.predictor.predict(
+            n_den, p_den, mu_den, var_den, df_den, peak_den = self.predictor.predict(
                 X, mX, mY, avX, None, imp_target=[]
             )
         

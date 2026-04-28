@@ -1,0 +1,2 @@
+[gate_e] host=fc10519 h5=sandbox/data/sandbox.h5 regime=type2_loci
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-22f6f50f-6caf-8538-6d3d-21f1b3f4f114)

@@ -1,0 +1,6 @@
+data:
+  regime: type1_chr19
+  region_stratified_loss: false
+
+training:
+  eval_each_epoch: true

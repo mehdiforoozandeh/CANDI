@@ -73,6 +73,14 @@ Examples:
         help='Dataset type: merged or eic'
     )
     
+    parser.add_argument(
+        '--signal-transform',
+        type=str,
+        default='arcsinh',
+        choices=['arcsinh', 'log1p', 'none'],
+        help='Signal transformation used during training (default: arcsinh)'
+    )
+    
     args = parser.parse_args()
     
     # Validate model directory
@@ -117,7 +125,8 @@ Examples:
         sys.executable,
         str(eval_scripts_dir / "compute_metrics.py"),
         "--model-dir", str(model_dir),
-        "--dataset", args.dataset
+        "--dataset", args.dataset,
+        "--signal-transform", args.signal_transform
     ]
     if not run_command(cmd, "Compute metrics from predictions"):
         failed_steps.append("compute_metrics.py")
@@ -135,7 +144,8 @@ Examples:
     cmd = [
         sys.executable,
         str(eval_scripts_dir / "viz_scatter_density.py"),
-        "--model-dir", str(model_dir)
+        "--model-dir", str(model_dir),
+        "--signal-transform", args.signal_transform
     ]
     if not run_command(cmd, "Scatter density plots"):
         failed_steps.append("viz_scatter_density.py")
@@ -145,10 +155,22 @@ Examples:
         sys.executable,
         str(eval_scripts_dir / "viz_conf.py"),
         "--model-dir", str(model_dir),
-        "--dataset", args.dataset
+        "--dataset", args.dataset,
+        "--signal-transform", args.signal_transform
     ]
     if not run_command(cmd, "Confidence calibration visualization"):
         failed_steps.append("viz_conf.py")
+    
+    # Step 7: viz_quantile_performance.py
+    cmd = [
+        sys.executable,
+        str(eval_scripts_dir / "viz_quantile_performance.py"),
+        "--model-dir", str(model_dir),
+        "--dataset", args.dataset,
+        "--signal-transform", args.signal_transform
+    ]
+    if not run_command(cmd, "Quantile performance visualization"):
+        failed_steps.append("viz_quantile_performance.py")
     
     # Special handling: viz_rnaseq.py (always uses merged dataset)
     print(f"\n{'='*80}")

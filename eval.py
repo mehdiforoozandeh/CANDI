@@ -410,7 +410,7 @@ class EVAL_CANDI:
         Peak_target = obs_data['obs_peak']
 
         if arcsinh:
-            P_target = np.sinh(P_target)
+            P_target = self.predictor.inverse_transform(P_target)
 
         results = []
 
@@ -428,7 +428,7 @@ class EVAL_CANDI:
         imp_pval_mean = imp_pval_dist.mean().numpy()
 
         if arcsinh:
-            imp_pval_mean = np.sinh(imp_pval_mean)
+            imp_pval_mean = self.predictor.inverse_transform(imp_pval_mean)
 
         def safe_metric(fn, *args):
             try:
@@ -494,7 +494,7 @@ class EVAL_CANDI:
             try:
                 imp_pval_ci = imp_pval_dist.interval(confidence=0.95)
                 if arcsinh:
-                    pval_lower, pval_upper = (np.sinh(imp_pval_ci[0].numpy()), np.sinh(imp_pval_ci[1].numpy()))
+                    pval_lower, pval_upper = (self.predictor.inverse_transform(imp_pval_ci[0].numpy()), self.predictor.inverse_transform(imp_pval_ci[1].numpy()))
                 else:
                     pval_lower, pval_upper = (imp_pval_ci[0].numpy(), imp_pval_ci[1].numpy())
             except Exception:
@@ -524,7 +524,7 @@ class EVAL_CANDI:
         ups_pval_mean = ups_pval_dist.mean().numpy()
 
         if arcsinh:
-            ups_pval_mean = np.sinh(ups_pval_mean)
+            ups_pval_mean = self.predictor.inverse_transform(ups_pval_mean)
 
         metrics_ups = {
             'bios': bios_name,
@@ -591,7 +591,7 @@ class EVAL_CANDI:
             try:
                 ups_pval_ci = ups_pval_dist.interval(confidence=0.95)
                 if arcsinh:
-                    ups_pval_lower, ups_pval_upper = (np.sinh(ups_pval_ci[0].numpy()), np.sinh(ups_pval_ci[1].numpy()))
+                    ups_pval_lower, ups_pval_upper = (self.predictor.inverse_transform(ups_pval_ci[0].numpy()), self.predictor.inverse_transform(ups_pval_ci[1].numpy()))
                 else:
                     ups_pval_lower, ups_pval_upper = (ups_pval_ci[0].numpy(), ups_pval_ci[1].numpy())
             except Exception:
@@ -719,13 +719,13 @@ class EVAL_CANDI:
             P_target = P[:, j].numpy()
             Peak_target = Peak[:, j].numpy()
             
-            # Apply arcsinh transformation if needed (matching old_eval.py line 3402-3407)
+            # Apply inverse transformation if needed (matching old_eval.py line 3402-3407)
             if arcsinh:
-                P_target = np.sinh(P_target)
-                pred_pval = np.sinh(pred_pval)
+                P_target = self.predictor.inverse_transform(P_target)
+                pred_pval = self.predictor.inverse_transform(pred_pval)
                 if not quick:
-                    pval_lower_95 = np.sinh(pval_lower_95)
-                    pval_upper_95 = np.sinh(pval_upper_95)
+                    pval_lower_95 = self.predictor.inverse_transform(pval_lower_95)
+                    pval_upper_95 = self.predictor.inverse_transform(pval_upper_95)
             
             # Get experiment name
             exp_name = self.expnames[j]

@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "timestamp": 1776881122.6153991,
+  "git_sha": "4d637b9ea6b494c557a9312c248016f9b08cae5a",
+  "h5_path": "sandbox/data/sandbox.h5",
+  "n_probes_executed": 640,
+  "source_mtimes": {
+    "/project/6014832/mforooz/EpiDenoise/data.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/data_h5.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/model.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/train.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/reference_sample.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/prepare_h5.py": 1776878723.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/data.py": 1776877956.0
+  }
+}

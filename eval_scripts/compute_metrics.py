@@ -11,6 +11,7 @@ Author: CANDI Team
 import argparse
 import sys
 import os
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
 import pandas as pd
@@ -19,7 +20,21 @@ import torch
 
 # Import from project
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _utils import METRICS, Gaussian
+from _utils import METRICS, Gaussian, Laplace, StudentsT, Gamma
+
+
+def get_dist_type(model_dir: Path) -> str:
+    """Load model configuration to determine distribution type."""
+    config_files = list(model_dir.glob("*_config.json"))
+    if not config_files:
+        print(f"Warning: No config JSON file found in {model_dir}. Assuming gaussian.")
+        return "gaussian"
+    
+    config_path = config_files[0]
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    return config.get('dist-type', config.get('dist_type', 'gaussian'))
 
 
 def load_predictions_from_npz(preds_dir: Path, biosample: str) -> Dict[str, Dict[str, np.ndarray]]:
@@ -149,7 +164,9 @@ def compute_metrics_for_assay(
     comparison_type: str,
     available_assays: int,
     metrics_obj: METRICS,
-    biosample: str
+    biosample: str,
+    dist_type: str = "gaussian",
+    signal_transform: str = "arcsinh"
 ) -> Dict[str, Any]:
     """
     Compute comprehensive metrics for a single assay.
@@ -161,6 +178,8 @@ def compute_metrics_for_assay(
         available_assays: Number of available assays
         metrics_obj: METRICS object for computing metrics
         biosample: Name of biosample
+        dist_type: Distribution type ('gaussian' or 'laplace')
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
         
     Returns:
         Dictionary with all metrics plus metadata
@@ -172,8 +191,22 @@ def compute_metrics_for_assay(
     observed_P = pred_data['observed_P']
     observed_peak = pred_data['observed_peak']
     
-    # Create Gaussian distribution
-    pval_dist = Gaussian(torch.tensor(mu), torch.tensor(var))
+    # Create distribution
+    if dist_type == 'laplace':
+        pval_dist = Laplace(torch.tensor(mu), torch.tensor(var))
+    elif dist_type == 'gamma':
+        # For Gamma, var stores alpha (concentration)
+        pval_dist = Gamma(torch.tensor(mu), torch.tensor(var))
+    elif dist_type == 'studentst':
+        df = pred_data.get('df', None)
+        if df is not None:
+            pval_dist = StudentsT(torch.tensor(mu), torch.tensor(var), torch.tensor(df))
+        else:
+            # Fallback to Gaussian if df not available
+            print("Warning: Student's t distribution requested but df not found. Using Gaussian.")
+            pval_dist = Gaussian(torch.tensor(mu), torch.tensor(var))
+    else:
+        pval_dist = Gaussian(torch.tensor(mu), torch.tensor(var))
     
     # Compute 95% CI
     lower_95, upper_95 = pval_dist.interval(confidence=0.95)
@@ -196,26 +229,33 @@ def compute_metrics_for_assay(
         'available_assays': available_assays
     }
     
-    # Compute MSE and Pearson metrics TWICE - with and without sinh transform
+    # Compute MSE and Pearson metrics TWICE - with and without inverse transform
     
-    # WITHOUT sinh (arcsinh space)
-    pred_pval_arcsinh = mu
-    P_target_arcsinh = observed_P
+    # WITHOUT inverse transform (transformed space)
+    pred_pval_transformed = mu
+    P_target_transformed = observed_P
     
-    metrics_dict['P_MSE-GW_arcsinh'] = safe_metric(metrics_obj.mse, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_Pearson-GW_arcsinh'] = safe_metric(metrics_obj.pearson, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_MSE-gene_arcsinh'] = safe_metric(metrics_obj.mse_gene, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_Pearson_gene_arcsinh'] = safe_metric(metrics_obj.pearson_gene, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_MSE-prom_arcsinh'] = safe_metric(metrics_obj.mse_prom, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_Pearson_prom_arcsinh'] = safe_metric(metrics_obj.pearson_prom, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_MSE-1obs_arcsinh'] = safe_metric(metrics_obj.mse1obs, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_Pearson_1obs_arcsinh'] = safe_metric(metrics_obj.pearson1_obs, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_MSE-1imp_arcsinh'] = safe_metric(metrics_obj.mse1imp, P_target_arcsinh, pred_pval_arcsinh)
-    metrics_dict['P_Pearson_1imp_arcsinh'] = safe_metric(metrics_obj.pearson1_imp, P_target_arcsinh, pred_pval_arcsinh)
+    metrics_dict[f'P_MSE-GW_{signal_transform}'] = safe_metric(metrics_obj.mse, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_Pearson-GW_{signal_transform}'] = safe_metric(metrics_obj.pearson, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_MSE-gene_{signal_transform}'] = safe_metric(metrics_obj.mse_gene, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_Pearson_gene_{signal_transform}'] = safe_metric(metrics_obj.pearson_gene, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_MSE-prom_{signal_transform}'] = safe_metric(metrics_obj.mse_prom, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_Pearson_prom_{signal_transform}'] = safe_metric(metrics_obj.pearson_prom, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_MSE-1obs_{signal_transform}'] = safe_metric(metrics_obj.mse1obs, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_Pearson_1obs_{signal_transform}'] = safe_metric(metrics_obj.pearson1_obs, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_MSE-1imp_{signal_transform}'] = safe_metric(metrics_obj.mse1imp, P_target_transformed, pred_pval_transformed)
+    metrics_dict[f'P_Pearson_1imp_{signal_transform}'] = safe_metric(metrics_obj.pearson1_imp, P_target_transformed, pred_pval_transformed)
     
-    # WITH sinh (original space)
-    pred_pval = np.sinh(mu)
-    P_target = np.sinh(observed_P)
+    # WITH inverse transform (original space)
+    if signal_transform == 'arcsinh':
+        pred_pval = np.sinh(mu)
+        P_target = np.sinh(observed_P)
+    elif signal_transform == 'log1p':
+        pred_pval = np.expm1(mu)
+        P_target = np.expm1(observed_P)
+    else:  # 'none'
+        pred_pval = mu
+        P_target = observed_P
     
     metrics_dict['P_MSE-GW'] = safe_metric(metrics_obj.mse, P_target, pred_pval)
     metrics_dict['P_Pearson-GW'] = safe_metric(metrics_obj.pearson, P_target, pred_pval)
@@ -240,19 +280,37 @@ def compute_metrics_for_assay(
     metrics_dict['Peak_AUCROC-gene'] = safe_metric(metrics_obj.aucroc_gene, observed_peak, peak_scores)
     metrics_dict['Peak_AUCROC-prom'] = safe_metric(metrics_obj.aucroc_prom, observed_peak, peak_scores)
     
-    # Concordance index metrics (use raw mu, sigma from Gaussian, no sinh)
-    sigma = pval_dist.std().numpy()
-    metrics_dict['P_Cidx_GW'] = safe_metric(metrics_obj.c_index_gauss, mu, sigma, observed_P, num_pairs=5000)
-    metrics_dict['P_Cidx_prom'] = safe_metric(metrics_obj.c_index_gauss_prom, mu, sigma, observed_P, num_pairs=5000)
-    metrics_dict['P_Cidx_gene'] = safe_metric(metrics_obj.c_index_gauss_gene, mu, sigma, observed_P, num_pairs=5000)
+    # Concordance index metrics
+    if dist_type == 'laplace':
+        # For Laplace, var contains log_b
+        metrics_dict['P_Cidx_GW'] = safe_metric(metrics_obj.c_index_laplace, mu, var, observed_P, num_pairs=5000)
+        metrics_dict['P_Cidx_prom'] = safe_metric(metrics_obj.c_index_laplace_prom, mu, var, observed_P, num_pairs=5000)
+        metrics_dict['P_Cidx_gene'] = safe_metric(metrics_obj.c_index_laplace_gene, mu, var, observed_P, num_pairs=5000)
+    else:
+        # For Gaussian and Student's t, use std() to get sigma
+        sigma = pval_dist.std()
+        if hasattr(sigma, 'numpy'):
+            sigma = sigma.numpy()
+        metrics_dict['P_Cidx_GW'] = safe_metric(metrics_obj.c_index_gauss, mu, sigma, observed_P, num_pairs=5000)
+        metrics_dict['P_Cidx_prom'] = safe_metric(metrics_obj.c_index_gauss_prom, mu, sigma, observed_P, num_pairs=5000)
+        metrics_dict['P_Cidx_gene'] = safe_metric(metrics_obj.c_index_gauss_gene, mu, sigma, observed_P, num_pairs=5000)
     
-    # 95% CI coverage metrics (sinh transform lower_95, upper_95 and observed_P)
-    lower_95_sinh = np.sinh(lower_95)
-    upper_95_sinh = np.sinh(upper_95)
-    P_target_sinh = np.sinh(observed_P)
+    # 95% CI coverage metrics (inverse transform lower_95, upper_95 and observed_P)
+    if signal_transform == 'arcsinh':
+        lower_95_orig = np.sinh(lower_95)
+        upper_95_orig = np.sinh(upper_95)
+        P_target_orig = np.sinh(observed_P)
+    elif signal_transform == 'log1p':
+        lower_95_orig = np.expm1(lower_95)
+        upper_95_orig = np.expm1(upper_95)
+        P_target_orig = np.expm1(observed_P)
+    else:  # 'none'
+        lower_95_orig = lower_95
+        upper_95_orig = upper_95
+        P_target_orig = observed_P
     
-    metrics_dict['P_95CI_coverage_GW'] = safe_metric(metrics_obj.coverage_95ci, P_target_sinh, lower_95_sinh, upper_95_sinh)
-    metrics_dict['P_95CI_coverage_gene'] = safe_metric(metrics_obj.coverage_95ci_gene, P_target_sinh, lower_95_sinh, upper_95_sinh)
+    metrics_dict['P_95CI_coverage_GW'] = safe_metric(metrics_obj.coverage_95ci, P_target_orig, lower_95_orig, upper_95_orig)
+    metrics_dict['P_95CI_coverage_gene'] = safe_metric(metrics_obj.coverage_95ci_gene, P_target_orig, lower_95_orig, upper_95_orig)
     metrics_dict['P_95CI_coverage_prom'] = safe_metric(metrics_obj.coverage_95ci_prom, P_target_sinh, lower_95_sinh, upper_95_sinh)
     metrics_dict['P_95CI_coverage_1obs'] = safe_metric(metrics_obj.coverage_95ci_1obs, P_target_sinh, lower_95_sinh, upper_95_sinh)
     
@@ -262,7 +320,9 @@ def compute_metrics_for_assay(
 def process_merged_biosample(
     model_dir: Path,
     biosample: str,
-    metrics_obj: METRICS
+    metrics_obj: METRICS,
+    dist_type: str = "gaussian",
+    signal_transform: str = "arcsinh"
 ) -> List[Dict[str, Any]]:
     """
     Process a biosample from merged dataset.
@@ -271,6 +331,8 @@ def process_merged_biosample(
         model_dir: Path to model directory
         biosample: Name of biosample
         metrics_obj: METRICS object
+        dist_type: Distribution type
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
         
     Returns:
         List of metric dictionaries
@@ -321,7 +383,9 @@ def process_merged_biosample(
             comparison_type=comparison_type,
             available_assays=available_assays,
             metrics_obj=metrics_obj,
-            biosample=biosample
+            biosample=biosample,
+            dist_type=dist_type,
+            signal_transform=signal_transform
         )
         
         results.append(metrics)
@@ -333,7 +397,9 @@ def process_eic_biosample(
     model_dir: Path,
     biosample: str,
     metrics_obj: METRICS,
-    eic_metadata_path: str
+    eic_metadata_path: str,
+    dist_type: str = "gaussian",
+    signal_transform: str = "arcsinh"
 ) -> List[Dict[str, Any]]:
     """
     Process a biosample from EIC dataset.
@@ -343,6 +409,8 @@ def process_eic_biosample(
         biosample: Name of biosample
         metrics_obj: METRICS object
         eic_metadata_path: Path to eic_metadata.csv
+        dist_type: Distribution type
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
         
     Returns:
         List of metric dictionaries
@@ -392,7 +460,9 @@ def process_eic_biosample(
             comparison_type=comparison_type,
             available_assays=available_assays,
             metrics_obj=metrics_obj,
-            biosample=biosample
+            biosample=biosample,
+            dist_type=dist_type,
+            signal_transform=signal_transform
         )
         
         results.append(metrics)
@@ -429,6 +499,9 @@ Examples:
                        help='Specific biosample name or "all" (default: all)')
     parser.add_argument('--output', type=str, default=None,
                        help='Output CSV path (default: model_dir/preds/metrics.csv)')
+    parser.add_argument('--signal-transform', type=str, default='arcsinh',
+                       choices=['arcsinh', 'log1p', 'none'],
+                       help='Signal transformation used during training (default: arcsinh)')
     
     args = parser.parse_args()
     
@@ -445,6 +518,10 @@ Examples:
         output_path = preds_dir / "metrics.csv"
     else:
         output_path = Path(args.output)
+    
+    # Determine distribution type
+    dist_type = get_dist_type(model_dir)
+    print(f"Distribution type: {dist_type}")
     
     # Initialize METRICS object
     print("Initializing METRICS object...")
@@ -468,7 +545,7 @@ Examples:
         
         try:
             if args.dataset == 'merged':
-                results = process_merged_biosample(model_dir, biosample, metrics_obj)
+                results = process_merged_biosample(model_dir, biosample, metrics_obj, dist_type, args.signal_transform)
             else:  # eic
                 # Look for eic_metadata.csv in the project's data/ directory
                 script_dir = Path(__file__).parent.parent
@@ -478,7 +555,7 @@ Examples:
                     print(f"Error: eic_metadata.csv not found at {eic_metadata_path}")
                     continue
                 
-                results = process_eic_biosample(model_dir, biosample, metrics_obj, str(eic_metadata_path))
+                results = process_eic_biosample(model_dir, biosample, metrics_obj, str(eic_metadata_path), dist_type, args.signal_transform)
             
             all_results.extend(results)
             print(f"✅ Completed {biosample}: {len(results)} metrics computed")

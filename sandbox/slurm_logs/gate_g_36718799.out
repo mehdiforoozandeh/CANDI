@@ -1,0 +1,5 @@
+[gate_g] host=fc10515 h5=sandbox/data/sandbox.h5 regime=type1_chr19 run_dir=sandbox/runs/gate_g_type1_chr19
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-e456b714-7be1-d7ee-c03c-c0e1d7584fbe)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mgate_g_type1_chr19[0m at: [34mhttps://wandb.ai/mforoozz/candi_sandbox/runs/rkzd1yvw[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260423_021115-rkzd1yvw/logs[0m

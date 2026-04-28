@@ -1,0 +1,7 @@
+{
+  "status": "pass",
+  "timestamp": 1776803615.8934073,
+  "git_sha": "4d637b9ea6b494c557a9312c248016f9b08cae5a",
+  "h5_path": "sandbox/data/sandbox_smoke.h5",
+  "n_probes_executed": 48
+}

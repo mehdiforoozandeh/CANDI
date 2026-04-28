@@ -12,7 +12,6 @@ in data.py, which expects the format:
 {
   "assay_name": {
     "depth": <float>,              # Raw depth (will be converted to log2)
-    "sequencing_platform": <str>,  # Platform name
     "read_length": <float>,        # Read length in bp
     "run_type": <str>              # "single-ended" or "paired-ended"
   },
@@ -34,13 +33,12 @@ def compute_assay_statistics(metadata_df, assay_name):
     Compute statistics for a single assay from metadata DataFrame.
     
     Args:
-        metadata_df: DataFrame with columns including assay_name, depth, 
-                     sequencing_platform, read_length, run_type
+        metadata_df: DataFrame with columns including assay_name, depth,
+                     read_length, run_type
         assay_name: Name of the assay to compute statistics for
     
     Returns:
-        dict with keys: depth (median), sequencing_platform (mode), 
-                       read_length (median), run_type (mode)
+        dict with keys: depth (median), read_length (median), run_type (mode)
     """
     assay_df = metadata_df[metadata_df['assay_name'] == assay_name]
     
@@ -50,10 +48,6 @@ def compute_assay_statistics(metadata_df, assay_name):
     # Depth: use median (raw depth, not log2)
     depth_vals = assay_df['depth'].dropna().astype(float) if 'depth' in assay_df.columns else pd.Series(dtype=float)
     depth_median = float(np.nanmedian(depth_vals)) if len(depth_vals) > 0 else None
-    
-    # Sequencing platform: use mode (most frequent)
-    platforms = assay_df['sequencing_platform'].dropna().astype(str).values
-    platform_mode = Counter(platforms).most_common(1)[0][0] if len(platforms) > 0 else None
     
     # Read length: use median
     read_length_vals = assay_df['read_length'].dropna().astype(float) if 'read_length' in assay_df.columns else pd.Series(dtype=float)
@@ -65,7 +59,6 @@ def compute_assay_statistics(metadata_df, assay_name):
     
     return {
         "depth": depth_median,
-        "sequencing_platform": platform_mode,
         "read_length": read_length_median,
         "run_type": run_type_mode
     }
@@ -124,8 +117,7 @@ def save_prompt_file(prompt_dict, filepath):
         json.dump(prompt_dict, f, indent=2)
 
 
-def modify_prompt(prompt_dict, assay_name, depth=None, read_length=None, 
-                  sequencing_platform=None, run_type=None):
+def modify_prompt(prompt_dict, assay_name, depth=None, read_length=None, run_type=None):
     """
     Modify a prompt dictionary for a specific assay.
     
@@ -134,7 +126,6 @@ def modify_prompt(prompt_dict, assay_name, depth=None, read_length=None,
         assay_name: Name of assay to modify
         depth: Optional depth value to set
         read_length: Optional read length to set
-        sequencing_platform: Optional platform name to set
         run_type: Optional run type to set ("single-ended" or "paired-ended")
     
     Returns:
@@ -148,8 +139,6 @@ def modify_prompt(prompt_dict, assay_name, depth=None, read_length=None,
         prompt_dict[assay_name]["depth"] = float(depth)
     if read_length is not None:
         prompt_dict[assay_name]["read_length"] = float(read_length)
-    if sequencing_platform is not None:
-        prompt_dict[assay_name]["sequencing_platform"] = str(sequencing_platform)
     if run_type is not None:
         prompt_dict[assay_name]["run_type"] = str(run_type)
     
@@ -194,8 +183,6 @@ Examples:
                           help='Depth value for modified assay')
     gen_parser.add_argument('--read-length', type=float, default=None,
                           help='Read length for modified assay')
-    gen_parser.add_argument('--sequencing-platform', type=str, default=None,
-                          help='Sequencing platform for modified assay')
     gen_parser.add_argument('--run-type', type=str, choices=['single-ended', 'paired-ended'], default=None,
                           help='Run type for modified assay')
     
@@ -209,8 +196,6 @@ Examples:
                            help='Depth value to set')
     mod_parser.add_argument('--read-length', type=float, default=None,
                            help='Read length to set')
-    mod_parser.add_argument('--sequencing-platform', type=str, default=None,
-                           help='Sequencing platform to set')
     mod_parser.add_argument('--run-type', type=str, choices=['single-ended', 'paired-ended'], default=None,
                            help='Run type to set')
     mod_parser.add_argument('--output', type=str, default=None,
@@ -232,7 +217,6 @@ Examples:
                 args.modify,
                 depth=args.depth,
                 read_length=args.read_length,
-                sequencing_platform=args.sequencing_platform,
                 run_type=args.run_type
             )
         
@@ -265,7 +249,6 @@ Examples:
             args.assay,
             depth=args.depth,
             read_length=args.read_length,
-            sequencing_platform=args.sequencing_platform,
             run_type=args.run_type
         )
         

@@ -25,6 +25,25 @@ from typing import Dict, List, Any, Optional, Tuple
 from _utils import METRICS
 
 
+def apply_inverse_transform(data, signal_transform='arcsinh'):
+    """
+    Apply inverse transformation to data based on signal_transform type.
+    
+    Args:
+        data: Data in transformed space
+        signal_transform: Transformation type ('arcsinh', 'log1p', 'none')
+    
+    Returns:
+        Data in original space
+    """
+    if signal_transform == 'arcsinh':
+        return np.sinh(data)
+    elif signal_transform == 'log1p':
+        return np.expm1(data)
+    else:  # 'none'
+        return data
+
+
 class VISUALS_CANDI:
     """
     Visualization class for CANDI model predictions and evaluations.
@@ -39,17 +58,19 @@ class VISUALS_CANDI:
     - Metagene plots
     """
     
-    def __init__(self, resolution: int = 25, savedir: str = "models/evals/"):
+    def __init__(self, resolution: int = 25, savedir: str = "models/evals/", signal_transform: str = 'arcsinh'):
         """
         Initialize visualization class.
         
         Args:
             resolution: Genomic resolution in bp
             savedir: Directory to save plots
+            signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
         """
         self.metrics = METRICS()
         self.resolution = resolution
         self.savedir = savedir
+        self.signal_transform = signal_transform
         
         # Create save directory if it doesn't exist
         os.makedirs(savedir, exist_ok=True)
@@ -323,16 +344,16 @@ class VISUALS_CANDI:
             # Plot observed data if available
             if obs_data is not None:
                 observed_values = obs_data['obs_pval'][gene_coord[0]:gene_coord[1]]
-                # Apply arcsinh transform
-                observed_values = np.sinh(observed_values)
+                # Apply inverse transform
+                observed_values = apply_inverse_transform(observed_values, signal_transform)
                 ax.plot(x_values, observed_values, color="blue", alpha=0.7, 
                        label="Observed", linewidth=0.1)
                 ax.fill_between(x_values, 0, observed_values, alpha=0.7, color="blue")
             
             # Plot imputed predictions
             imputed_values = pred_imputed['pred_pval'][gene_coord[0]:gene_coord[1]]
-            # Apply arcsinh transform
-            imputed_values = np.sinh(imputed_values)
+            # Apply inverse transform
+            imputed_values = apply_inverse_transform(imputed_values, signal_transform)
             ax.plot(x_values, imputed_values, "--", color="red", alpha=0.5, 
                    label="Imputed", linewidth=0.1)
             ax.fill_between(x_values, 0, imputed_values, color="red", alpha=0.5)
@@ -357,16 +378,16 @@ class VISUALS_CANDI:
             # Plot observed data if available
             if obs_data is not None:
                 observed_values = obs_data['obs_pval'][gene_coord[0]:gene_coord[1]]
-                # Apply arcsinh transform
-                observed_values = np.sinh(observed_values)
+                # Apply inverse transform
+                observed_values = apply_inverse_transform(observed_values, signal_transform)
                 ax.plot(x_values, observed_values, color="blue", alpha=0.7, 
                        label="Observed", linewidth=0.1)
                 ax.fill_between(x_values, 0, observed_values, alpha=0.7, color="blue")
             
             # Plot denoised predictions
             denoised_values = pred_denoised['pred_pval'][gene_coord[0]:gene_coord[1]]
-            # Apply arcsinh transform
-            denoised_values = np.sinh(denoised_values)
+            # Apply inverse transform
+            denoised_values = apply_inverse_transform(denoised_values, signal_transform)
             ax.plot(x_values, denoised_values, "--", color="green", alpha=0.5, 
                    label="Denoised", linewidth=0.1)
             ax.fill_between(x_values, 0, denoised_values, color="green", alpha=0.5)
@@ -516,20 +537,20 @@ class VISUALS_CANDI:
         
         # Plot confidence intervals if available
         if 'pred_pval_lower_95' in pred_imputed and 'pred_pval_upper_95' in pred_imputed:
-            # Apply arcsinh transform to confidence intervals
-            lower_ci = np.sinh(pred_imputed['pred_pval_lower_95'])
-            upper_ci = np.sinh(pred_imputed['pred_pval_upper_95'])
+            # Apply inverse transform to confidence intervals
+            lower_ci = apply_inverse_transform(pred_imputed['pred_pval_lower_95'], self.signal_transform)
+            upper_ci = apply_inverse_transform(pred_imputed['pred_pval_upper_95'], self.signal_transform)
             ax.fill_between(x_values, lower_ci, upper_ci, 
                            alpha=0.3, color='red', label='95% CI')
         
         # Plot mean prediction
-        mean_pred = np.sinh(pred_imputed['pred_pval'])
+        mean_pred = apply_inverse_transform(pred_imputed['pred_pval'], self.signal_transform)
         ax.plot(x_values, mean_pred, color='red', 
                label='Imputed Mean', linewidth=1)
         
         # Plot observed data if available
         if obs_data is not None:
-            obs_signal = np.sinh(obs_data['obs_pval'])
+            obs_signal = apply_inverse_transform(obs_data['obs_pval'], self.signal_transform)
             ax.plot(x_values, obs_signal, color='blue', 
                    label='Observed', linewidth=1, alpha=0.7)
         
@@ -544,20 +565,20 @@ class VISUALS_CANDI:
         
         # Plot confidence intervals if available
         if 'pred_pval_lower_95' in pred_denoised and 'pred_pval_upper_95' in pred_denoised:
-            # Apply arcsinh transform to confidence intervals
-            lower_ci = np.sinh(pred_denoised['pred_pval_lower_95'])
-            upper_ci = np.sinh(pred_denoised['pred_pval_upper_95'])
+            # Apply inverse transform to confidence intervals
+            lower_ci = apply_inverse_transform(pred_denoised['pred_pval_lower_95'], self.signal_transform)
+            upper_ci = apply_inverse_transform(pred_denoised['pred_pval_upper_95'], self.signal_transform)
             ax.fill_between(x_values, lower_ci, upper_ci, 
                            alpha=0.3, color='green', label='95% CI')
         
         # Plot mean prediction
-        mean_pred = np.sinh(pred_denoised['pred_pval'])
+        mean_pred = apply_inverse_transform(pred_denoised['pred_pval'], self.signal_transform)
         ax.plot(x_values, mean_pred, color='green', 
                label='Denoised Mean', linewidth=1)
         
         # Plot observed data if available
         if obs_data is not None:
-            obs_signal = np.sinh(obs_data['obs_pval'])
+            obs_signal = apply_inverse_transform(obs_data['obs_pval'], self.signal_transform)
             ax.plot(x_values, obs_signal, color='blue', 
                    label='Observed', linewidth=1, alpha=0.7)
         
@@ -723,10 +744,10 @@ class VISUALS_CANDI:
             print("Warning: No ground truth data available for scatter plot")
             return
         
-        # Apply arcsinh transform
-        obs_signal = np.sinh(obs_data['obs_pval'])
-        pred_signal_imp = np.sinh(pred_imputed['pred_pval'])
-        pred_signal_den = np.sinh(pred_denoised['pred_pval'])
+        # Apply inverse transform
+        obs_signal = apply_inverse_transform(obs_data['obs_pval'], self.signal_transform)
+        pred_signal_imp = apply_inverse_transform(pred_imputed['pred_pval'], self.signal_transform)
+        pred_signal_den = apply_inverse_transform(pred_denoised['pred_pval'], self.signal_transform)
         
         # Create figure with subplots
         fig = plt.figure(figsize=(12, 10))
@@ -874,6 +895,9 @@ Examples:
                        help='Output directory for plots')
     parser.add_argument('--resolution', type=int, default=25,
                        help='Genomic resolution in bp')
+    parser.add_argument('--signal-transform', type=str, default='arcsinh',
+                       choices=['arcsinh', 'log1p', 'none'],
+                       help='Signal transformation used during training (default: arcsinh)')
     
     args = parser.parse_args()
     
@@ -899,7 +923,7 @@ Examples:
             print(f"Loaded data handler for {args.dataset} dataset")
         
         # Initialize visualizer
-        visualizer = VISUALS_CANDI(resolution=args.resolution, savedir=args.output_dir)
+        visualizer = VISUALS_CANDI(resolution=args.resolution, savedir=args.output_dir, signal_transform=args.signal_transform)
         
         # Generate plots
         if 'all' in args.plot_types:

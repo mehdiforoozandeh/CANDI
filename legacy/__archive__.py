@@ -11463,3 +11463,259 @@ class MONITOR_VALIDATION(object):
         plt.close(fig)
         
         return buf
+
+def negative_binomial_loss(y_true, n_pred, p_pred):
+    """
+        Negative binomial loss using PyTorch distributions.
+        
+        Parameters
+        ----------
+        y_true : torch.Tensor
+            Ground truth counts.
+        n_pred : torch.Tensor
+            total_count parameter (dispersion).
+        p_pred : torch.Tensor
+            probs parameter in YOUR convention where mean = n*(1-p)/p.
+            
+        Returns
+        -------
+        nll : torch.Tensor
+            Negative log likelihood per sample.
+            
+        Note
+        ----
+        PyTorch uses opposite convention: mean = n*p/(1-p)
+        So we pass (1-p) as probs to match your parameterization.
+    """
+    eps = 1e-8
+
+    # Clamp for numerical stability (soft bounds)
+    p_pred = torch.clamp(p_pred, min=eps, max=1 - eps)
+    n_pred = torch.clamp(n_pred, min=eps)
+
+    # IMPORTANT: PyTorch uses opposite convention!
+    # our code: mean = n * (1-p) / p
+    # PyTorch: mean = n * probs / (1-probs)
+    # So we pass (1-p) to match our code's convention
+    pytorch_probs = 1 - p_pred
+
+    # Create distribution and compute log prob
+    nb_dist = torch.distributions.NegativeBinomial(
+        total_count=n_pred, 
+        probs=pytorch_probs
+    )
+    
+    # Negative log likelihood
+    nll = -nb_dist.log_prob(y_true)
+    
+    # Handle any NaN/Inf
+    nll = torch.where(torch.isfinite(nll), nll, torch.zeros_like(nll))
+    
+    return nll
+
+
+# ======================================================================================== #
+# Archived CANDI_UNET (moved from model.py on request; kept here for reference only)
+# ======================================================================================== #
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+except Exception:
+    pass
+
+try:
+    from model import CANDI
+except Exception:
+    CANDI = object
+
+
+class CANDI_UNET(CANDI):
+    """
+    CANDI with U-Net skip connections.
+    """
+    def __init__(self, signal_dim, metadata_embedding_dim, conv_kernel_size, n_cnn_layers,
+                 nhead, n_sab_layers, pool_size=2, dropout=0.1, context_length=1600,
+                 pos_enc="relative", expansion_factor=3, separate_decoders=True,
+                 num_assays=35, num_runtypes=2, norm="layer", attention_type="dual",
+                 output_ff=False, dist_type="gaussian", xl_dna=False, mask_stem=False, signal_transform="arcsinh",
+                 decoder_type="fixed", moe_experts=4, nq_chunk_multiplier=1, condconv_k=3,
+                 condconv_routing="hybrid", condconv_gate_activation="sigmoid", condconv_conv_kernel_size="shared"):
+        super(CANDI_UNET, self).__init__(
+            signal_dim, metadata_embedding_dim,
+            conv_kernel_size, n_cnn_layers,
+            nhead, n_sab_layers,
+            pool_size, dropout,
+            context_length, pos_enc,
+            expansion_factor,
+            separate_decoders, num_assays, num_runtypes, norm, attention_type,
+            output_ff=output_ff,
+            dist_type=dist_type,
+            xl_dna=xl_dna,
+            mask_stem=mask_stem,
+            signal_transform=signal_transform,
+            decoder_type=decoder_type,
+            moe_experts=moe_experts,
+            nq_chunk_multiplier=nq_chunk_multiplier,
+            condconv_k=condconv_k,
+            condconv_routing=condconv_routing,
+            condconv_gate_activation=condconv_gate_activation,
+            condconv_conv_kernel_size=condconv_conv_kernel_size
+        )
+        if decoder_type != "fixed":
+            raise NotImplementedError("CANDI_UNET currently supports only decoder_type='fixed'.")
+
+        base_decoder = self.count_decoder if self.separate_decoders else self.decoder
+        self.unet_fuse = nn.ModuleList()
+        F_enc = self.f1 + 1
+        F_dec = self.f1
+        for i, dconv in enumerate(base_decoder.deconv):
+            out_C = dconv.deconv1.deconv.out_channels
+
+            enc_layer = self.encoder.convEnc[-(i + 1)]
+            enc_out_C = enc_layer.conv1.conv.out_channels
+            if enc_out_C % F_enc != 0:
+                raise ValueError(f"Encoder conv channels not divisible by (F+1). enc_out_C={enc_out_C}, F_enc={F_enc}")
+            d_skip = enc_out_C // F_enc
+            skip_C = F_dec * d_skip
+
+            fuse = nn.Conv1d(
+                in_channels=out_C + skip_C,
+                out_channels=out_C,
+                kernel_size=1,
+                groups=self.f1,
+            )
+
+            with torch.no_grad():
+                fuse.weight.zero_()
+                if fuse.bias is not None:
+                    fuse.bias.zero_()
+                d_dec = out_C // self.f1
+                for oc in range(out_C):
+                    fuse.weight[oc, oc % d_dec, 0] = 1.0
+
+            self.unet_fuse.append(fuse)
+
+        if self.separate_decoders:
+            for i in range(len(self.count_decoder.deconv)):
+                c_out = self.count_decoder.deconv[i].deconv1.deconv.out_channels
+                p_out = self.pval_decoder.deconv[i].deconv1.deconv.out_channels
+                k_out = self.peak_decoder.deconv[i].deconv1.deconv.out_channels
+                if not (c_out == p_out == k_out):
+                    raise ValueError(
+                        f"UNET requires identical decoder deconv channel schedules. "
+                        f"Stage {i}: count={c_out}, pval={p_out}, peak={k_out}"
+                    )
+
+    def _compute_skips(self, src, x_metadata):
+        mask = (src != -1) & (src != -2)
+        if self.signal_transform == 'arcsinh':
+            src = torch.where(mask, torch.arcsinh(src), src)
+        elif self.signal_transform == 'log1p':
+            src = torch.where(mask, torch.log1p(src), src)
+
+        x_metadata_embed = self.x_metadata_encoder(x_metadata)
+        x = src.permute(0, 2, 1)
+
+        if self.encoder.use_mask_stem:
+            x = self.encoder.mask_stem(x)
+
+        skips = []
+        for i, conv in enumerate(self.encoder.convEnc):
+            y = conv.conv1(x)
+            if conv.resid:
+                y = y + conv.rconv(x)
+            y = F.gelu(y)
+
+            skip = self.encoder.film_layers[i](y, x_metadata_embed)
+            skips.append(skip)
+
+            if conv.do_pool:
+                y_pooled = conv.pool(y)
+            else:
+                y_pooled = y
+            x = self.encoder.film_layers[i](y_pooled, x_metadata_embed)
+
+        return skips
+
+    def _unet_decode(self, z, y_metadata, skips, decoder):
+        y_metadata_embed = self.y_metadata_encoder(y_metadata)
+        x = z.permute(0, 2, 1)
+
+        for i, dconv in enumerate(decoder.deconv):
+            x = dconv(x)
+            skip = skips[-(i + 1)]
+
+            B, C_enc, L_enc = skip.shape
+            F_dec = y_metadata_embed.shape[1]
+            F_enc = F_dec + 1
+            if C_enc % F_enc != 0:
+                raise ValueError(f"UNET skip channels not divisible by F_enc. C_enc={C_enc}, F_enc={F_enc}")
+            d_per_assay = C_enc // F_enc
+            skip = skip.view(B, F_enc, d_per_assay, L_enc)[:, :F_dec, :, :].reshape(B, F_dec * d_per_assay, L_enc)
+
+            if skip.shape[-1] != x.shape[-1]:
+                L_min = min(skip.shape[-1], x.shape[-1])
+                skip = skip[..., :L_min]
+                x = x[..., :L_min]
+
+            F_assays = F_dec
+            if x.shape[1] % F_assays != 0 or skip.shape[1] % F_assays != 0:
+                raise ValueError(
+                    f"UNET fusion expects channels divisible by F. "
+                    f"x_C={x.shape[1]}, skip_C={skip.shape[1]}, F={F_assays}"
+                )
+            d_dec = x.shape[1] // F_assays
+            d_skip = skip.shape[1] // F_assays
+            x_a = x.view(B, F_assays, d_dec, x.shape[-1])
+            s_a = skip.view(B, F_assays, d_skip, x.shape[-1])
+            fused_in = torch.cat([x_a, s_a], dim=2).reshape(B, F_assays * (d_dec + d_skip), x.shape[-1])
+            x = F.gelu(self.unet_fuse[i](fused_in))
+            x = decoder.film_layers[i](x, y_metadata_embed)
+
+        x = x.permute(0, 2, 1)
+        return x
+
+    def forward(self, src, seq, x_metadata, y_metadata, availability=None, return_z=False, query_mask=None, query_mask_signal=None):
+        skips = self._compute_skips(src, x_metadata)
+        z = self.encode(src, seq, x_metadata)
+        z = self.latent_projection(z)
+
+        if self.separate_decoders:
+            count_decoded = self._unet_decode(z, y_metadata, skips, self.count_decoder)
+            pval_decoded = self._unet_decode(z, y_metadata, skips, self.pval_decoder)
+            peak_decoded = self._unet_decode(z, y_metadata, skips, self.peak_decoder)
+        else:
+            decoded = self._unet_decode(z, y_metadata, skips, self.decoder)
+            count_decoded = pval_decoded = peak_decoded = decoded
+
+        p, n = self.neg_binom_layer(count_decoded)
+
+        if self.dist_type == 'studentst':
+            mu, scale, df = self.signal_layer(pval_decoded)
+        else:
+            mu, scale = self.signal_layer(pval_decoded)
+            df = None
+
+        peak = self.peak_layer(peak_decoded)
+
+        if query_mask is not None:
+            count_decoded = self._project_with_query_mask(count_decoded, query_mask, fill_value=-1.0)
+            p = self._project_with_query_mask(p, query_mask, fill_value=-1.0)
+            n = self._project_with_query_mask(n, query_mask, fill_value=-1.0)
+            if query_mask_signal is not None:
+                mu = self._project_with_query_mask(mu, query_mask_signal, fill_value=-1.0)
+                scale = self._project_with_query_mask(scale, query_mask_signal, fill_value=-1.0)
+                peak = self._project_with_query_mask(peak, query_mask_signal, fill_value=-1.0)
+                if df is not None:
+                    df = self._project_with_query_mask(df, query_mask_signal, fill_value=-1.0)
+            else:
+                mu = self._project_with_query_mask(mu, query_mask, fill_value=-1.0)
+                scale = self._project_with_query_mask(scale, query_mask, fill_value=-1.0)
+                peak = self._project_with_query_mask(peak, query_mask, fill_value=-1.0)
+                if df is not None:
+                    df = self._project_with_query_mask(df, query_mask, fill_value=-1.0)
+
+        if return_z:
+            return p, n, mu, scale, df, peak, z
+        return p, n, mu, scale, df, peak

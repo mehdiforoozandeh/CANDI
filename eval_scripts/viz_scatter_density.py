@@ -83,7 +83,7 @@ def calculate_pearson_r(x, y):
         return np.nan
 
 
-def plot_density_scatter(data_dict, comparison_type, output_path, transform='none'):
+def plot_density_scatter(data_dict, comparison_type, output_path, transform='none', signal_transform='arcsinh'):
     """
     Create hexbin density plots for all biosample-assay pairs.
     
@@ -91,7 +91,8 @@ def plot_density_scatter(data_dict, comparison_type, output_path, transform='non
         data_dict: Dictionary mapping (biosample, assay) -> data
         comparison_type: 'imputed' or 'denoised'
         output_path: Path to save the plot
-        transform: 'none' or 'arcsinh'
+        transform: 'none' (apply inverse transform) or 'arcsinh' (keep in transformed space)
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
     """
     # Get unique biosamples and assays
     biosamples = sorted(set(k[0] for k in data_dict.keys()))
@@ -114,30 +115,63 @@ def plot_density_scatter(data_dict, comparison_type, output_path, transform='non
             
             data = data_dict[key]
             
-            # Data is stored in arcsinh space. Apply transformation based on request.
-            # 'arcsinh': Keep in arcsinh space (as stored)
-            # 'normal' or other: Convert to original space using sinh
+            # Data is stored in transformed space. Apply inverse transformation based on request.
+            # 'arcsinh': Keep in transformed space (as stored)
+            # 'none' or other: Convert to original space using inverse transform
             if transform == 'arcsinh':
-                # Keep in arcsinh space
+                # Keep in transformed space
                 obs = data['obs']
                 pred = data['pred_mu']
-                label_suffix = ' (arcsinh)'
+                label_suffix = f' ({signal_transform})'
             else:
-                # Convert back to original space (consistent with P_Pearson-GW in compute_metrics.py)
-                obs = np.sinh(data['obs'])
-                pred = np.sinh(data['pred_mu'])
+                # Convert back to original space
+                if signal_transform == 'arcsinh':
+                    obs = np.sinh(data['obs'])
+                    pred = np.sinh(data['pred_mu'])
+                elif signal_transform == 'log1p':
+                    obs = np.expm1(data['obs'])
+                    pred = np.expm1(data['pred_mu'])
+                else:  # 'none'
+                    obs = data['obs']
+                    pred = data['pred_mu']
                 label_suffix = ' (original)'
             
             # Calculate Pearson r
             r = calculate_pearson_r(obs, pred)
             
-            # Create hexbin plot with LogNorm
+            # Create hexbin plot - first without norm to check data
             hb = ax.hexbin(obs, pred, gridsize=100, cmap='viridis', 
-                          mincnt=1, bins='log', norm=LogNorm(), rasterized=True)
+                          mincnt=1, bins='log', rasterized=True)
+            
+            # Get counts from hexbin to validate LogNorm
+            counts = hb.get_array()
+            use_log_norm = False
+            if counts is not None and len(counts) > 0:
+                valid_counts = counts[counts > 0]
+                if len(valid_counts) > 0:
+                    vmin = float(valid_counts.min())
+                    vmax = float(valid_counts.max())
+                    # Only use LogNorm if vmin != vmax and both are positive
+                    if vmin > 0 and vmax > 0 and vmin != vmax:
+                        use_log_norm = True
+                        try:
+                            hb.set_norm(LogNorm(vmin=vmin, vmax=vmax))
+                        except (ValueError, ZeroDivisionError):
+                            # Fallback to linear norm if LogNorm fails
+                            use_log_norm = False
             
             # Add colorbar
-            cbar = plt.colorbar(hb, ax=ax)
-            cbar.set_label('Log10(Counts)', fontsize=10)
+            try:
+                cbar = plt.colorbar(hb, ax=ax)
+                if use_log_norm:
+                    cbar.set_label('Log10(Counts)', fontsize=10)
+                else:
+                    cbar.set_label('Counts', fontsize=10)
+            except (ValueError, ZeroDivisionError):
+                # If colorbar creation still fails, remove norm and retry
+                hb.set_norm(None)
+                cbar = plt.colorbar(hb, ax=ax)
+                cbar.set_label('Counts', fontsize=10)
             
             # Add diagonal line
             lim_min = min(obs.min(), pred.min())
@@ -158,7 +192,7 @@ def plot_density_scatter(data_dict, comparison_type, output_path, transform='non
     print(f"Saved hexbin density plot to {output_path}")
 
 
-def plot_std_scatter(data_dict, comparison_type, output_path, transform='none'):
+def plot_std_scatter(data_dict, comparison_type, output_path, transform='none', signal_transform='arcsinh'):
     """
     Create hexbin plots colored by predicted standard deviation.
     
@@ -166,7 +200,8 @@ def plot_std_scatter(data_dict, comparison_type, output_path, transform='none'):
         data_dict: Dictionary mapping (biosample, assay) -> data
         comparison_type: 'imputed' or 'denoised'
         output_path: Path to save the plot
-        transform: 'none' or 'arcsinh'
+        transform: 'none' (apply inverse transform) or 'arcsinh' (keep in transformed space)
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
     """
     # Get unique biosamples and assays
     biosamples = sorted(set(k[0] for k in data_dict.keys()))
@@ -189,18 +224,27 @@ def plot_std_scatter(data_dict, comparison_type, output_path, transform='none'):
             
             data = data_dict[key]
             
-            # Data is stored in arcsinh space. Apply transformation based on request.
+            # Data is stored in transformed space. Apply inverse transformation based on request.
             if transform == 'arcsinh':
-                # Keep in arcsinh space
+                # Keep in transformed space
                 obs = data['obs']
                 pred = data['pred_mu']
                 std_color = data['pred_std']
-                label_suffix = ' (arcsinh)'
+                label_suffix = f' ({signal_transform})'
             else:
-                # Convert back to original space
-                obs = np.sinh(data['obs'])
-                pred = np.sinh(data['pred_mu'])
-                std_color = np.sinh(data['pred_std'])
+                # Convert back to original space using inverse transform
+                if signal_transform == 'arcsinh':
+                    obs = np.sinh(data['obs'])
+                    pred = np.sinh(data['pred_mu'])
+                    std_color = np.sinh(data['pred_std'])
+                elif signal_transform == 'log1p':
+                    obs = np.expm1(data['obs'])
+                    pred = np.expm1(data['pred_mu'])
+                    std_color = np.expm1(data['pred_std'])
+                else:  # 'none'
+                    obs = data['obs']
+                    pred = data['pred_mu']
+                    std_color = data['pred_std']
                 label_suffix = ' (original)'
             
             # Calculate Pearson r
@@ -233,7 +277,7 @@ def plot_std_scatter(data_dict, comparison_type, output_path, transform='none'):
     print(f"Saved std-colored hexbin plot to {output_path}")
 
 
-def plot_cv_scatter(data_dict, comparison_type, output_path, transform='none'):
+def plot_cv_scatter(data_dict, comparison_type, output_path, transform='none', signal_transform='arcsinh'):
     """
     Create hexbin plots colored by coefficient of variation (CV = std/mean).
     
@@ -241,7 +285,8 @@ def plot_cv_scatter(data_dict, comparison_type, output_path, transform='none'):
         data_dict: Dictionary mapping (biosample, assay) -> data
         comparison_type: 'imputed' or 'denoised'
         output_path: Path to save the plot
-        transform: 'none' or 'arcsinh'
+        transform: 'none' (apply inverse transform) or 'arcsinh' (keep in transformed space)
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
     """
     # Get unique biosamples and assays
     biosamples = sorted(set(k[0] for k in data_dict.keys()))
@@ -264,21 +309,30 @@ def plot_cv_scatter(data_dict, comparison_type, output_path, transform='none'):
             
             data = data_dict[key]
             
-            # Data is stored in arcsinh space. Apply transformation based on request.
+            # Data is stored in transformed space. Apply inverse transformation based on request.
             if transform == 'arcsinh':
-                # Keep in arcsinh space
+                # Keep in transformed space
                 obs = data['obs']
                 pred = data['pred_mu']
-                # Calculate CV in arcsinh space
+                # Calculate CV in transformed space
                 cv = np.divide(data['pred_std'], data['pred_mu'], 
                               out=np.zeros_like(data['pred_std']), 
                               where=np.abs(data['pred_mu']) > 1e-8)
-                label_suffix = ' (arcsinh)'
+                label_suffix = f' ({signal_transform})'
             else:
-                # Convert back to original space
-                obs = np.sinh(data['obs'])
-                pred = np.sinh(data['pred_mu'])
-                pred_std_orig = np.sinh(data['pred_std'])
+                # Convert back to original space using inverse transform
+                if signal_transform == 'arcsinh':
+                    obs = np.sinh(data['obs'])
+                    pred = np.sinh(data['pred_mu'])
+                    pred_std_orig = np.sinh(data['pred_std'])
+                elif signal_transform == 'log1p':
+                    obs = np.expm1(data['obs'])
+                    pred = np.expm1(data['pred_mu'])
+                    pred_std_orig = np.expm1(data['pred_std'])
+                else:  # 'none'
+                    obs = data['obs']
+                    pred = data['pred_mu']
+                    pred_std_orig = data['pred_std']
                 # Calculate CV in original space
                 cv = np.divide(pred_std_orig, pred, 
                               out=np.zeros_like(pred_std_orig), 
@@ -343,6 +397,10 @@ Examples:
     parser.add_argument('--comparison-type', type=str, default='both', 
                        choices=['imputed', 'denoised', 'both'],
                        help='Which comparison type to plot (default: both)')
+    
+    parser.add_argument('--signal-transform', type=str, default='arcsinh',
+                       choices=['arcsinh', 'log1p', 'none'],
+                       help='Signal transformation used during training (default: arcsinh)')
     
     args = parser.parse_args()
     
@@ -426,37 +484,37 @@ Examples:
         print("  1/6: Hexbin density plot (normal space)...")
         plot_density_scatter(data_dict, comparison_type, 
                            output_dir / f"{comparison_type}_density_scatter_normal.svg",
-                           transform='none')
+                           transform='none', signal_transform=args.signal_transform)
         
-        # 2. Hexbin density plot - arcsinh space
-        print("  2/6: Hexbin density plot (arcsinh space)...")
+        # 2. Hexbin density plot - transformed space
+        print("  2/6: Hexbin density plot (transformed space)...")
         plot_density_scatter(data_dict, comparison_type,
-                           output_dir / f"{comparison_type}_density_scatter_arcsinh.svg",
-                           transform='arcsinh')
+                           output_dir / f"{comparison_type}_density_scatter_transformed.svg",
+                           transform='arcsinh', signal_transform=args.signal_transform)
         
         # 3. Std-colored hexbin - normal space
         print("  3/6: Std-colored hexbin (normal space)...")
         plot_std_scatter(data_dict, comparison_type,
                         output_dir / f"{comparison_type}_std_scatter_normal.svg",
-                        transform='none')
+                        transform='none', signal_transform=args.signal_transform)
         
-        # 4. Std-colored hexbin - arcsinh space
-        print("  4/6: Std-colored hexbin (arcsinh space)...")
+        # 4. Std-colored hexbin - transformed space
+        print("  4/6: Std-colored hexbin (transformed space)...")
         plot_std_scatter(data_dict, comparison_type,
-                        output_dir / f"{comparison_type}_std_scatter_arcsinh.svg",
-                        transform='arcsinh')
+                        output_dir / f"{comparison_type}_std_scatter_transformed.svg",
+                        transform='arcsinh', signal_transform=args.signal_transform)
         
         # 5. CV-colored hexbin - normal space
         print("  5/6: CV-colored hexbin (normal space)...")
         plot_cv_scatter(data_dict, comparison_type,
                        output_dir / f"{comparison_type}_cv_scatter_normal.svg",
-                       transform='none')
+                       transform='none', signal_transform=args.signal_transform)
         
-        # 6. CV-colored hexbin - arcsinh space
-        print("  6/6: CV-colored hexbin (arcsinh space)...")
+        # 6. CV-colored hexbin - transformed space
+        print("  6/6: CV-colored hexbin (transformed space)...")
         plot_cv_scatter(data_dict, comparison_type,
-                       output_dir / f"{comparison_type}_cv_scatter_arcsinh.svg",
-                       transform='arcsinh')
+                       output_dir / f"{comparison_type}_cv_scatter_transformed.svg",
+                       transform='arcsinh', signal_transform=args.signal_transform)
         
         print(f"\n✓ Completed all plots for {comparison_type} assays")
     

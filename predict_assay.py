@@ -19,7 +19,7 @@ import torch
 
 from pred import CANDIPredictor
 from data import CANDIDataHandler
-from _utils import NegativeBinomial, Gaussian
+from _utils import NegativeBinomial, Gaussian, StudentsT
 
 
 class SingleAssayPredictor:
@@ -317,10 +317,7 @@ class SingleAssayPredictor:
                     mY_2d = self.predictor.data_handler.fill_in_prompt(mY_2d, missing_value=-1, sample=False, use_mode=False)
                     print("Applied median/mode statistics fill-in-prompt to all assays")
                 
-                if batch_size > 1:
-                    mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
-                else:
-                    mY = mY_2d
+                mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
             
             if fill_y_prompt_spec is not None:
                 # Reshape mY to [4, E] format for fill_in_prompt_manual
@@ -349,18 +346,15 @@ class SingleAssayPredictor:
                 new_vals = mY_2d[:, assay_idx]
                 if not torch.equal(original_vals, new_vals):
                     print(f"Metadata overwritten for '{assay_name}':")
-                    print(f"  Before: depth={original_vals[0]:.2f}, platform={original_vals[1]:.0f}, "
+                    print(f"  Before: depth={original_vals[0]:.2f}, assay_id={original_vals[1]:.0f}, "
                           f"read_len={original_vals[2]:.0f}, run_type={original_vals[3]:.0f}")
-                    print(f"  After:  depth={new_vals[0]:.2f}, platform={new_vals[1]:.0f}, "
+                    print(f"  After:  depth={new_vals[0]:.2f}, assay_id={new_vals[1]:.0f}, "
                           f"read_len={new_vals[2]:.0f}, run_type={new_vals[3]:.0f}")
                 else:
                     print(f"Warning: Metadata for '{assay_name}' was NOT overwritten (not in spec or no change)")
                 
                 # Expand back to batch dimension using repeat() instead of expand() to ensure proper copy
-                if batch_size > 1:
-                    mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
-                else:
-                    mY = mY_2d
+                mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
                 print(f"Overwrote mdY prompt metadata with custom specification (batch_size={batch_size})")
             
             # Determine ground truth: use T_* if assay was masked there, otherwise B_*
@@ -419,10 +413,7 @@ class SingleAssayPredictor:
                     mY_2d = self.predictor.data_handler.fill_in_prompt(mY_2d, missing_value=-1, sample=False, use_mode=False)
                     print("Applied median/mode statistics fill-in-prompt to all assays")
                 
-                if batch_size > 1:
-                    mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
-                else:
-                    mY = mY_2d
+                mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
             
             if fill_y_prompt_spec is not None:
                 # Reshape mY to [4, E] format for fill_in_prompt_manual
@@ -451,18 +442,15 @@ class SingleAssayPredictor:
                 new_vals = mY_2d[:, assay_idx]
                 if not torch.equal(original_vals, new_vals):
                     print(f"Metadata overwritten for '{assay_name}':")
-                    print(f"  Before: depth={original_vals[0]:.2f}, platform={original_vals[1]:.0f}, "
+                    print(f"  Before: depth={original_vals[0]:.2f}, assay_id={original_vals[1]:.0f}, "
                           f"read_len={original_vals[2]:.0f}, run_type={original_vals[3]:.0f}")
-                    print(f"  After:  depth={new_vals[0]:.2f}, platform={new_vals[1]:.0f}, "
+                    print(f"  After:  depth={new_vals[0]:.2f}, assay_id={new_vals[1]:.0f}, "
                           f"read_len={new_vals[2]:.0f}, run_type={new_vals[3]:.0f}")
                 else:
                     print(f"Warning: Metadata for '{assay_name}' was NOT overwritten (not in spec or no change)")
                 
                 # Expand back to batch dimension using repeat() instead of expand() to ensure proper copy
-                if batch_size > 1:
-                    mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
-                else:
-                    mY = mY_2d
+                mY = mY_2d.unsqueeze(0).repeat(batch_size, 1, 1)
                 print(f"Overwrote mdY prompt metadata with custom specification (batch_size={batch_size})")
             
             Y_ground_truth = Y
@@ -470,9 +458,9 @@ class SingleAssayPredictor:
         
         # Run prediction
         if self.DNA:
-            n, p, mu, var, peak = self.predictor.predict(X, mX, mY, avX, seq, imp_target)
+            n, p, mu, var, df, peak = self.predictor.predict(X, mX, mY, avX, seq, imp_target)
         else:
-            n, p, mu, var, peak = self.predictor.predict(X, mX, mY, avX, None, imp_target)
+            n, p, mu, var, df, peak = self.predictor.predict(X, mX, mY, avX, None, imp_target)
         
         # Flatten predictions
         n = n.view((n.shape[0] * n.shape[1]), n.shape[-1])
@@ -481,9 +469,16 @@ class SingleAssayPredictor:
         var = var.view((var.shape[0] * var.shape[1]), var.shape[-1])
         peak = peak.view((peak.shape[0] * peak.shape[1]), peak.shape[-1])
         
+        if df is not None:
+            df = df.view((df.shape[0] * df.shape[1]), df.shape[-1])
+        
         # Extract predictions for this assay
         count_dist = NegativeBinomial(p[:, assay_idx], n[:, assay_idx])
-        pval_dist = Gaussian(mu[:, assay_idx], var[:, assay_idx])
+        
+        if df is not None:
+             pval_dist = StudentsT(mu[:, assay_idx], var[:, assay_idx], df[:, assay_idx])
+        else:
+             pval_dist = Gaussian(mu[:, assay_idx], var[:, assay_idx])
         
         count_mean = count_dist.mean().numpy()
         pval_mean = pval_dist.mean().numpy()
@@ -502,8 +497,20 @@ class SingleAssayPredictor:
                 pval_gt = P_ground_truth.view(-1, P_ground_truth.shape[-1])[:, assay_idx].numpy()
             else:
                 pval_gt = None
-            
-            peak_gt = Peak.view(-1, Peak.shape[-1])[:, assay_idx].numpy()
+
+            # Peak ground truth:
+            # - EIC impute path already builds merged Peak tensor.
+            # - EIC denoise path does not, so load from current biosample here.
+            if "Peak" in locals():
+                peak_tensor = Peak
+            else:
+                temp_peak = self.predictor.data_handler.load_bios_Peaks(bios_name, locus)
+                peak_tensor, _ = self.predictor.data_handler.make_bios_tensor_Peaks(temp_peak)
+                num_rows = (peak_tensor.shape[0] // self.context_length) * self.context_length
+                peak_tensor = peak_tensor[:num_rows, :]
+                peak_tensor = peak_tensor.view(-1, self.context_length, peak_tensor.shape[-1])
+
+            peak_gt = peak_tensor.view(-1, peak_tensor.shape[-1])[:, assay_idx].numpy()
         else:
             # Merged dataset
             count_gt = Y_ground_truth.view(-1, Y_ground_truth.shape[-1])[:, assay_idx].numpy()
@@ -527,7 +534,7 @@ class SingleAssayPredictor:
                 "pval": pval_mean,
                 "peak_scores": peak_scores,
                 "count_params": {"p": p[:, assay_idx].numpy(), "n": n[:, assay_idx].numpy()},
-                "pval_params": {"mu": mu[:, assay_idx].numpy(), "var": var[:, assay_idx].numpy()}
+                "pval_params": {"mu": mu[:, assay_idx].numpy(), "var": var[:, assay_idx].numpy(), "df": df[:, assay_idx].numpy() if df is not None else None}
             },
             "ground_truth": {
                 "count": count_gt,
@@ -586,22 +593,52 @@ class SingleAssayPredictor:
         pval_pred = result["predictions"]["pval"]
         peak_pred = result["predictions"]["peak_scores"]
         
-        # Apply sinh transformation to p-values (inverse of arcsinh used during training)
-        # Clip to prevent overflow in sinh (sinh overflows around 710)
-        # Conservative clipping: sinh(20) ≈ 2.4e8, which is reasonable for p-values
-        # P_target = np.clip(P_target, -20, 20)
-        # pval_pred = np.clip(pval_pred, -20, 20)
-        P_target = np.sinh(P_target)
-        pval_pred = np.sinh(pval_pred)
+        # Apply inverse transformation to p-values based on model's signal_transform
+        P_target = self.predictor.inverse_transform(P_target)
+        pval_pred = self.predictor.inverse_transform(pval_pred)
         
         # Import metrics
         from _utils import METRICS
         metrics = METRICS()
         
-        def safe_metric(fn, *args):
+        metric_warnings = []
+
+        def safe_metric(name, fn, y_true, y_pred, metric_type="generic"):
+            y_true = np.asarray(y_true).reshape(-1)
+            y_pred = np.asarray(y_pred).reshape(-1)
+            valid = np.isfinite(y_true) & np.isfinite(y_pred)
+            n_valid = int(valid.sum())
+
+            if n_valid == 0:
+                metric_warnings.append(f"{name}: no finite paired values")
+                return np.nan
+
+            y_true = y_true[valid]
+            y_pred = y_pred[valid]
+
+            if metric_type == "corr":
+                if n_valid < 2:
+                    metric_warnings.append(f"{name}: need at least 2 finite points, got {n_valid}")
+                    return np.nan
+                if np.std(y_true) == 0 or np.std(y_pred) == 0:
+                    metric_warnings.append(f"{name}: constant vector detected (undefined correlation)")
+                    return np.nan
+            elif metric_type == "auc":
+                uniq = np.unique(y_true)
+                if uniq.shape[0] < 2:
+                    metric_warnings.append(
+                        f"{name}: requires both classes in peak ground truth, got classes={uniq.tolist()}"
+                    )
+                    return np.nan
+
             try:
-                return fn(*args)
+                value = fn(y_true, y_pred)
+                if not np.isfinite(value):
+                    metric_warnings.append(f"{name}: produced non-finite value")
+                    return np.nan
+                return float(value)
             except Exception as e:
+                metric_warnings.append(f"{name}: {type(e).__name__}: {e}")
                 return np.nan
         
         # Compute metrics
@@ -612,39 +649,42 @@ class SingleAssayPredictor:
             "comparison": task,
             
             # Count metrics
-            "C_MSE-GW": safe_metric(metrics.mse, C_target, count_pred),
-            "C_Pearson-GW": safe_metric(metrics.pearson, C_target, count_pred),
-            "C_Spearman-GW": safe_metric(metrics.spearman, C_target, count_pred),
+            "C_MSE-GW": safe_metric("C_MSE-GW", metrics.mse, C_target, count_pred),
+            "C_Pearson-GW": safe_metric("C_Pearson-GW", metrics.pearson, C_target, count_pred, metric_type="corr"),
+            "C_Spearman-GW": safe_metric("C_Spearman-GW", metrics.spearman, C_target, count_pred, metric_type="corr"),
             
             # P-value metrics
-            "P_MSE-GW": safe_metric(metrics.mse, P_target, pval_pred),
-            "P_Pearson-GW": safe_metric(metrics.pearson, P_target, pval_pred),
-            "P_Spearman-GW": safe_metric(metrics.spearman, P_target, pval_pred),
+            "P_MSE-GW": safe_metric("P_MSE-GW", metrics.mse, P_target, pval_pred),
+            "P_Pearson-GW": safe_metric("P_Pearson-GW", metrics.pearson, P_target, pval_pred, metric_type="corr"),
+            "P_Spearman-GW": safe_metric("P_Spearman-GW", metrics.spearman, P_target, pval_pred, metric_type="corr"),
             
             # Peak metrics
-            "Peak_AUCROC-GW": safe_metric(metrics.aucroc, Peak_target, peak_pred) if Peak_target is not None else np.nan,
+            "Peak_AUCROC-GW": safe_metric("Peak_AUCROC-GW", metrics.aucroc, Peak_target, peak_pred, metric_type="auc") if Peak_target is not None else np.nan,
         }
         
         if not quick:
             # Add more detailed metrics
             metrics_dict.update({
-                "C_MSE-gene": safe_metric(metrics.mse_gene, C_target, count_pred),
-                "C_Pearson_gene": safe_metric(metrics.pearson_gene, C_target, count_pred),
-                "C_Spearman_gene": safe_metric(metrics.spearman_gene, C_target, count_pred),
-                "C_MSE-prom": safe_metric(metrics.mse_prom, C_target, count_pred),
-                "C_Pearson_prom": safe_metric(metrics.pearson_prom, C_target, count_pred),
-                "C_Spearman_prom": safe_metric(metrics.spearman_prom, C_target, count_pred),
+                "C_MSE-gene": safe_metric("C_MSE-gene", metrics.mse_gene, C_target, count_pred),
+                "C_Pearson_gene": safe_metric("C_Pearson_gene", metrics.pearson_gene, C_target, count_pred, metric_type="corr"),
+                "C_Spearman_gene": safe_metric("C_Spearman_gene", metrics.spearman_gene, C_target, count_pred, metric_type="corr"),
+                "C_MSE-prom": safe_metric("C_MSE-prom", metrics.mse_prom, C_target, count_pred),
+                "C_Pearson_prom": safe_metric("C_Pearson_prom", metrics.pearson_prom, C_target, count_pred, metric_type="corr"),
+                "C_Spearman_prom": safe_metric("C_Spearman_prom", metrics.spearman_prom, C_target, count_pred, metric_type="corr"),
                 
-                "P_MSE-gene": safe_metric(metrics.mse_gene, P_target, pval_pred),
-                "P_Pearson_gene": safe_metric(metrics.pearson_gene, P_target, pval_pred),
-                "P_Spearman_gene": safe_metric(metrics.spearman_gene, P_target, pval_pred),
-                "P_MSE-prom": safe_metric(metrics.mse_prom, P_target, pval_pred),
-                "P_Pearson_prom": safe_metric(metrics.pearson_prom, P_target, pval_pred),
-                "P_Spearman_prom": safe_metric(metrics.spearman_prom, P_target, pval_pred),
+                "P_MSE-gene": safe_metric("P_MSE-gene", metrics.mse_gene, P_target, pval_pred),
+                "P_Pearson_gene": safe_metric("P_Pearson_gene", metrics.pearson_gene, P_target, pval_pred, metric_type="corr"),
+                "P_Spearman_gene": safe_metric("P_Spearman_gene", metrics.spearman_gene, P_target, pval_pred, metric_type="corr"),
+                "P_MSE-prom": safe_metric("P_MSE-prom", metrics.mse_prom, P_target, pval_pred),
+                "P_Pearson_prom": safe_metric("P_Pearson_prom", metrics.pearson_prom, P_target, pval_pred, metric_type="corr"),
+                "P_Spearman_prom": safe_metric("P_Spearman_prom", metrics.spearman_prom, P_target, pval_pred, metric_type="corr"),
                 
-                "Peak_AUCROC-gene": safe_metric(metrics.aucroc_gene, Peak_target, peak_pred) if Peak_target is not None else np.nan,
-                "Peak_AUCROC-prom": safe_metric(metrics.aucroc_prom, Peak_target, peak_pred) if Peak_target is not None else np.nan,
+                "Peak_AUCROC-gene": safe_metric("Peak_AUCROC-gene", metrics.aucroc_gene, Peak_target, peak_pred, metric_type="auc") if Peak_target is not None else np.nan,
+                "Peak_AUCROC-prom": safe_metric("Peak_AUCROC-prom", metrics.aucroc_prom, Peak_target, peak_pred, metric_type="auc") if Peak_target is not None else np.nan,
             })
+
+        if len(metric_warnings) > 0:
+            metrics_dict["metric_warnings"] = metric_warnings
         
         return metrics_dict
     
@@ -792,7 +832,6 @@ Examples:
                           --dataset merged \\
                           --depth 50000000 \\
                           --read-length 100 \\
-                          --sequencing-platform "Illumina HiSeq 4000" \\
                           --run-type paired-ended \\
                           --print-metrics
 
@@ -837,8 +876,6 @@ Examples:
                        help='Depth value for target assay (overrides JSON file if provided)')
     parser.add_argument('--read-length', type=float, default=None,
                        help='Read length for target assay (overrides JSON file if provided)')
-    parser.add_argument('--sequencing-platform', type=str, default=None,
-                       help='Sequencing platform for target assay (overrides JSON file if provided)')
     parser.add_argument('--run-type', type=str, choices=['single-ended', 'paired-ended'], default=None,
                        help='Run type for target assay: "single-ended" or "paired-ended" (overrides JSON file if provided)')
     
@@ -877,8 +914,6 @@ Examples:
         explicit_metadata["depth"] = args.depth
     if args.read_length is not None:
         explicit_metadata["read_length"] = args.read_length
-    if args.sequencing_platform is not None:
-        explicit_metadata["sequencing_platform"] = args.sequencing_platform
     if args.run_type is not None:
         explicit_metadata["run_type"] = args.run_type
     

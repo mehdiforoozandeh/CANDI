@@ -1,0 +1,4 @@
+[baseline] host=fc11013 partition=gpubase_bygpu_b1 job=37331383 name=anchor batch=32 h5=sandbox/data/sandbox.h5 epochs=10 seed=42
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-4e5b764a-7182-22a3-9880-adbdeb31ab5d)
+  MIG 1g.10gb     Device  0: (UUID: MIG-fe0f0e11-0fdb-5680-87ff-4bfef022903f)
+[baseline] DONE — metrics at sandbox/runs/baseline_anchor/metrics.jsonl

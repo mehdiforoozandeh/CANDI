@@ -11,16 +11,32 @@ Author: CANDI Team
 import argparse
 import sys
 import os
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Set
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+import torch
 
 # Import from project
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _utils import Gaussian
+from _utils import Gaussian, Laplace, StudentsT, Gamma
+
+
+def get_dist_type(model_dir: Path) -> str:
+    """Load model configuration to determine distribution type."""
+    config_files = list(model_dir.glob("*_config.json"))
+    if not config_files:
+        print(f"Warning: No config JSON file found in {model_dir}. Assuming gaussian.")
+        return "gaussian"
+    
+    config_path = config_files[0]
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    return config.get('dist-type', config.get('dist_type', 'gaussian'))
 
 
 def load_predictions_from_npz(preds_dir: Path, biosample: str) -> Dict[str, Dict[str, np.ndarray]]:
@@ -219,20 +235,30 @@ def organize_predictions_by_type(
     return data
 
 
-def get_calibration_curve(mu: np.ndarray, var: np.ndarray, obs: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def get_calibration_curve(mu: np.ndarray, var: np.ndarray, obs: np.ndarray, dist_type: str = "gaussian", df: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute calibration curve: empirical fraction within c% confidence interval vs c.
     
     Args:
         mu: Predicted means
-        var: Predicted variances
+        var: Predicted variances (or log_b for Laplace, alpha for Gamma)
         obs: Observed values
+        dist_type: Distribution type
+        df: Degrees of freedom (for studentst distribution)
         
     Returns:
         Tuple of (confidence_levels, empirical_fractions)
     """
-    # Create Gaussian distribution
-    gaussian = Gaussian(mu, var)
+    # Create distribution
+    if dist_type in ['laplace', 'laplace_const', 'mae']:
+        dist = Laplace(torch.tensor(mu), torch.tensor(var))
+    elif dist_type == 'studentst' and df is not None:
+        dist = StudentsT(torch.tensor(mu), torch.tensor(var), torch.tensor(df))
+    elif dist_type == 'gamma':
+        dist = Gamma(torch.tensor(mu), torch.tensor(var))
+    else:
+        # gaussian, gaussian_const, mse, etc.
+        dist = Gaussian(torch.tensor(mu), torch.tensor(var))
     
     # Confidence levels from 0 to 1 in 0.01 intervals
     confidence_levels = np.arange(0.0, 1.01, 0.01)
@@ -245,7 +271,7 @@ def get_calibration_curve(mu: np.ndarray, var: np.ndarray, obs: np.ndarray) -> T
             empirical_fractions.append(1.0)
         else:
             # Get confidence interval
-            lower, upper = gaussian.interval(c)
+            lower, upper = dist.interval(c)
             lower = lower.numpy() if hasattr(lower, 'numpy') else lower
             upper = upper.numpy() if hasattr(upper, 'numpy') else upper
             
@@ -259,7 +285,8 @@ def get_calibration_curve(mu: np.ndarray, var: np.ndarray, obs: np.ndarray) -> T
 def plot_calibration(
     data: Dict[str, Dict[str, Dict[str, Dict[str, np.ndarray]]]],
     comparison_type: str,
-    output_path: Path
+    output_path: Path,
+    dist_type: str = "gaussian"
 ):
     """
     Generate calibration plots: one panel per assay type, one line per biosample.
@@ -268,6 +295,7 @@ def plot_calibration(
         data: Organized prediction data
         comparison_type: "imputed" or "denoised"
         output_path: Path to save figure
+        dist_type: Distribution type
     """
     if comparison_type not in data or not data[comparison_type]:
         print(f"Warning: No data found for comparison type '{comparison_type}'")
@@ -325,9 +353,10 @@ def plot_calibration(
             mu = pred_data["mu"]
             var = pred_data["var"]
             obs = pred_data["obs"]
+            df = pred_data.get("df", None)
             
             try:
-                conf_levels, emp_fracs = get_calibration_curve(mu, var, obs)
+                conf_levels, emp_fracs = get_calibration_curve(mu, var, obs, dist_type, df=df)
                 ax.plot(conf_levels, emp_fracs, '-', color=biosample_colors[biosample], 
                        linewidth=1.5, label=biosample, alpha=0.8)
             except Exception as e:
@@ -359,24 +388,27 @@ def plot_signal_loci(
     loci_coords: List[Tuple[int, int]],
     resolution: int,
     output_path: Path,
-    use_sinh_transform: bool = True
+    use_sinh_transform: bool = True,
+    dist_type: str = "gaussian",
+    signal_transform: str = 'arcsinh'
 ):
     """
     Generate genomic loci signal visualization with confidence intervals.
     
     Two spaces:
-    1. Normal space: sinh(arcsinh(P)) = P (original P values)
-    2. Arcsinh space: arcsinh(P) (transformed space where mu/var are stored)
+    1. Normal space: inverse_transform(transform(P)) = P (original P values)
+    2. Transformed space: transform(P) (transformed space where mu/var are stored)
     
     Args:
-        data: Organized prediction data (mu/var are in arcsinh space)
+        data: Organized prediction data (mu/var are in transformed space)
         comparison_type: "imputed" or "denoised"
         loci_coords: List of (start, end) tuples in base pairs
         resolution: Bin resolution in bp
         output_path: Path to save figure
-        use_sinh_transform: If True, transform from arcsinh space to normal space using sinh()
-                           (sinh(arcsinh(P)) = P) with log scale y-axis.
-                           If False, stay in arcsinh space with linear scale y-axis.
+        use_sinh_transform: If True, transform from transformed space to normal space using inverse.
+                           If False, stay in transformed space.
+        dist_type: Distribution type
+        signal_transform: Signal transformation type ('arcsinh', 'log1p', 'none')
     """
     if comparison_type not in data or not data[comparison_type]:
         print(f"Warning: No data found for comparison type '{comparison_type}'")
@@ -427,23 +459,44 @@ def plot_signal_loci(
         mu = pred_data["mu"]
         var = pred_data["var"]
         obs = pred_data["obs"]
+        df = pred_data.get("df", None)
         
-        # Create Gaussian for confidence intervals
-        gaussian = Gaussian(mu, var)
-        lower_95, upper_95 = gaussian.interval(0.95)
+        # Create distribution for confidence intervals
+        if dist_type in ['laplace', 'laplace_const', 'mae']:
+            dist = Laplace(torch.tensor(mu), torch.tensor(var))
+        elif dist_type == 'studentst' and df is not None:
+            dist = StudentsT(torch.tensor(mu), torch.tensor(var), torch.tensor(df))
+        elif dist_type == 'gamma':
+            dist = Gamma(torch.tensor(mu), torch.tensor(var))
+        else:
+            # gaussian, gaussian_const, mse, etc.
+            dist = Gaussian(torch.tensor(mu), torch.tensor(var))
+            
+        lower_95, upper_95 = dist.interval(0.95)
         lower_95 = lower_95.numpy() if hasattr(lower_95, 'numpy') else lower_95
         upper_95 = upper_95.numpy() if hasattr(upper_95, 'numpy') else upper_95
         
-        # Apply transform based on use_sinh_transform flag
-        # Note: mu, var, obs are stored in arcsinh space
+        # Apply transform based on use_sinh_transform flag and signal_transform type
+        # Note: mu, var, obs are stored in transformed space
         if use_sinh_transform:
-            # Transform from arcsinh space to normal space: sinh(arcsinh(P)) = P
-            mu_plot = np.sinh(mu)
-            lower_95_plot = np.sinh(lower_95)
-            upper_95_plot = np.sinh(upper_95)
-            obs_plot = np.sinh(obs)
+            # Transform from transformed space to normal space
+            if signal_transform == 'arcsinh':
+                mu_plot = np.sinh(mu)
+                lower_95_plot = np.sinh(lower_95)
+                upper_95_plot = np.sinh(upper_95)
+                obs_plot = np.sinh(obs)
+            elif signal_transform == 'log1p':
+                mu_plot = np.expm1(mu)
+                lower_95_plot = np.expm1(lower_95)
+                upper_95_plot = np.expm1(upper_95)
+                obs_plot = np.expm1(obs)
+            else:  # 'none'
+                mu_plot = mu
+                lower_95_plot = lower_95
+                upper_95_plot = upper_95
+                obs_plot = obs
         else:
-            # Stay in arcsinh space (no transform)
+            # Stay in transformed space (no inverse transform)
             mu_plot = mu
             lower_95_plot = lower_95
             upper_95_plot = upper_95
@@ -564,6 +617,13 @@ def main():
         default=25,
         help="Bin resolution in bp (default: 25)"
     )
+    parser.add_argument(
+        "--signal-transform",
+        type=str,
+        default='arcsinh',
+        choices=['arcsinh', 'log1p', 'none'],
+        help="Signal transformation used during training (default: arcsinh)"
+    )
     
     args = parser.parse_args()
     
@@ -574,6 +634,10 @@ def main():
     # Create output directory
     viz_dir = model_dir / "viz"
     viz_dir.mkdir(exist_ok=True)
+    
+    # Determine distribution type
+    dist_type = get_dist_type(model_dir)
+    print(f"Distribution type: {dist_type}")
     
     # Load and organize predictions
     print("Loading predictions...")
@@ -602,7 +666,7 @@ def main():
     for comparison_type in ["imputed", "denoised"]:
         print(f"\n  Processing {comparison_type} predictions...")
         output_path = viz_dir / f"calibration_{comparison_type}.svg"
-        plot_calibration(data, comparison_type, output_path)
+        plot_calibration(data, comparison_type, output_path, dist_type)
     
     # Generate signal loci plots (both normal space and arcsinh space versions)
     print("\nGenerating signal loci plots...")
@@ -610,14 +674,14 @@ def main():
         print(f"\n  Processing {comparison_type} predictions...")
         
         # Version 1: Normal space (sinh(arcsinh(P)) = P) with log scale
-        print(f"    Generating normal space version (sinh transform, log scale)...")
-        output_path = viz_dir / f"signal_loci_{comparison_type}_sinh.svg"
-        plot_signal_loci(data, comparison_type, loci_coords, args.resolution, output_path, use_sinh_transform=True)
+        print(f"    Generating normal space version (inverse transform, log scale)...")
+        output_path = viz_dir / f"signal_loci_{comparison_type}_normal.svg"
+        plot_signal_loci(data, comparison_type, loci_coords, args.resolution, output_path, use_sinh_transform=True, dist_type=dist_type, signal_transform=args.signal_transform)
         
-        # Version 2: Arcsinh space with linear scale
-        print(f"    Generating arcsinh space version (no transform, linear scale)...")
-        output_path = viz_dir / f"signal_loci_{comparison_type}_arcsinh.svg"
-        plot_signal_loci(data, comparison_type, loci_coords, args.resolution, output_path, use_sinh_transform=False)
+        # Version 2: Transformed space with linear scale
+        print(f"    Generating transformed space version (no inverse transform, linear scale)...")
+        output_path = viz_dir / f"signal_loci_{comparison_type}_transformed.svg"
+        plot_signal_loci(data, comparison_type, loci_coords, args.resolution, output_path, use_sinh_transform=False, dist_type=dist_type, signal_transform=args.signal_transform)
     
     print("\n✓ All visualizations complete!")
 

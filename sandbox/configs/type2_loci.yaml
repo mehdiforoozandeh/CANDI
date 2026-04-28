@@ -1,0 +1,6 @@
+data:
+  regime: type2_loci
+  region_stratified_loss: true
+
+training:
+  eval_each_epoch: true

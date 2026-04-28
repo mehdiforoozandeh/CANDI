@@ -1,0 +1,3 @@
+[baseline] host=fc11016 partition=gpubase_bygpu_b1 job=37337641 name=assay_mask_only batch=32 h5=sandbox/data/sandbox.h5 epochs=200 seed=42
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-01d9296e-60fa-c399-3f4d-049e2b0f5278)
+  MIG 1g.10gb     Device  0: (UUID: MIG-7ed9401b-3840-5b44-9aea-682ebf3fec40)

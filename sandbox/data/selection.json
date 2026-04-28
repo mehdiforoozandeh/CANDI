@@ -1,0 +1,97 @@
+{
+  "assays": [
+    "ATAC-seq",
+    "DNase-seq",
+    "H3K4me3",
+    "H3K4me1",
+    "H3K27ac",
+    "H3K27me3",
+    "H3K36me3",
+    "H3K9me3"
+  ],
+  "biosamples": [
+    {
+      "name": "DND-41",
+      "T": [
+        "H3K27me3",
+        "H3K36me3",
+        "H3K4me1",
+        "H3K4me3",
+        "H3K9me3"
+      ],
+      "V": [
+        "H3K27ac"
+      ],
+      "B": [
+        "ATAC-seq",
+        "DNase-seq"
+      ],
+      "total_score": 8
+    },
+    {
+      "name": "RWPE2",
+      "T": [
+        "H3K27ac"
+      ],
+      "V": [],
+      "B": [
+        "ATAC-seq",
+        "DNase-seq",
+        "H3K27me3",
+        "H3K36me3",
+        "H3K4me1",
+        "H3K4me3",
+        "H3K9me3"
+      ],
+      "total_score": 8
+    },
+    {
+      "name": "heart_left_ventricle",
+      "T": [
+        "ATAC-seq",
+        "DNase-seq",
+        "H3K27ac",
+        "H3K27me3",
+        "H3K36me3",
+        "H3K4me1",
+        "H3K9me3"
+      ],
+      "V": [
+        "H3K4me3"
+      ],
+      "B": [],
+      "total_score": 8
+    },
+    {
+      "name": "H1-hESC",
+      "T": [
+        "DNase-seq",
+        "H3K27ac",
+        "H3K27me3",
+        "H3K36me3",
+        "H3K4me1",
+        "H3K4me3"
+      ],
+      "V": [
+        "H3K9me3"
+      ],
+      "B": [],
+      "total_score": 7
+    },
+    {
+      "name": "H9",
+      "T": [
+        "DNase-seq",
+        "H3K27ac",
+        "H3K27me3",
+        "H3K36me3",
+        "H3K4me1",
+        "H3K4me3",
+        "H3K9me3"
+      ],
+      "V": [],
+      "B": [],
+      "total_score": 7
+    }
+  ]
+}

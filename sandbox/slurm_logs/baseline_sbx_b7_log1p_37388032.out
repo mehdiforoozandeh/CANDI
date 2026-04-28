@@ -1,0 +1,4 @@
+[baseline] host=fc10607 partition=gpubase_bygpu_b2 job=37388032 name=log1p_type1 batch=32 h5=sandbox/data/sandbox.h5 epochs=200 seed=42 regime_config=sandbox/configs/type1_chr19.yaml
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-840d8c9f-7f51-c1e8-585c-1ca9b3da06f8)
+  MIG 1g.10gb     Device  0: (UUID: MIG-4675145b-de3a-576c-9f7c-3432d95b5385)
+[baseline] DONE — metrics at sandbox/runs/baseline_log1p_type1/metrics.jsonl

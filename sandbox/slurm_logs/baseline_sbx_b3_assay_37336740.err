@@ -1,0 +1,50 @@
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+wandb: Currently logged in as: mforooz (mforoozz) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Changes to your `wandb` environment variables will be ignored because your `wandb` session has already started. For more information on how to modify your settings with `wandb.init()` arguments, please refer to https://wandb.me/wandb-init.
+wandb: creating run
+wandb: Tracking run with wandb version 0.21.2
+wandb: Run data is saved locally in /project/6014832/mforooz/EpiDenoise/wandb/run-20260426_001528-2h0i0cvd
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run baseline_assay_mask_only
+wandb: ⭐️ View project at https://wandb.ai/mforoozz/candi_sandbox
+wandb: 🚀 View run at https://wandb.ai/mforoozz/candi_sandbox/runs/2h0i0cvd
+[sandbox] Loaded canonical metadata for 8 assay types from data/eic_metadata.csv
+Traceback (most recent call last):
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 909, in <module>
+    raise SystemExit(main())
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 799, in main
+    global_step = train_one_epoch(
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 331, in train_one_epoch
+    loss_term_grad_norms[f"grad_norm_{raw_key}"] = _global_grad_norm_for_loss(model, term)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 128, in _global_grad_norm_for_loss
+    grads = torch.autograd.grad(loss, params, retain_graph=True, allow_unused=True)
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/autograd/__init__.py", line 496, in grad
+    result = _engine_run_backward(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/autograd/graph.py", line 823, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn
+Traceback (most recent call last):
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 909, in <module>
+    raise SystemExit(main())
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 799, in main
+    global_step = train_one_epoch(
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 331, in train_one_epoch
+    loss_term_grad_norms[f"grad_norm_{raw_key}"] = _global_grad_norm_for_loss(model, term)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 128, in _global_grad_norm_for_loss
+    grads = torch.autograd.grad(loss, params, retain_graph=True, allow_unused=True)
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/autograd/__init__.py", line 496, in grad
+    result = _engine_run_backward(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/autograd/graph.py", line 823, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn

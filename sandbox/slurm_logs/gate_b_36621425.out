@@ -1,0 +1,27 @@
+[gate_b] host=fc30554 eic=/project/6014832/mforooz/DATA_CANDI_EIC h5=sandbox/data/sandbox.h5
+Number of assays: 35
+Number of assays: 8
+Number of assays: 35
+Number of assays: 8
+[gate_b] bake size:
+1.6G	sandbox/data/sandbox.h5
+[gate_b] validate-parity (full grid)
+Number of assays: 35
+Number of assays: 8
+[gate_b] parity.ok contents:
+{
+  "status": "pass",
+  "timestamp": 1776881122.6153991,
+  "git_sha": "4d637b9ea6b494c557a9312c248016f9b08cae5a",
+  "h5_path": "sandbox/data/sandbox.h5",
+  "n_probes_executed": 640,
+  "source_mtimes": {
+    "/project/6014832/mforooz/EpiDenoise/data.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/data_h5.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/model.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/train.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/reference_sample.py": 1776877956.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/prepare_h5.py": 1776878723.0,
+    "/project/6014832/mforooz/EpiDenoise/sandbox/data.py": 1776877956.0
+  }
+}[gate_b] DONE

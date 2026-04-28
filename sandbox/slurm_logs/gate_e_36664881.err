@@ -1,0 +1,13 @@
+overfit-sanity: using regime=type2_loci
+Traceback (most recent call last):
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/prepare_h5.py", line 725, in <module>
+    raise SystemExit(main())
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/prepare_h5.py", line 721, in main
+    return int(args.func(args))
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/prepare_h5.py", line 646, in cmd_overfit_sanity
+    raise AssertionError(
+AssertionError: Gate E fail head obs_count: 1.75197 -> 1.38318 (need >=25% relative drop)

@@ -1,0 +1,134 @@
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+wandb: Currently logged in as: mforooz (mforoozz) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Changes to your `wandb` environment variables will be ignored because your `wandb` session has already started. For more information on how to modify your settings with `wandb.init()` arguments, please refer to https://wandb.me/wandb-init.
+wandb: creating run
+wandb: Tracking run with wandb version 0.21.2
+wandb: Run data is saved locally in /project/6014832/mforooz/EpiDenoise/wandb/run-20260423_021904-r4fl0zgi
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run gate_f_attempt1
+wandb: ⭐️ View project at https://wandb.ai/mforoozz/candi_sandbox
+wandb: 🚀 View run at https://wandb.ai/mforoozz/candi_sandbox/runs/r4fl0zgi
+{
+  "epoch": 0,
+  "eval": {
+    "den_pval_mse_gw": 0.06399223664775491,
+    "den_pval_rmse_gw": 0.23101969473063946,
+    "den_pval_pearson_gw": 0.3196706228889525,
+    "den_pval_spearman_gw": 0.3208999885711819,
+    "den_pval_mse_1obs": 0.06399223664775491,
+    "den_pval_rmse_1obs": 0.23101969473063946,
+    "den_pval_pearson_1obs": 0.3196706228889525,
+    "den_pval_spearman_1obs": 0.3208999885711819,
+    "imp_pval_mse_gw": 1.0725433168311913,
+    "imp_pval_rmse_gw": 0.8834215665856997,
+    "imp_pval_pearson_gw": 0.1466728965441386,
+    "imp_pval_spearman_gw": 0.1027007049570481,
+    "imp_pval_mse_1obs": 1.0725433168311913,
+    "imp_pval_rmse_1obs": 0.8834215665856997,
+    "imp_pval_pearson_1obs": 0.1466728965441386,
+    "imp_pval_spearman_1obs": 0.1027007049570481
+  }
+}
+{
+  "epoch": 0,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 1.0022114515304565,
+    "probe/readlen_mse": 4.849624747294001e-05,
+    "probe/runtype_mse": 4.605259164236486e-05
+  }
+}
+{
+  "epoch": 1,
+  "eval": {
+    "den_pval_mse_gw": 0.05247435308992863,
+    "den_pval_rmse_gw": 0.21147310212254525,
+    "den_pval_pearson_gw": 0.31001377403736113,
+    "den_pval_spearman_gw": 0.27304929642705245,
+    "den_pval_mse_1obs": 0.05247435308992863,
+    "den_pval_rmse_1obs": 0.21147310212254525,
+    "den_pval_pearson_1obs": 0.31001377403736113,
+    "den_pval_spearman_1obs": 0.27304929642705245,
+    "imp_pval_mse_gw": 1.037014484219253,
+    "imp_pval_rmse_gw": 0.8684955030679703,
+    "imp_pval_pearson_gw": 0.2216448942820231,
+    "imp_pval_spearman_gw": 0.14586694948375226,
+    "imp_pval_mse_1obs": 1.037014484219253,
+    "imp_pval_rmse_1obs": 0.8684955030679703,
+    "imp_pval_pearson_1obs": 0.2216448942820231,
+    "imp_pval_spearman_1obs": 0.14586694948375226
+  }
+}
+{
+  "epoch": 1,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 0.9695915579795837,
+    "probe/readlen_mse": 3.796747114392929e-05,
+    "probe/runtype_mse": 6.669685535598546e-05
+  }
+}
+{
+  "epoch": 2,
+  "eval": {
+    "den_pval_mse_gw": 0.053425308177247645,
+    "den_pval_rmse_gw": 0.214011999219656,
+    "den_pval_pearson_gw": 0.32156977625563743,
+    "den_pval_spearman_gw": 0.2779736189870164,
+    "den_pval_mse_1obs": 0.053425308177247645,
+    "den_pval_rmse_1obs": 0.214011999219656,
+    "den_pval_pearson_1obs": 0.32156977625563743,
+    "den_pval_spearman_1obs": 0.2779736189870164,
+    "imp_pval_mse_gw": 1.0275028200199208,
+    "imp_pval_rmse_gw": 0.865422145028909,
+    "imp_pval_pearson_gw": 0.22304664850234984,
+    "imp_pval_spearman_gw": 0.26491613714024426,
+    "imp_pval_mse_1obs": 1.0275028200199208,
+    "imp_pval_rmse_1obs": 0.865422145028909,
+    "imp_pval_pearson_1obs": 0.22304664850234984,
+    "imp_pval_spearman_1obs": 0.26491613714024426
+  }
+}
+{
+  "epoch": 2,
+  "prompt_probe": {
+    "probe/depth_count_ratio": 0.960601806640625,
+    "probe/readlen_mse": 1.1872283721459098e-05,
+    "probe/runtype_mse": 4.525040276348591e-05
+  }
+}
+wandb: updating run metadata
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                       epoch ▁▅█
+wandb:                   loss/base ▇▂▁▇▆▇▆▄█▅▃▃▄▂▂▃▂█▁▅▅▁▃▇▂▂▅▃█▁▁▃▂▂▃▂▇▂▃▄
+wandb:                  loss/total ▇▆▂█▅▆▂▂▁▄▁▁▃▃▃▃▂▃▂▁▂▃▃▂▇▁▂▃▅▂▁▃▃▁▆▄▂▅▃▂
+wandb:     probe/depth_count_ratio █▃▁
+wandb:           probe/readlen_mse █▆▁
+wandb:           probe/runtype_mse ▁█▁
+wandb:     recon/den_pval_mse_1obs █▁▂
+wandb:       recon/den_pval_mse_gw █▁▂
+wandb: recon/den_pval_pearson_1obs ▇▁█
+wandb:   recon/den_pval_pearson_gw ▇▁█
+wandb:                         +14 ...
+wandb: 
+wandb: Run summary:
+wandb:                       epoch 2
+wandb:                   loss/base 0.80769
+wandb:                  loss/total 0.80769
+wandb:     probe/depth_count_ratio 0.9606
+wandb:           probe/readlen_mse 1e-05
+wandb:           probe/runtype_mse 5e-05
+wandb:     recon/den_pval_mse_1obs 0.05343
+wandb:       recon/den_pval_mse_gw 0.05343
+wandb: recon/den_pval_pearson_1obs 0.32157
+wandb:   recon/den_pval_pearson_gw 0.32157
+wandb:                         +14 ...
+wandb: 
+wandb: 🚀 View run gate_f_attempt1 at: https://wandb.ai/mforoozz/candi_sandbox/runs/r4fl0zgi
+wandb: ⭐️ View project at: https://wandb.ai/mforoozz/candi_sandbox
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260423_021904-r4fl0zgi/logs
+Finished 3 epoch(s), global_step=1500, elapsed=234.8s

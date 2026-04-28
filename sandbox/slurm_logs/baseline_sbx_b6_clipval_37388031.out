@@ -1,0 +1,4 @@
+[baseline] host=fc10911 partition=gpubase_bygpu_b2 job=37388031 name=clip_value_type1 batch=32 h5=sandbox/data/sandbox.h5 epochs=200 seed=42 regime_config=sandbox/configs/type1_chr19.yaml
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3b56f0aa-3472-a02e-6909-5b0d68de0274)
+  MIG 1g.10gb     Device  0: (UUID: MIG-53e08489-773a-5dc8-bbf0-f2dd924fd974)
+[baseline] DONE — metrics at sandbox/runs/baseline_clip_value_type1/metrics.jsonl

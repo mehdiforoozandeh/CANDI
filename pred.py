@@ -24,7 +24,7 @@ import torch.nn as nn
 # Import from current codebase
 from data import CANDIDataHandler
 from model import CANDI, CANDI_UNET
-from _utils import NegativeBinomial, Gaussian, DataMasker
+from _utils import NegativeBinomial, Gaussian, Laplace, StudentsT, Gamma, DataMasker
 
 
 class CANDIPredictor:
@@ -119,11 +119,54 @@ class CANDIPredictor:
         # Read attention_type and norm from config (important for model architecture compatibility)
         attention_type = self.config.get('attention-type', self.config.get('attention_type', 'dual'))
         norm = self.config.get('norm-type', self.config.get('norm', 'batch'))
+        dist_type = self.config.get('dist-type', self.config.get('dist_type', 'gaussian'))
+        self.dist_type = dist_type
+        
+        # Read xl_dna, mask_stem, and output_ff from config (important for model architecture compatibility)
+        xl_dna = self.config.get('xl_dna', self.config.get('xl-dna', False))
+        mask_stem = self.config.get('mask_stem', self.config.get('mask-stem', False))
+        output_ff = self.config.get('output_ff', self.config.get('output-ff', False))
+        # Query-decoder compatibility flags (required for newer checkpoints)
+        decoder_type = self.config.get('decoder_type', self.config.get('decoder-type', 'fixed'))
+        moe_experts = self.config.get('moe_experts', self.config.get('moe-experts', 4))
+        nq_chunk_multiplier = self.config.get('nq_chunk_multiplier', self.config.get('nq-chunk-multiplier', 1))
+        condconv_k = self.config.get('condconv_k', self.config.get('condconv-k', 3))
+        has_condconv_routing = ('condconv_routing' in self.config) or ('condconv-routing' in self.config)
+        has_condconv_gate = ('condconv_gate_activation' in self.config) or ('condconv-gate-activation' in self.config)
+        condconv_routing = self.config.get('condconv_routing', self.config.get('condconv-routing', 'hybrid'))
+        condconv_gate_activation = self.config.get(
+            'condconv_gate_activation',
+            self.config.get('condconv-gate-activation', 'sigmoid')
+        )
+        # Backward compatibility for older QueryCondConv checkpoints:
+        # - routing was effectively query-only
+        # - decoder kernel basis used legacy mixed sizes (conv_kernel_size=None)
+        if decoder_type == 'query_condconv' and not has_condconv_routing:
+            condconv_routing = 'query'
+        if decoder_type == 'query_condconv' and not has_condconv_gate:
+            condconv_gate_activation = 'sigmoid'
+        condconv_conv_kernel_size = self.config.get(
+            'condconv_conv_kernel_size',
+            self.config.get('condconv-conv-kernel-size', 'shared')
+        )
+        if decoder_type == 'query_condconv' and condconv_conv_kernel_size == 'shared' and not has_condconv_routing:
+            # Legacy default path for old checkpoints.
+            condconv_conv_kernel_size = None
+        signal_transform = self.config.get('signal_transform', self.config.get('signal-transform', 'arcsinh'))
+        self.signal_transform = signal_transform
+        enable_latent_kl = bool(self.config.get('enable_latent_kl', self.config.get('enable-latent-kl', False)))
+        latent_std_min = float(self.config.get('latent_std_min', self.config.get('latent-std-min', 0.01)))
+        latent_std_max = float(self.config.get('latent_std_max', self.config.get('latent-std-max', 1.0)))
+        latent_reparam_mode = str(self.config.get('latent_reparam_mode', self.config.get('latent-reparam-mode', 'clamp')))
+        latent_sample_train_only = bool(
+            self.config.get('latent_sample_train_only', self.config.get('latent-sample-train-only', True))
+        )
 
         self.context_length = context_length
         
         # Get metadata dimensions
-        num_sequencing_platforms = self.config.get('num_sequencing_platforms', 10)
+        # Support both new 'num_assays' and old 'num_sequencing_platforms' for backward compatibility
+        num_assays = self.config.get('num_assays', self.config.get('num_sequencing_platforms', 35))
         num_runtypes = self.config.get('num_runtypes', 4) # Based on the mapping in EmbedMetadata: 0, 1, 2 (missing), 3 (cloze_masked)
         
         # Create model
@@ -141,10 +184,27 @@ class CANDIPredictor:
                 pos_enc=pos_enc,
                 expansion_factor=expansion_factor,
                 separate_decoders=separate_decoders,
-                num_sequencing_platforms=num_sequencing_platforms,
+                num_assays=num_assays,
                 num_runtypes=num_runtypes,
                 norm=norm,
-                attention_type=attention_type
+                attention_type=attention_type,
+                output_ff=output_ff,
+                dist_type=dist_type,
+                xl_dna=xl_dna,
+                mask_stem=mask_stem,
+                signal_transform=signal_transform,
+                decoder_type=decoder_type,
+                moe_experts=moe_experts,
+                nq_chunk_multiplier=nq_chunk_multiplier,
+                condconv_k=condconv_k,
+                condconv_routing=condconv_routing,
+                condconv_gate_activation=condconv_gate_activation,
+                condconv_conv_kernel_size=condconv_conv_kernel_size,
+                enable_latent_kl=enable_latent_kl,
+                latent_std_min=latent_std_min,
+                latent_std_max=latent_std_max,
+                latent_reparam_mode=latent_reparam_mode,
+                latent_sample_train_only=latent_sample_train_only,
             )
         else:
             self.model = CANDI(
@@ -160,20 +220,82 @@ class CANDIPredictor:
                 pos_enc=pos_enc,
                 expansion_factor=expansion_factor,
                 separate_decoders=separate_decoders,
-                num_sequencing_platforms=num_sequencing_platforms,
+                num_assays=num_assays,
                 num_runtypes=num_runtypes,
                 norm=norm,
-                attention_type=attention_type
+                attention_type=attention_type,
+                output_ff=output_ff,
+                dist_type=dist_type,
+                xl_dna=xl_dna,
+                mask_stem=mask_stem,
+                signal_transform=signal_transform,
+                decoder_type=decoder_type,
+                moe_experts=moe_experts,
+                nq_chunk_multiplier=nq_chunk_multiplier,
+                condconv_k=condconv_k,
+                condconv_routing=condconv_routing,
+                condconv_gate_activation=condconv_gate_activation,
+                condconv_conv_kernel_size=condconv_conv_kernel_size,
+                enable_latent_kl=enable_latent_kl,
+                latent_std_min=latent_std_min,
+                latent_std_max=latent_std_max,
+                latent_reparam_mode=latent_reparam_mode,
+                latent_sample_train_only=latent_sample_train_only,
             )
         
         # Load checkpoint
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint)
+        allowed_suffixes = {
+            "latent_mu_head.weight",
+            "latent_mu_head.bias",
+            "latent_logvar_head.weight",
+            "latent_logvar_head.bias",
+        }
+        if not enable_latent_kl:
+            self.model.load_state_dict(checkpoint)
+        else:
+            incompatible = self.model.load_state_dict(checkpoint, strict=False)
+            missing = list(getattr(incompatible, "missing_keys", []))
+            unexpected = list(getattr(incompatible, "unexpected_keys", []))
+            bad_missing = [k for k in missing if not any(k.endswith(s) for s in allowed_suffixes)]
+            bad_unexpected = [k for k in unexpected if not any(k.endswith(s) for s in allowed_suffixes)]
+            if bad_missing or bad_unexpected:
+                raise RuntimeError(
+                    "Checkpoint/model mismatch beyond latent KL heads in pred.py loader. "
+                    f"missing={bad_missing}, unexpected={bad_unexpected}"
+                )
+            if missing or unexpected:
+                print(f"[latent_kl_compat] pred.py allowed missing={missing}, allowed unexpected={unexpected}")
         self.model.to(self.device)
         self.model.eval()
         
         print(f"Loaded model from {checkpoint_path}")
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+    
+    def inverse_transform(self, data):
+        """
+        Apply inverse transformation to model outputs based on signal_transform.
+        
+        Args:
+            data: Array or tensor in transformed space
+            
+        Returns:
+            Data in original space
+        """
+        if self.signal_transform == 'arcsinh':
+            # Inverse of arcsinh is sinh
+            if isinstance(data, torch.Tensor):
+                return torch.sinh(data)
+            else:
+                return np.sinh(data)
+        elif self.signal_transform == 'log1p':
+            # Inverse of log1p is expm1
+            if isinstance(data, torch.Tensor):
+                return torch.expm1(data)
+            else:
+                return np.expm1(data)
+        else:  # 'none'
+            return data
     
     def setup_data_handler(self, data_path: str, dataset_type: str = "merged", 
                           context_length: int = 1200, resolution: int = 25, split: str = "test"):
@@ -494,14 +616,18 @@ class CANDIPredictor:
             imp_target: List of feature indices to treat as imputation targets
             
         Returns:
-            Tuple of (output_n, output_p, output_mu, output_var, output_peak)
+            Tuple of (output_n, output_p, output_mu, output_var, output_df, output_peak)
+            Note: output_df is None for Gaussian/Laplace distributions
         """
-        # Set model to training mode to use batch statistics in BatchNorm
-        # (avoids corrupted running statistics while keeping no_grad for efficiency)
-        self.model.train()
+        # Inference mode: disables Dropout and uses eval-time behavior.
+        self.model.eval()
         
-        # Auto-detect batch size if not set or explicitly set to None
-        batch_size = None # self.config.get('batch_size', None)
+        # Prefer explicit env/config batch size to avoid repeated auto-search per process.
+        env_batch_size = os.environ.get("CANDI_PRED_BATCH_SIZE")
+        if env_batch_size is not None and str(env_batch_size).strip() != "":
+            batch_size = int(env_batch_size)
+        else:
+            batch_size = self.config.get("inference_batch_size", None)
 
         if batch_size is None:
             # Check if we've already computed max batch size
@@ -520,7 +646,7 @@ class CANDIPredictor:
             # print(f"Using auto-detected batch size: {batch_size}")
         else:
             # Use configured batch size
-            batch_size = int(batch_size)
+            batch_size = max(1, int(batch_size))
         
         # Initialize output tensors - model outputs only for original features (without control)
         # Control is only used as input, not predicted as output
@@ -530,6 +656,12 @@ class CANDIPredictor:
         mu = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
         var = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
         peak = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        
+        # Initialize df tensor only for Student's t distribution
+        if self.dist_type == 'studentst':
+            df = torch.empty(X.shape[0], X.shape[1], original_feature_dim, device="cpu", dtype=torch.float32)
+        else:
+            df = None
         
         # Process in batches
         for i in range(0, len(X), batch_size):
@@ -572,11 +704,12 @@ class CANDIPredictor:
                 if self.DNA:
                     seq_batch = seq_batch.to(self.device)
                     # Run model forward pass - convert to float for model input
-                    outputs_p, outputs_n, outputs_mu, outputs_var, outputs_peak = self.model(
+                    # Model now returns 6 values: p, n, mu, scale, df, peak
+                    outputs_p, outputs_n, outputs_mu, outputs_var, outputs_df, outputs_peak = self.model(
                         x_batch.float(), seq_batch, mX_batch.float(), mY_batch
                     )
                 else:
-                    outputs_p, outputs_n, outputs_mu, outputs_var, outputs_peak = self.model(
+                    outputs_p, outputs_n, outputs_mu, outputs_var, outputs_df, outputs_peak = self.model(
                         x_batch.float(), mX_batch.float(), mY_batch, avail_batch
                     )
             
@@ -588,12 +721,18 @@ class CANDIPredictor:
             var[i:batch_end] = outputs_var.cpu()
             peak[i:batch_end] = outputs_peak.cpu()
             
+            # Store df if using Student's t
+            if self.dist_type == 'studentst' and outputs_df is not None:
+                df[i:batch_end] = outputs_df.cpu()
+            
             # Clean up
             del x_batch, mX_batch, mY_batch, avail_batch, outputs_p, outputs_n, outputs_mu, outputs_var, outputs_peak
+            if outputs_df is not None:
+                del outputs_df
             if self.DNA:
                 del seq_batch
         
-        return n, p, mu, var, peak
+        return n, p, mu, var, df, peak
     
     def get_latent_z(self, X: torch.Tensor, mX: torch.Tensor, mY: torch.Tensor,
                      avail: torch.Tensor, seq: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -610,9 +749,8 @@ class CANDIPredictor:
         Returns:
             Latent representations Z [B, L, D]
         """
-        # Set model to training mode to use batch statistics in BatchNorm
-        # (avoids corrupted running statistics while keeping no_grad for efficiency)
-        self.model.train()
+        # Inference mode: disables Dropout and uses eval-time behavior.
+        self.model.eval()
         
         # Auto-detect batch size if not set or explicitly set to None
         batch_size = self.config.get('batch_size', None)
@@ -686,7 +824,8 @@ class CANDIPredictor:
                          fill_prompt_mode: str = "median",
                          locus: Optional[List] = None,
                          get_latent_z: bool = False,
-                         return_raw_predictions: bool = False) -> Dict[str, Any]:
+                         return_raw_predictions: bool = False,
+                         skip_unavailable: bool = False) -> Dict[str, Any]:
         """
         High-level method to predict for an entire biosample.
         
@@ -741,19 +880,33 @@ class CANDIPredictor:
             
             # Run prediction
             if self.DNA:
-                n, p, mu, var, peak = self.predict(X, mX, mY, avX, seq, [leave_one_out])
+                n, p, mu, var, df, peak = self.predict(X, mX, mY, avX, seq, [leave_one_out])
             else:
-                n, p, mu, var, peak = self.predict(X, mX, mY, avX, None, [leave_one_out])
+                n, p, mu, var, df, peak = self.predict(X, mX, mY, avX, None, [leave_one_out])
             
             p = p.view((p.shape[0] * p.shape[1]), p.shape[-1])
             n = n.view((n.shape[0] * n.shape[1]), n.shape[-1])
             mu = mu.view((mu.shape[0] * mu.shape[1]), mu.shape[-1])
             var = var.view((var.shape[0] * var.shape[1]), var.shape[-1])
             peak = peak.view((peak.shape[0] * peak.shape[1]), peak.shape[-1])
+            if df is not None:
+                df = df.view((df.shape[0] * df.shape[1]), df.shape[-1])
             
             # Create distributions
             count_dist = NegativeBinomial(p[:, leave_one_out], n[:, leave_one_out])
-            pval_dist = Gaussian(mu[:, leave_one_out], var[:, leave_one_out])
+            if self.dist_type in ['laplace', 'laplace_const', 'mae']:
+                pval_dist = Laplace(mu[:, leave_one_out], var[:, leave_one_out])
+            elif self.dist_type == 'studentst':
+                pval_dist = StudentsT(mu[:, leave_one_out], var[:, leave_one_out], df[:, leave_one_out])
+            elif self.dist_type == 'gamma':
+                pval_dist = Gamma(mu[:, leave_one_out], var[:, leave_one_out])
+            else:
+                pval_dist = Gaussian(mu[:, leave_one_out], var[:, leave_one_out])
+            
+            # Build pval_params dict
+            pval_params = {'mu': mu[:, leave_one_out], 'var': var[:, leave_one_out]}
+            if df is not None:
+                pval_params['df'] = df[:, leave_one_out]
             
             # Store results
             results[bios_name][exp_name] = {
@@ -762,33 +915,43 @@ class CANDIPredictor:
                 'count_dist': count_dist,
                 'count_params': {'p': p[:, leave_one_out], 'n': n[:, leave_one_out]},
                 'pval_dist': pval_dist,
-                'pval_params': {'mu': mu[:, leave_one_out], 'var': var[:, leave_one_out]},
+                'pval_params': pval_params,
                 'peak_scores': peak[:, leave_one_out]
             }
             
             # Add raw predictions if requested
             if return_raw_predictions:
-                results[bios_name][exp_name]['raw_predictions'] = {
+                raw_preds = {
                     'output_p': p[:, leave_one_out],
                     'output_n': n[:, leave_one_out],
                     'output_mu': mu[:, leave_one_out],
                     'output_var': var[:, leave_one_out],
                     'output_peak': peak[:, leave_one_out]
                 }
+                if df is not None:
+                    raw_preds['output_df'] = df[:, leave_one_out]
+                results[bios_name][exp_name]['raw_predictions'] = raw_preds
         
         # Run upsampling predictions (predict all available experiments)
         print("Running upsampling predictions...")
         
+        # Clear GPU cache before upsampling to prevent memory issues
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        
         if self.DNA:
-            n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(X, mX, mY, avX, seq, [])
+            n_ups, p_ups, mu_ups, var_ups, df_ups, peak_ups = self.predict(X, mX, mY, avX, seq, [])
         else:
-            n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(X, mX, mY, avX, None, [])
+            n_ups, p_ups, mu_ups, var_ups, df_ups, peak_ups = self.predict(X, mX, mY, avX, None, [])
 
         p_ups = p_ups.view((p_ups.shape[0] * p_ups.shape[1]), p_ups.shape[-1])
         n_ups = n_ups.view((n_ups.shape[0] * n_ups.shape[1]), n_ups.shape[-1])
         mu_ups = mu_ups.view((mu_ups.shape[0] * mu_ups.shape[1]), mu_ups.shape[-1])
         var_ups = var_ups.view((var_ups.shape[0] * var_ups.shape[1]), var_ups.shape[-1])
         peak_ups = peak_ups.view((peak_ups.shape[0] * peak_ups.shape[1]), peak_ups.shape[-1])
+        if df_ups is not None:
+            df_ups = df_ups.view((df_ups.shape[0] * df_ups.shape[1]), df_ups.shape[-1])
         
         # Store upsampling results for available experiments (denoised)
         for exp_idx in available_indices:
@@ -796,7 +959,19 @@ class CANDIPredictor:
             
             # Create distributions
             count_dist_ups = NegativeBinomial(p_ups[:, exp_idx], n_ups[:, exp_idx])
-            pval_dist_ups = Gaussian(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+            if self.dist_type in ['laplace', 'laplace_const', 'mae']:
+                pval_dist_ups = Laplace(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+            elif self.dist_type == 'studentst':
+                pval_dist_ups = StudentsT(mu_ups[:, exp_idx], var_ups[:, exp_idx], df_ups[:, exp_idx])
+            elif self.dist_type == 'gamma':
+                pval_dist_ups = Gamma(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+            else:
+                pval_dist_ups = Gaussian(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+            
+            # Build pval_params dict
+            pval_params_ups = {'mu': mu_ups[:, exp_idx], 'var': var_ups[:, exp_idx]}
+            if df_ups is not None:
+                pval_params_ups['df'] = df_ups[:, exp_idx]
             
             # Add upsampling results
             results[bios_name][f"{exp_name}_upsampled"] = {
@@ -805,32 +980,49 @@ class CANDIPredictor:
                 'count_dist': count_dist_ups,
                 'count_params': {'p': p_ups[:, exp_idx], 'n': n_ups[:, exp_idx]},
                 'pval_dist': pval_dist_ups,
-                'pval_params': {'mu': mu_ups[:, exp_idx], 'var': var_ups[:, exp_idx]},
+                'pval_params': pval_params_ups,
                 'peak_scores': peak_ups[:, exp_idx]
             }
             
             # Add raw predictions if requested
             if return_raw_predictions:
-                results[bios_name][f"{exp_name}_upsampled"]['raw_predictions'] = {
+                raw_preds_ups = {
                     'output_p': p_ups[:, exp_idx],
                     'output_n': n_ups[:, exp_idx],
                     'output_mu': mu_ups[:, exp_idx],
                     'output_var': var_ups[:, exp_idx],
                     'output_peak': peak_ups[:, exp_idx]
                 }
+                if df_ups is not None:
+                    raw_preds_ups['output_df'] = df_ups[:, exp_idx]
+                results[bios_name][f"{exp_name}_upsampled"]['raw_predictions'] = raw_preds_ups
         
         # Optionally store predictions for non-available experiments (imputed from upsampling pass)
         all_experiment_indices = list(range(len(experiment_names)))
         non_available_indices = [idx for idx in all_experiment_indices if idx not in available_indices]
         
-        if non_available_indices:
+        if non_available_indices and skip_unavailable:
+            print(f"Skipping {len(non_available_indices)} non-available experiments (--skip-unavailable flag set)")
+        elif non_available_indices and not skip_unavailable:
             print(f"Storing predictions for {len(non_available_indices)} non-available experiments...")
             for exp_idx in non_available_indices:
                 exp_name = experiment_names[exp_idx]
                 
                 # Create distributions
                 count_dist_imp = NegativeBinomial(p_ups[:, exp_idx], n_ups[:, exp_idx])
-                pval_dist_imp = Gaussian(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+                if self.dist_type in ['laplace', 'laplace_const', 'mae']:
+                    pval_dist_imp = Laplace(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+                elif self.dist_type == 'studentst':
+                    pval_dist_imp = StudentsT(mu_ups[:, exp_idx], var_ups[:, exp_idx], df_ups[:, exp_idx])
+                elif self.dist_type == 'gamma':
+                    pval_dist_imp = Gamma(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+                else:
+                    pval_dist_imp = Gaussian(mu_ups[:, exp_idx], var_ups[:, exp_idx])
+                
+                # Build pval_params dict
+                pval_params_imp = {'mu': mu_ups[:, exp_idx], 'var': var_ups[:, exp_idx]}
+                if df_ups is not None:
+                    pval_params_imp['df'] = df_ups[:, exp_idx]
                 
                 # Add imputation results (from upsampling pass)
                 results[bios_name][f"{exp_name}_imputed_from_upsampling"] = {
@@ -839,19 +1031,22 @@ class CANDIPredictor:
                     'count_dist': count_dist_imp,
                     'count_params': {'p': p_ups[:, exp_idx], 'n': n_ups[:, exp_idx]},
                     'pval_dist': pval_dist_imp,
-                    'pval_params': {'mu': mu_ups[:, exp_idx], 'var': var_ups[:, exp_idx]},
+                    'pval_params': pval_params_imp,
                     'peak_scores': peak_ups[:, exp_idx]
                 }
                 
                 # Add raw predictions if requested
                 if return_raw_predictions:
-                    results[bios_name][f"{exp_name}_imputed_from_upsampling"]['raw_predictions'] = {
+                    raw_preds_imp = {
                         'output_p': p_ups[:, exp_idx],
                         'output_n': n_ups[:, exp_idx],
                         'output_mu': mu_ups[:, exp_idx],
                         'output_var': var_ups[:, exp_idx],
                         'output_peak': peak_ups[:, exp_idx]
                     }
+                    if df_ups is not None:
+                        raw_preds_imp['output_df'] = df_ups[:, exp_idx]
+                    results[bios_name][f"{exp_name}_imputed_from_upsampling"]['raw_predictions'] = raw_preds_imp
         
         # Extract latent representations if requested
         if get_latent_z:
@@ -868,7 +1063,8 @@ class CANDIPredictor:
     def predict_all_biosamples(self, dataset_type: str, split: str = "test",
                               x_dsf: int = 1, fill_y_prompt_spec: Optional[Dict] = None,
                               fill_prompt_mode: str = "median",
-                              locus: Optional[List] = None):
+                              locus: Optional[List] = None,
+                              skip_unavailable: bool = False):
         """
         Run predictions for all biosamples in the dataset.
         
@@ -921,7 +1117,8 @@ class CANDIPredictor:
                         fill_prompt_mode=fill_prompt_mode,
                         locus=locus,
                         get_latent_z=True,
-                        return_raw_predictions=False
+                        return_raw_predictions=False,
+                        skip_unavailable=skip_unavailable
                     )
                     
                     # Extract latent Z
@@ -1129,11 +1326,11 @@ class CANDIPredictor:
                     # Single forward pass
                     print(f"Running single forward pass for EIC...")
                     if self.DNA:
-                        n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(
+                        n_ups, p_ups, mu_ups, var_ups, df_ups, peak_ups = self.predict(
                             X, mX, mY, avX, seq=seq, imp_target=[]
                         )
                     else:
-                        n_ups, p_ups, mu_ups, var_ups, peak_ups = self.predict(
+                        n_ups, p_ups, mu_ups, var_ups, df_ups, peak_ups = self.predict(
                             X, mX, mY, avX, seq=None, imp_target=[]
                         )
                     
@@ -1143,6 +1340,8 @@ class CANDIPredictor:
                     mu_ups = mu_ups.view((mu_ups.shape[0] * mu_ups.shape[1]), mu_ups.shape[-1])
                     var_ups = var_ups.view((var_ups.shape[0] * var_ups.shape[1]), var_ups.shape[-1])
                     peak_ups = peak_ups.view((peak_ups.shape[0] * peak_ups.shape[1]), peak_ups.shape[-1])
+                    if df_ups is not None:
+                        df_ups = df_ups.view((df_ups.shape[0] * df_ups.shape[1]), df_ups.shape[-1])
                     
                     # Flatten ground truth data
                     X_flat = X.view((X.shape[0] * X.shape[1]), X.shape[-1])
@@ -1169,6 +1368,7 @@ class CANDIPredictor:
                         Peak_obs_all=Peak_flat,
                         mu_ups=mu_ups,
                         var_ups=var_ups,
+                        df_ups=df_ups,
                         peak_ups=peak_ups,
                         available_X_indices=available_X_indices,
                         available_Y_indices=available_Y_indices,
@@ -1195,6 +1395,7 @@ class CANDIPredictor:
                                 Peak_obs_all: Optional[torch.Tensor] = None,
                                 mu_ups: Optional[torch.Tensor] = None,
                                 var_ups: Optional[torch.Tensor] = None,
+                                df_ups: Optional[torch.Tensor] = None,
                                 peak_ups: Optional[torch.Tensor] = None,
                                 available_X_indices: Optional[torch.Tensor] = None,
                                 available_Y_indices: Optional[torch.Tensor] = None,
@@ -1269,6 +1470,9 @@ class CANDIPredictor:
                 # Save NPZ files (z is saved once at biosample level, not per assay)
                 np.savez_compressed(assay_dir / "mu.npz", mu.flatten())
                 np.savez_compressed(assay_dir / "var.npz", var.flatten())
+                if 'df' in pred_data['pval_params'] and pred_data['pval_params']['df'] is not None:
+                    df_vals = pred_data['pval_params']['df'].numpy()
+                    np.savez_compressed(assay_dir / "df.npz", df_vals.flatten())
                 np.savez_compressed(assay_dir / "peak_scores.npz", peak_scores.flatten())
                 np.savez_compressed(assay_dir / "observed_P.npz", P_obs_flat.flatten())
                 np.savez_compressed(assay_dir / "observed_peak.npz", Peak_obs_flat.flatten())
@@ -1308,6 +1512,9 @@ class CANDIPredictor:
                 # Save NPZ files (z is saved once at biosample level, not per assay)
                 np.savez_compressed(assay_dir / "mu.npz", mu.flatten())
                 np.savez_compressed(assay_dir / "var.npz", var.flatten())
+                if df_ups is not None:
+                    df_vals = df_ups[:, exp_idx].numpy()
+                    np.savez_compressed(assay_dir / "df.npz", df_vals.flatten())
                 np.savez_compressed(assay_dir / "peak_scores.npz", peak_scores.flatten())
                 np.savez_compressed(assay_dir / "observed_P.npz", P_obs_flat.flatten())
                 np.savez_compressed(assay_dir / "observed_peak.npz", Peak_obs_flat.flatten())
@@ -1493,6 +1700,8 @@ Examples:
                        help='Extract latent representations')
     parser.add_argument('--return-raw-predictions', action='store_true',
                        help='Include raw prediction tensors in output')
+    parser.add_argument('--skip-unavailable', action='store_true',
+                       help='Skip saving predictions for non-available experiments (saves memory)')
     
     args = parser.parse_args()
     
@@ -1525,7 +1734,8 @@ Examples:
                 x_dsf=args.dsf,
                 fill_y_prompt_spec=fill_y_prompt_spec,
                 fill_prompt_mode=args.fill_prompt_mode,
-                locus=locus
+                locus=locus,
+                skip_unavailable=args.skip_unavailable
             )
             print(f"\n🎉 Completed predictions for all biosamples!")
             print(f"Predictions saved to {args.model_dir}/preds/")
@@ -1538,7 +1748,8 @@ Examples:
                 fill_prompt_mode=args.fill_prompt_mode,
                 locus=locus,
                 get_latent_z=args.get_latent_z,
-                return_raw_predictions=args.return_raw_predictions
+                return_raw_predictions=args.return_raw_predictions,
+                skip_unavailable=args.skip_unavailable
             )
             
             # Save results

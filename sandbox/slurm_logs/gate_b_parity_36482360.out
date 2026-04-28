@@ -1,0 +1,5 @@
+[gate_b_parity] host=fc30564 eic=/project/6014832/mforooz/DATA_CANDI_EIC h5=sandbox/data/sandbox.h5
+-rw-r----- 1 mforooz def-maxwl 149673761 Apr 21 18:50 sandbox/data/sandbox.h5
+[gate_b_parity] validate-parity (full grid)
+Number of assays: 35
+Number of assays: 8

@@ -1,0 +1,2 @@
+overfit-sanity: using regime=type2_loci
+overfit-sanity: ok steps=500 total 4.01648 -> -3.58738 heads={'obs_count': 0.950432538986206, 'imp_count': 0.0, 'obs_pval': -4.5391058921813965, 'imp_pval': 0.0, 'obs_peak': 0.0012896610423922539, 'imp_peak': 0.0}

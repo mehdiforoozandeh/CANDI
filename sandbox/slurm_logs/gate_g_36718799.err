@@ -1,0 +1,53 @@
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+wandb: Currently logged in as: mforooz (mforoozz) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Changes to your `wandb` environment variables will be ignored because your `wandb` session has already started. For more information on how to modify your settings with `wandb.init()` arguments, please refer to https://wandb.me/wandb-init.
+wandb: creating run
+wandb: Tracking run with wandb version 0.21.2
+wandb: Run data is saved locally in /project/6014832/mforooz/EpiDenoise/wandb/run-20260423_021115-rkzd1yvw
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run gate_g_type1_chr19
+wandb: ⭐️ View project at https://wandb.ai/mforoozz/candi_sandbox
+wandb: 🚀 View run at https://wandb.ai/mforoozz/candi_sandbox/runs/rkzd1yvw
+Traceback (most recent call last):
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 510, in <module>
+    raise SystemExit(main())
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 441, in main
+    metrics = run_eval_pass(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 249, in run_eval_pass
+    m = eval_batch_metrics(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/eval.py", line 142, in eval_batch_metrics
+    peak_gt_ok_i = (tgt_k_imp == 0) | (tgt_k_imp == 1)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/eval.py", line 50, in auroc_binary
+    return float("nan")
+RuntimeError: min(): Expected reduction dim to be specified for input.numel() == 0. Specify the reduction dim with the 'dim' argument.
+Traceback (most recent call last):
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/python/3.10.13/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 510, in <module>
+    raise SystemExit(main())
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 441, in main
+    metrics = run_eval_pass(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/train.py", line 249, in run_eval_pass
+    m = eval_batch_metrics(
+  File "/project/6014832/mforooz/EpiDenoise/candi_venv/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/eval.py", line 142, in eval_batch_metrics
+    peak_gt_ok_i = (tgt_k_imp == 0) | (tgt_k_imp == 1)
+  File "/project/6014832/mforooz/EpiDenoise/sandbox/eval.py", line 50, in auroc_binary
+    return float("nan")
+RuntimeError: min(): Expected reduction dim to be specified for input.numel() == 0. Specify the reduction dim with the 'dim' argument.

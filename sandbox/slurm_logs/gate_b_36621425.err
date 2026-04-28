@@ -1,0 +1,12 @@
+[bake] biosample 1/10 (B_DND-41) done (23 chroms, elapsed=116.8s)
+[bake] biosample 2/10 (B_RWPE2) done (23 chroms, elapsed=217.2s)
+[bake] biosample 3/10 (T_DND-41) done (23 chroms, elapsed=306.0s)
+[bake] biosample 4/10 (T_H1-hESC) done (23 chroms, elapsed=397.2s)
+[bake] biosample 5/10 (T_H9) done (23 chroms, elapsed=492.0s)
+[bake] biosample 6/10 (T_RWPE2) done (23 chroms, elapsed=564.7s)
+[bake] biosample 7/10 (T_heart_left_ventricle) done (23 chroms, elapsed=661.8s)
+[bake] biosample 8/10 (V_DND-41) done (23 chroms, elapsed=729.3s)
+[bake] biosample 9/10 (V_H1-hESC) done (23 chroms, elapsed=795.7s)
+[bake] biosample 10/10 (V_heart_left_ventricle) done (23 chroms, elapsed=867.7s)
+Baked 7485 windows for 10 biosamples -> sandbox/data/.sandbox.h5.tmp.36621425
+Wrote sandbox/data/parity.ok

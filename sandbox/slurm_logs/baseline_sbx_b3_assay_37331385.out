@@ -1,0 +1,4 @@
+[baseline] host=fc11015 partition=gpubase_bygpu_b1 job=37331385 name=assay_mask_only batch=32 h5=sandbox/data/sandbox.h5 epochs=10 seed=42
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-f4d235ba-de4c-311a-d55c-025216b2cea3)
+  MIG 1g.10gb     Device  0: (UUID: MIG-f51f5ea6-09f2-5991-8b5a-bcc393dcd98c)
+[baseline] DONE — metrics at sandbox/runs/baseline_assay_mask_only/metrics.jsonl
