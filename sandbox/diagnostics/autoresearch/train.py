@@ -21,6 +21,10 @@ from sandbox.candi_v2.model import CANDIv2
 class TrainConfig:
     use_depth_offset: bool = True
     depth_center: float = 27.0
+    depth_scale_mode: str = "pow2"  # pow2 | linexp  (mu scaling vs depth)
+    depth_linexp_alpha: float = 0.693147  # ln(2) for linexp: exp(eta + alpha*(d-c))
+    n_mode: str = "softplus"  # softplus | exp
+    mu_eps: float = 1e-6
     # Optimizer (agent-tunable)
     optimizer: str = "adamax"  # adam | adamw | adamax | sgd
     lr: float = 1e-3
@@ -75,7 +79,7 @@ def _compat_patch() -> None:
 
 
 class DepthOffsetNegativeBinomialLayer(nn.Module):
-    """Predict log-enrichment eta; mu = 2^(depth - center) * exp(eta)."""
+    """Predict log-enrichment eta; mu from depth offset (pow2 or linexp)."""
 
     def __init__(
         self,
@@ -83,10 +87,16 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         output_dim: int,
         eps: float = 1e-6,
         depth_center: float = 0.0,
+        depth_scale_mode: str = "pow2",
+        depth_linexp_alpha: float = 0.693147,
+        n_mode: str = "softplus",
     ) -> None:
         super().__init__()
         self.eps = eps
         self.depth_center = depth_center
+        self.depth_scale_mode = depth_scale_mode
+        self.depth_linexp_alpha = depth_linexp_alpha
+        self.n_mode = n_mode
         self.linear_eta = nn.Linear(input_dim, output_dim)
         self.linear_n = nn.Linear(input_dim, output_dim)
 
@@ -97,9 +107,15 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         eta = self.linear_eta(x)
         d = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center
-        mu = torch.pow(2.0, d) * torch.exp(eta)
+        if self.depth_scale_mode == "linexp":
+            mu = torch.exp(eta + self.depth_linexp_alpha * d)
+        else:
+            mu = torch.pow(2.0, d) * torch.exp(eta)
         mu = mu.clamp(min=self.eps)
-        n = F.softplus(self.linear_n(x)) + self.eps
+        if self.n_mode == "exp":
+            n = torch.exp(self.linear_n(x)).clamp(max=1e4) + self.eps
+        else:
+            n = F.softplus(self.linear_n(x)) + self.eps
         p = n / (n + mu)
         p = torch.clamp(p, min=self.eps, max=1.0 - self.eps)
         return p, n
@@ -108,12 +124,22 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
 class V2DecoderDepthOffset(V2Decoder):
     """V2Decoder with depth-offset NB head using y_meta depth row."""
 
-    def __init__(self, *args, depth_center: float = 0.0, **kwargs) -> None:
+    def __init__(self, *args, depth_center: float = 0.0, depth_scale_mode: str = "pow2",
+                 depth_linexp_alpha: float = 0.693147, n_mode: str = "softplus",
+                 mu_eps: float = 1e-6, **kwargs) -> None:
         self._depth_center = depth_center
+        self._depth_scale_mode = depth_scale_mode
+        self._depth_linexp_alpha = depth_linexp_alpha
+        self._n_mode = n_mode
+        self._mu_eps = mu_eps
         super().__init__(*args, **kwargs)
         if "count" in self._active_heads:
             self.neg_binom_layer = DepthOffsetNegativeBinomialLayer(
-                self.signal_dim, self.signal_dim, depth_center=depth_center,
+                self.signal_dim, self.signal_dim,
+                eps=mu_eps, depth_center=depth_center,
+                depth_scale_mode=depth_scale_mode,
+                depth_linexp_alpha=depth_linexp_alpha,
+                n_mode=n_mode,
             )
 
     def forward(
@@ -157,6 +183,10 @@ def patch_count_head(model: CANDIv2, cfg: TrainConfig) -> None:
         encoder_d_model=old.encoder_d_model,
         signal_dim=old.signal_dim,
         depth_center=cfg.depth_center,
+        depth_scale_mode=cfg.depth_scale_mode,
+        depth_linexp_alpha=cfg.depth_linexp_alpha,
+        n_mode=cfg.n_mode,
+        mu_eps=cfg.mu_eps,
     )
     new_dec.load_state_dict(old.state_dict(), strict=False)
     model.decoder = new_dec.to(next(model.parameters()).device)
