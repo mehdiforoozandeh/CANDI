@@ -20,7 +20,7 @@ from sandbox.candi_v2.model import CANDIv2
 @dataclass
 class TrainConfig:
     use_depth_offset: bool = True
-    depth_center: float = 24.0
+    depth_center: float = 25.0
     # Optimizer (agent-tunable)
     optimizer: str = "adam"  # adam | adamw | adamax | sgd
     lr: float = 1e-3
