@@ -29,7 +29,7 @@ class TrainConfig:
     beta2: float = 0.999
     eps: float = 1e-8
     sgd_momentum: float = 0.0
-    clip_norm: float = 1.0
+    clip_norm: float = 0.5
     # Loss weights
     obs_weight: float = 1.0
     imp_weight: float = 1.0
