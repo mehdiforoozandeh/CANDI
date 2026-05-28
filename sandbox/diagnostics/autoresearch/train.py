@@ -22,7 +22,7 @@ class TrainConfig:
     use_depth_offset: bool = True
     depth_center: float = 27.0
     # Optimizer (agent-tunable)
-    optimizer: str = "adam"  # adam | adamw | adamax | sgd
+    optimizer: str = "adamax"  # adam | adamw | adamax | sgd
     lr: float = 1e-3
     weight_decay: float = 0.0
     beta1: float = 0.9
