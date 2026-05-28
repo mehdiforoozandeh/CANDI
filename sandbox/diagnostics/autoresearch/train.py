@@ -21,17 +21,17 @@ from sandbox.candi_v2.model import CANDIv2
 class TrainConfig:
     use_depth_offset: bool = True
     depth_center: float = 27.0
-    depth_scale_mode: str = "pow2"  # pow2 | linexp  (mu scaling vs depth)
-    depth_linexp_alpha: float = 0.693147  # ln(2) for linexp: exp(eta + alpha*(d-c))
-    n_mode: str = "softplus"  # softplus | exp
-    mu_eps: float = 1e-6
+    depth_scale_mode: str = "pow2"
+    depth_linexp_alpha: float = 0.693147
+    n_mode: str = "softplus"
+    mu_eps: float = 1e-06
     # Optimizer (agent-tunable)
-    optimizer: str = "adamax"  # adam | adamw | adamax | sgd
-    lr: float = 1e-3
+    optimizer: str = "adamax"
+    lr: float = 0.0005
     weight_decay: float = 0.0
     beta1: float = 0.9
     beta2: float = 0.999
-    eps: float = 1e-8
+    eps: float = 1e-08
     sgd_momentum: float = 0.0
     clip_norm: float = 0.5
     # Loss weights
