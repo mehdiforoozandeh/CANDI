@@ -31,7 +31,7 @@ class TrainConfig:
     sgd_momentum: float = 0.0
     clip_norm: float = 0.5
     # Loss weights
-    obs_weight: float = 1.0
+    obs_weight: float = 0.5
     imp_weight: float = 8.0
     count_weight: float = 1.0
 
