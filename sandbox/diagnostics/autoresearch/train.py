@@ -32,7 +32,7 @@ class TrainConfig:
     clip_norm: float = 0.5
     # Loss weights
     obs_weight: float = 1.0
-    imp_weight: float = 5.0
+    imp_weight: float = 6.0
     count_weight: float = 1.0
 
 
