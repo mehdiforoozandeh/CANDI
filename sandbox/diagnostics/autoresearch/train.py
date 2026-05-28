@@ -40,6 +40,40 @@ def get_config() -> TrainConfig:
     return TrainConfig()
 
 
+def _compat_patch() -> None:
+    """Ignore preserve_assay_id when repo config is older than diagnostics harness."""
+    import sandbox.config_types as ct
+
+    _orig_cfd = ct.config_from_dict
+
+    def _config_from_dict(cls, raw, path=""):
+        if isinstance(raw, dict) and cls is ct.MaskingConfig:
+            raw = {k: v for k, v in raw.items() if k != "preserve_assay_id"}
+        return _orig_cfd(cls, raw, path=path)
+
+    ct.config_from_dict = _config_from_dict
+
+    import sandbox.batch as batch_mod
+
+    _orig_mm = batch_mod.make_masker
+
+    def _make_masker(**kwargs):
+        kwargs.pop("preserve_assay_id", None)
+        return _orig_mm(**kwargs)
+
+    batch_mod.make_masker = _make_masker
+
+    import sandbox.data as data_mod
+
+    _orig_init = data_mod.SandboxH5Dataset.__init__
+
+    def _dataset_init(self, *args, **kwargs):
+        kwargs.pop("preserve_assay_id", None)
+        return _orig_init(self, *args, **kwargs)
+
+    data_mod.SandboxH5Dataset.__init__ = _dataset_init
+
+
 class DepthOffsetNegativeBinomialLayer(nn.Module):
     """Predict log-enrichment eta; mu = 2^(depth - center) * exp(eta)."""
 
@@ -163,6 +197,7 @@ def count_head_param_count(model: CANDIv2) -> int:
 
 
 def main() -> int:
+    _compat_patch()
     from sandbox.diagnostics.autoresearch import prepare
 
     return prepare.run_from_train()
