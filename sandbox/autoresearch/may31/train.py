@@ -36,7 +36,7 @@ class TrainConfig:
     imp_weight: float = 0.5
 
     # Count head
-    depth_center: float = 23.0
+    depth_center: float = 22.5
 
     # Calibration aux (B1/B3) — session 2 priority: sweep lambda_mse_imp first
     lambda_mse_imp: float = 0.0
