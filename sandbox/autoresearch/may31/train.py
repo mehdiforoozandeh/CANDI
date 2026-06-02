@@ -33,7 +33,7 @@ class TrainConfig:
     # Loss weights — session 2 seed = exp23
     count_weight: float = 2.0
     obs_weight: float = 3.5
-    imp_weight: float = 0.6
+    imp_weight: float = 0.59
 
     # Count head
     depth_center: float = 22.5
