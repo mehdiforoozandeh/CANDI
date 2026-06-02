@@ -30,7 +30,7 @@ class TrainConfig:
     clip_norm: float = 0.5
 
     # Loss weights (CANDI_LOSS) — baseline both 1.0
-    count_weight: float = 1.0
+    count_weight: float = 2.0
     obs_weight: float = 3.5
     imp_weight: float = 0.5
 
@@ -39,7 +39,7 @@ class TrainConfig:
 
     # Calibration extras (agent may add; applied in train_step())
     lambda_mse_imp: float = 0.0
-    lambda_mse_obs: float = 0.1
+    lambda_mse_obs: float = 0.2
     mse_on_log1p: bool = False
 
     # Data (C)
