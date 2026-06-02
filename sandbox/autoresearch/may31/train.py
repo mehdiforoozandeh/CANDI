@@ -32,7 +32,7 @@ class TrainConfig:
     # Loss weights (CANDI_LOSS) — baseline both 1.0
     count_weight: float = 1.0
     obs_weight: float = 2.0
-    imp_weight: float = 1.0
+    imp_weight: float = 0.5
 
     # Count head (agent-tunable)
     depth_center: float = 23.0
