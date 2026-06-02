@@ -35,7 +35,7 @@ class TrainConfig:
     imp_weight: float = 1.0
 
     # Count head (agent-tunable)
-    depth_center: float = 26.0
+    depth_center: float = 25.0
 
     # Calibration extras (agent may add; applied in train_step())
     lambda_mse_imp: float = 0.0
