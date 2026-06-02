@@ -1,0 +1,418 @@
+{
+  "seed": 42,
+  "h5_path": "sandbox/data/sandbox.h5",
+  "train": [
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_H9",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "imp_bios": "V_DND-41",
+      "window_indices": [
+        2000,
+        2764,
+        3528,
+        4292
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "imp_bios": "B_RWPE2",
+      "window_indices": [
+        2763,
+        3527,
+        4291,
+        2003
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "imp_bios": "V_heart_left_ventricle",
+      "window_indices": [
+        3526,
+        4290,
+        2002,
+        2766
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "imp_bios": "V_H1-hESC",
+      "window_indices": [
+        4289,
+        2001,
+        2765,
+        3529
+      ]
+    }
+  ],
+  "eval_imp": [
+    {
+      "t_bios": "T_DND-41",
+      "imp_bios": "V_DND-41",
+      "window_indices": [
+        5053,
+        5662,
+        6271,
+        6880
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "imp_bios": "B_DND-41",
+      "window_indices": [
+        5661,
+        6270,
+        6879,
+        5056
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "imp_bios": "B_RWPE2",
+      "window_indices": [
+        6269,
+        6878,
+        5055,
+        5664
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "imp_bios": "V_heart_left_ventricle",
+      "window_indices": [
+        6877,
+        5054,
+        5663,
+        6272
+      ]
+    },
+    {
+      "t_bios": "T_H1-hESC",
+      "imp_bios": "V_H1-hESC",
+      "window_indices": [
+        5053,
+        5662,
+        6271,
+        6880
+      ]
+    },
+    {
+      "t_bios": "T_DND-41",
+      "imp_bios": "B_DND-41",
+      "window_indices": [
+        5661,
+        6270,
+        6879,
+        5056
+      ]
+    },
+    {
+      "t_bios": "T_RWPE2",
+      "imp_bios": "B_RWPE2",
+      "window_indices": [
+        6269,
+        6878,
+        5055,
+        5664
+      ]
+    },
+    {
+      "t_bios": "T_heart_left_ventricle",
+      "imp_bios": "V_heart_left_ventricle",
+      "window_indices": [
+        6877,
+        5054,
+        5663,
+        6272
+      ]
+    }
+  ],
+  "eval_cloze_t_index": 0,
+  "session2_vb_train_added": true
+}
