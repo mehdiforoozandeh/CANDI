@@ -39,7 +39,7 @@ class TrainConfig:
 
     # Calibration extras (agent may add; applied in train_step())
     lambda_mse_imp: float = 0.0
-    lambda_mse_obs: float = 0.2
+    lambda_mse_obs: float = 0.1
     mse_on_log1p: bool = False
 
     # Data (C)
