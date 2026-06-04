@@ -20,6 +20,7 @@ FROZEN_REL: Set[str] = {
     "sandbox/autoresearch/june3/program.md",
     "sandbox/autoresearch/june3/README.md",
     "sandbox/autoresearch/june3/AGENT_SYSTEM_PROMPT.md",
+    "sandbox/autoresearch/june3/SEARCH_SPACE.md",
     "sandbox/autoresearch/june3/eval_bridge.py",
     "sandbox/autoresearch/june3/scope.py",
     "sandbox/autoresearch/june3/agent_step.py",

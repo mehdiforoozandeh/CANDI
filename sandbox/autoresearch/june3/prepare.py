@@ -50,6 +50,65 @@ BASELINE_JSON = ARTIFACT_DIR / "baseline.json"
 H5_DEFAULT = Path(__file__).resolve().parents[2] / "data" / "sandbox.h5"
 EIC_METADATA = Path(__file__).resolve().parents[3] / "data" / "eic_metadata.csv"
 
+# ---------------------------------------------------------------------------
+# Frozen training-config guard
+# ---------------------------------------------------------------------------
+# These values are fixed across ALL runs so experiments are directly comparable.
+# Changing them (even via get_config()) invalidates scientific soundness.
+# Any deviation aborts training before a single epoch runs.
+_FROZEN_TRAINING: Dict[str, Any] = {
+    "optimizer.name": "adamax",
+    "optimizer.adamax.lr": 1e-3,
+    "grad.clip_norm": 2.0,
+    "schedule.warmup_frac": 0.1,
+    "loss_weights.obs_weight": 3.5,
+    "loss_weights.imp_weight": 0.59,
+    "loss_weights.count_weight": 2.0,
+    "dsf.sampling": "off",
+    "masking.p_full_assay": 1.0,
+    "masking.p_full_loci": 0.0,
+    "masking.p_chunks": 0.0,
+    "batch_size": 4,
+    "amp": False,
+}
+
+
+def _check_frozen_training_config(cfg) -> None:
+    """Abort if any frozen training field deviates from ar_fixed.yaml baseline."""
+    t = cfg.training
+    actual = {
+        "optimizer.name": str(t.optimizer.name),
+        "optimizer.adamax.lr": float(t.optimizer.adamax.lr),
+        "grad.clip_norm": float(t.grad.clip_norm),
+        "schedule.warmup_frac": float(t.schedule.warmup_frac),
+        "loss_weights.obs_weight": float(t.loss_weights.obs_weight),
+        "loss_weights.imp_weight": float(t.loss_weights.imp_weight),
+        "loss_weights.count_weight": float(t.loss_weights.count_weight),
+        "dsf.sampling": str(t.dsf.sampling),
+        "masking.p_full_assay": float(t.masking.p_full_assay),
+        "masking.p_full_loci": float(t.masking.p_full_loci),
+        "masking.p_chunks": float(t.masking.p_chunks),
+        "batch_size": int(t.batch_size),
+        "amp": bool(t.amp),
+    }
+    violations = []
+    for key, expected in _FROZEN_TRAINING.items():
+        got = actual[key]
+        if isinstance(expected, float):
+            if abs(float(got) - expected) > 1e-9:
+                violations.append(f"  training.{key}: expected {expected}, got {got}")
+        else:
+            if got != expected:
+                violations.append(f"  training.{key}: expected {expected!r}, got {got!r}")
+    if violations:
+        raise ValueError(
+            "FROZEN TRAINING CONFIG VIOLATED — runs would be incomparable.\n"
+            "The agent must NOT change training.optimizer, training.loss_weights,\n"
+            "training.masking, training.dsf, training.batch_size, or training.amp.\n"
+            "See SEARCH_SPACE.md Tier 6 for the complete list.\n\n"
+            "Violations detected:\n" + "\n".join(violations)
+        )
+
 
 def load_baseline() -> Dict[str, Any]:
     if not BASELINE_JSON.exists():
@@ -255,6 +314,7 @@ def run_experiment(device: Optional[torch.device] = None) -> Dict[str, Any]:
         torch.cuda.set_per_process_memory_fraction(0.92)
 
     cfg = agent_train.get_config()
+    _check_frozen_training_config(cfg)  # abort before any GPU work if training config was touched
     cfg.training.epochs = EPOCHS
     h5_path = H5_DEFAULT
     if not h5_path.exists():
