@@ -48,12 +48,6 @@ def changed_paths(*, staged_only: bool = False) -> Set[str]:
     paths: Set[str] = set()
     paths.update(_git_lines("diff", "--name-only"))
     paths.update(_git_lines("diff", "--cached", "--name-only"))
-    # Also flag new untracked files outside june3/ — git diff only sees tracked
-    # files, so a new file at sandbox/foo.py would be invisible without this.
-    for line in _git_lines("ls-files", "--others", "--exclude-standard"):
-        norm = _norm(line.strip())
-        if norm and not norm.startswith(ALLOWED_PREFIX):
-            paths.add(line.strip())
     return paths
 
 
