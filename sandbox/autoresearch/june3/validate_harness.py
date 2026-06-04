@@ -597,17 +597,23 @@ def t17_guard_expectation() -> None:
         den_r2 = float(b.get("den_count_r2_gw", float("nan")))
         primary = float(b.get("primary_score", float("nan")))
         # At 10% chr19 / 20 epochs, both R² are expected to be negative
-        if imp_r2 < 0 and den_r2 < 0:
-            record(
-                "T17", None,
-                f"EXPECTED guard_fail: baseline imp_r2={imp_r2:.3f}, den_r2={den_r2:.3f}, "
-                f"primary={primary:.3f}. Guards require imp>0 AND den>0 — nothing will be "
-                f"KEPT until these go positive. Consider relaxing guards to relative improvement."
-            )
-        elif imp_r2 > 0 or den_r2 > 0:
-            record("T17", True, f"baseline has some positive R²: imp={imp_r2:.3f} den={den_r2:.3f}")
+        # Guards are now relative-only (DCR + finite losses); R² floors removed.
+        # Anything with primary_score > best_in_results_tsv will be kept.
+        # T17 verifies the baseline primary is finite and that results.tsv has a valid best.
+        from sandbox.autoresearch.june3 import keep_rule as _kr
+        from sandbox.autoresearch.june3.prepare import DCR_LO, DCR_HI
+        best_from_tsv = _kr.load_best_primary(JUNE3 / "results.tsv")
+        if not math.isfinite(primary):
+            record("T17", False, f"baseline primary_score is non-finite: {primary}")
+        elif not math.isfinite(best_from_tsv):
+            record("T17", None, "results.tsv has no finite primary yet — first run will set the bar")
         else:
-            record("T17", None, f"baseline R² unclear: imp={imp_r2} den={den_r2}")
+            record(
+                "T17", True,
+                f"baseline primary={primary:.3f}, best_tsv={best_from_tsv:.3f}. "
+                f"Guards: DCR in [{DCR_LO},{DCR_HI}] + finite losses only (no R² floor). "
+                f"imp_r2={imp_r2:.3f} den_r2={den_r2:.3f}"
+            )
     except Exception as e:
         record("T17", False, repr(e))
 
