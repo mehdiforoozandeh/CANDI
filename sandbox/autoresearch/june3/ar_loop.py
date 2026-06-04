@@ -110,9 +110,10 @@ def _time_left() -> float:
 
 def _slurm_alive() -> bool:
     r = _run(["bash", "-lc", "squeue -u $USER -n bash -h -o %T 2>/dev/null | head -1"])
-    if not r.stdout.strip():
+    st = (r.stdout or "").strip().upper()
+    if not st:
         return True
-    return r.stdout.strip().upper() == "R"
+    return st in ("R", "RUNNING")
 
 
 def one_iteration(desc: str, body: str) -> None:
@@ -132,17 +133,28 @@ def one_iteration(desc: str, body: str) -> None:
         [sys.executable, "-m", "sandbox.autoresearch.june3.agent_step", "--description", desc],
         cwd=str(REPO),
         env=env,
+        capture_output=True,
+        text=True,
     )
     footer = _parse_footer()
     primary = footer.get("primary_score", "nan")
-    verdict_line = "keep"
-    if "KEEP_VERDICT: keep" not in (RUN_LOG.read_text() if RUN_LOG.exists() else ""):
-        # agent_step prints to stdout; re-check results tsv last line
+    status = footer.get("status", "crash")
+    verdict_line = "crash"
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("KEEP_VERDICT:"):
+            verdict_line = line.split(":", 1)[1].strip().split()[0]
+            break
+    else:
         lines = (JUNE3 / "results.tsv").read_text().splitlines()
         if len(lines) > 1:
             parts = lines[-1].split("\t")
             if len(parts) > 1:
                 verdict_line = parts[1]
+    if status == "crash" and proc.returncode != 0:
+        _run(["git", "reset", "--hard", "HEAD~1"])
+        _restore_baseline_train()
+        _append_note(commit, primary, "crash", desc[:80])
+        return
     if verdict_line != "keep":
         _run(["git", "reset", "--hard", "HEAD~1"])
         _restore_baseline_train()
