@@ -15,9 +15,20 @@ logs/
 jobs/
 models/
 eic_paper/
+chr21umap
 
 wandb/
 predictions.pkl
 
 # Large generated sandbox dataset (rebuild via sandbox prepare); exceeds GitHub 100MB limit
 sandbox/data/sandbox.h5
+
+# sandbox artifacts
+sandbox/runs/*
+sandbox/slurm/*
+sandbox/slurm_logs/*
+sandbox/slurm_tmp/
+sandbox/configs/
+sandbox/diagnostics/runs/
+
+slurm_logs/*

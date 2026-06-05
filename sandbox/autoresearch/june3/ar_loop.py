@@ -119,6 +119,9 @@ def _slurm_alive() -> bool:
 def one_iteration(desc: str, body: str) -> None:
     _restore_baseline_train()
     _patch_train(body)
+    if _run([sys.executable, "-m", "sandbox.autoresearch.june3.scope"]).returncode != 0:
+        _run(["git", "checkout", "--", "sandbox/autoresearch/june3/train.py"])
+        return
     if _run([sys.executable, "-m", "sandbox.autoresearch.june3.scope", "--staged"]).returncode != 0:
         _run(["git", "checkout", "--", "sandbox/autoresearch/june3/train.py"])
         return

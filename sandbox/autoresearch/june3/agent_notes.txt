@@ -1,3 +1,4 @@
 # E34 june3 agent notes (commit, primary, verdict, lesson)
 be0d38e2 -2.811851 discard baseline guard_fail: imp/den gw R2 negative at 10% chr19/20ep
 1bd68ee4 -2.703176 discard n_transformer=3: primary up but imp_r2 worse, guards fail
+78e6f31c None crash gated fusion + fusion_norm layer
