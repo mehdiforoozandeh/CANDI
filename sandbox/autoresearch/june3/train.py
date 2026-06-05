@@ -30,7 +30,10 @@ def _load_baseline_config() -> CANDIv2Config:
 
 def get_config() -> CANDIv2Config:
     """Return config for this run. Agent may edit encoder/decoder fields here."""
-    return _load_baseline_config()
+    cfg = _load_baseline_config()
+    cfg.encoder.n_transformer_layers = 3
+    cfg.encoder.nhead = 8
+    return cfg
 
 
 def build_model(cfg: CANDIv2Config, device: torch.device) -> CANDIv2:

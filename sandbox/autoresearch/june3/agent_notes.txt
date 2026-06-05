@@ -2,3 +2,4 @@
 be0d38e2 -2.811851 discard baseline guard_fail: imp/den gw R2 negative at 10% chr19/20ep
 1bd68ee4 -2.703176 discard n_transformer=3: primary up but imp_r2 worse, guards fail
 78e6f31c None crash gated fusion + fusion_norm layer
+5a82f32f nan guard_fail metadata_embed_dim=64+n_transformer=3 also broke eval (same NaN root cause as NaN eval API); revert
