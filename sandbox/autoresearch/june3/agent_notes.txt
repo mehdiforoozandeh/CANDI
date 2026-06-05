@@ -17,3 +17,17 @@ c8e5e8de -0.992891 KEEP n=4+nhead=8+conv_norm=group: BEST; den_r2=-1.755, imp_r2
 ed9d7938 -0.988292 KEEP confirmed best; manually restored to results.tsv each session; results.tsv now committed standalone before experiments
 6eb75cb9 -1.069 no_gain dropout=0.05: slight hurt; GroupNorm provides enough stability
 98422afa -1.144 no_gain decoder.norm=rms: gradient NaN in count_imp; RMSNorm destabilizes decoder
+e7e8e48c -1.007 no_gain transformer_type=dual: gradient NaN; transformer FiLM critical
+da2b2044 -1.528 no_gain bottleneck MLP: gradient NaN; den_r2→-3.91; avoid unregularized MLPs
+a87888d2 -2.405 no_gain film_mode=per_conv: den_r2→-7.56; transformer FiLM essential
+92d4331c -1.063 no_gain final LayerNorm after transformer: den_r2→-2.05; slight regress
+ccf4d585 -1.245 no_gain nhead=9: den_r2→-2.754; nhead=8 sweet spot
+15482587 -1.205 no_gain signal_transform=arcsinh: den_r2→-2.609; log1p better
+1bff3bac -2.335 no_gain conv_kernel_size=5: den_r2→-6.95; wider kernel catastrophic
+e29263e7 -1.011 no_gain nhead=6: den_r2→-1.825; nhead=8 confirmed optimal
+a6fdfd79 -1.489 no_gain metadata_embed_dim=16: den_r2→-3.695; meta=32 sweet spot
+67ee1046 crash n_cnn_layers=4+n_transformer=2: DNA tower shape mismatch; n_cnn_layers fixed at 3
+c84ff682 -1.338 no_gain decoder.expansion_factor=3: den_r2→-3.052; wider decoder doesn't help
+7a5227d7 -1.020 no_gain dropout=0.0: den_r2→-1.858; dropout=0.1 confirmed optimal
+5c84543a -1.091 no_gain dna_pool_order=early: den_r2→-2.136; late pooling is better
+24d21173 -1.095 no_gain cross_assay_attn (nhead=2 before fusion): den_r2→-1.984; no gain

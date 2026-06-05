@@ -34,6 +34,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.n_transformer_layers = 4
     cfg.encoder.nhead = 8
     cfg.encoder.conv_norm = "group"
+    cfg.decoder.meta_embed_dim = 8
     return cfg
 
 
