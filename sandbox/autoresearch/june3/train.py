@@ -33,7 +33,7 @@ def get_config() -> CANDIv2Config:
     cfg = _load_baseline_config()
     cfg.encoder.n_transformer_layers = 3
     cfg.encoder.nhead = 8
-    cfg.encoder.metadata_embed_dim = 64
+    cfg.encoder.fusion_norm = "layer"
     return cfg
 
 

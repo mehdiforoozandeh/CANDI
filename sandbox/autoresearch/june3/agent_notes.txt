@@ -6,3 +6,5 @@ be0d38e2 -2.811851 discard baseline guard_fail: imp/den gw R2 negative at 10% ch
 b9e9ef10 -1.448355 KEEP eval API compat + n_transformer=3 + nhead=8: massive imp_r2 gain (-3.34→-0.42), den_r2 still -3.02; train_obs_loss spiked 6.6 but eval OK
 fe17222a -4.951 no_gain decoder.film_mode=per_deconv_layer + meta_embed_dim=64: den_r2→-16.4; training stalled; never use per_deconv_layer FiLM
 598c1fd5 crash n_cnn_layers=4 on top of best: param_count=1561112 > 5x limit (1503480); need ≤2 transformer layers when n_cnn_layers=4
+1aed5e8f -1.711012 KEEP enc.metadata_embed_dim=64 on nhead=8: imp_r2 improved (-0.42→-0.11) but den_r2 worsened (-3.02→-4.58); wider metadata helps imp but consistently hurts den
+7f15bbaa -2.721 no_gain dec.meta_embed_dim=64 added: den_r2 → -8.91; expanding decoder metadata makes den even worse; AVOID wider metadata on both enc and dec
