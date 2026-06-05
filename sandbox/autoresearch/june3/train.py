@@ -34,7 +34,6 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.n_transformer_layers = 4
     cfg.encoder.nhead = 8
     cfg.encoder.conv_norm = "group"
-    cfg.decoder.grouped_deconv = True
     return cfg
 
 

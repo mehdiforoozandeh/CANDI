@@ -2,3 +2,4 @@ commit	keep	primary_score	imp_r2	den_r2	count_imp_loss	count_obs_loss	train_imp_
 be0d38e2	guard_fail	-2.811851	-2.283262	-5.491669	1.537509	1.039636	0.973638	0.631885	300696	121.769531	true	ok	baseline vendored v2
 1bd68ee4	guard_fail	-2.703176	-3.342708	-3.106517	1.600178	1.022926	0.822583	0.817529	421224	128.799805	true	ok	n_transformer_layers=3
 78e6f31c	crash	None	None	None	None	None	None	None	300912	120.122559	false	crash	gated fusion + fusion_norm layer
+057e52f6	keep	-1.876200	-0.240145	-5.043290	1.952507	1.168113	1.047998	6.307950	827256	149.293457	true	ok	n_transformer=4, nhead=8, conv_norm=group, decoder.grouped_deconv=True
