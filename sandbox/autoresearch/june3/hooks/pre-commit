@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Install: ln -sf ../../sandbox/autoresearch/june3/hooks/pre-commit .git/hooks/pre-commit
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+python -m sandbox.autoresearch.june3.scope --staged

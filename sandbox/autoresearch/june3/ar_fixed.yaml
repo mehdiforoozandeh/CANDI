@@ -1,0 +1,64 @@
+# E34 june3 — frozen AR config (DO NOT MODIFY during agent loop).
+# Snapshot of candi_v2_default.yaml at harness setup time.
+# Merge order: CANDIv2Config() defaults -> this file -> prepare.py overrides.
+
+encoder:
+  film_mode: per_conv_and_transformer
+  missing_data_mode: mask_token
+  transformer_type: xtransformers
+  fusion_mode: linear
+  fusion_norm: none
+  conv_norm: layer
+  signal_transform: log1p
+  meta_embed_layernorm: true
+  n_cnn_layers: 3
+  n_transformer_layers: 2
+  nhead: 4
+  expansion_factor: 2
+  metadata_embed_dim: 32
+  dropout: 0.1
+
+decoder:
+  trunk: shared
+  film_mode: single_pre_decoder
+  heads: count_only
+  count_head: depth_offset
+  depth_center: 22.5
+  n_cnn_layers: 3
+  expansion_factor: 2
+  pool_size: 2
+  norm: layer
+  meta_embed_dim: 32
+  meta_embed_layernorm: false
+  gaussian_var_min: 0.1
+
+data:
+  regime: type1_chr19
+
+training:
+  batch_size: 4
+  amp: false
+  optimizer:
+    name: adamax
+    adamax:
+      lr: 1.0e-3
+  grad:
+    clip_norm: 2.0
+  schedule:
+    warmup_frac: 0.1
+  loss_weights:
+    count_weight: 2.0
+    obs_weight: 3.5
+    imp_weight: 0.59
+  dsf:
+    sampling: "off"
+  masking:
+    p_full_assay: 1.0
+    p_full_loci: 0.0
+    p_chunks: 0.0
+
+eval:
+  use_canonical_missing_meta: false
+
+wandb:
+  mode: disabled

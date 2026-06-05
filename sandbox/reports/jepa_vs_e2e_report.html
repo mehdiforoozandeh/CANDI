@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CANDI JEPA vs End-to-End — Architecture Report</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232736;
+    --border: #2e3348;
+    --text: #e2e4eb;
+    --text-dim: #8b90a5;
+    --accent: #6c8cff;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --orange: #fb923c;
+    --red: #f87171;
+    --pink: #f472b6;
+    --cyan: #22d3ee;
+    --yellow: #fbbf24;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 1.05rem;
+    margin-bottom: 3rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 3rem 0 1.5rem;
+    color: var(--accent);
+  }
+
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 2rem 0 1rem;
+    color: var(--accent2);
+  }
+
+  p { margin-bottom: 1rem; color: var(--text); }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .diagram-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 1rem 0;
+  }
+
+  .flow-vertical {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1rem 0;
+  }
+
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.2rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 100px;
+    position: relative;
+  }
+
+  .node-input {
+    background: rgba(34, 211, 238, 0.12);
+    border: 2px solid var(--cyan);
+    color: var(--cyan);
+  }
+
+  .node-encoder {
+    background: rgba(108, 140, 255, 0.12);
+    border: 2px solid var(--accent);
+    color: var(--accent);
+  }
+
+  .node-predictor {
+    background: rgba(251, 146, 60, 0.15);
+    border: 2px solid var(--orange);
+    color: var(--orange);
+  }
+
+  .node-decoder {
+    background: rgba(167, 139, 250, 0.12);
+    border: 2px solid var(--accent2);
+    color: var(--accent2);
+  }
+
+  .node-output {
+    background: rgba(52, 211, 153, 0.12);
+    border: 2px solid var(--green);
+    color: var(--green);
+  }
+
+  .node-loss {
+    background: rgba(248, 113, 113, 0.12);
+    border: 2px solid var(--red);
+    color: var(--red);
+  }
+
+  .node-meta {
+    background: rgba(251, 191, 36, 0.12);
+    border: 2px solid var(--yellow);
+    color: var(--yellow);
+  }
+
+  .node-frozen {
+    opacity: 0.5;
+    border-style: dashed;
+  }
+
+  .node small {
+    font-size: 0.7rem;
+    font-weight: 400;
+    opacity: 0.7;
+    margin-top: 2px;
+  }
+
+  .arrow {
+    font-size: 1.3rem;
+    color: var(--text-dim);
+    padding: 0 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .arrow-down {
+    font-size: 1.3rem;
+    color: var(--text-dim);
+    padding: 0.3rem 0;
+  }
+
+  .arrow-curved {
+    color: var(--yellow);
+    font-size: 0.8rem;
+    font-weight: 600;
+    position: relative;
+  }
+
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  @media (max-width: 800px) {
+    .comparison-grid { grid-template-columns: 1fr; }
+  }
+
+  .compare-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+
+  .compare-card h4 {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-right: 0.3rem;
+    vertical-align: middle;
+  }
+
+  .tag-stage1 { background: rgba(108, 140, 255, 0.2); color: var(--accent); }
+  .tag-stage2 { background: rgba(167, 139, 250, 0.2); color: var(--accent2); }
+  .tag-e2e { background: rgba(248, 113, 113, 0.2); color: var(--red); }
+  .tag-frozen { background: rgba(139, 144, 165, 0.2); color: var(--text-dim); }
+
+  .key-point {
+    background: linear-gradient(135deg, rgba(108, 140, 255, 0.08), rgba(167, 139, 250, 0.08));
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.2rem;
+    border-radius: 0 8px 8px 0;
+    margin: 1rem 0;
+    font-size: 0.95rem;
+  }
+
+  .key-point strong { color: var(--accent); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+
+  th, td {
+    padding: 0.7rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  td { color: var(--text); }
+
+  .check { color: var(--green); }
+  .cross { color: var(--red); }
+
+  .meta-inject-label {
+    position: absolute;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--yellow);
+    white-space: nowrap;
+  }
+
+  .pipeline-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .stage-divider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+
+  .stage-divider::before,
+  .stage-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .stage-divider span {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    white-space: nowrap;
+  }
+
+  .role-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--surface2);
+    border-radius: 10px;
+    margin: 0.75rem 0;
+  }
+
+  .role-icon {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+  }
+
+  .role-content { flex: 1; }
+  .role-content strong { display: block; margin-bottom: 0.3rem; }
+  .role-content p { font-size: 0.88rem; margin: 0; color: var(--text-dim); }
+
+  .wide-diagram {
+    display: flex;
+    gap: 2rem;
+    align-items: stretch;
+    margin: 1.5rem 0;
+  }
+
+  .wide-diagram > div {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @media (max-width: 900px) {
+    .wide-diagram { flex-direction: column; }
+  }
+
+  .loss-eq {
+    font-family: 'Courier New', monospace;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    color: var(--cyan);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .gradient-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+  }
+
+  .gradient-line .bar {
+    height: 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1rem 0;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 2px solid;
+    flex-shrink: 0;
+  }
+
+  .analogy-table {
+    width: 100%;
+    margin: 1rem 0;
+  }
+
+  .analogy-table td {
+    vertical-align: top;
+    padding: 0.8rem;
+  }
+
+  .analogy-table .analogy-header {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--accent);
+    padding-bottom: 0.5rem;
+  }
+
+  .toc {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .toc-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 0.8rem;
+    font-weight: 700;
+  }
+
+  .toc a {
+    display: block;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 0.3rem 0;
+    font-size: 0.9rem;
+  }
+
+  .toc a:hover { text-decoration: underline; }
+
+  .highlight-orange { color: var(--orange); font-weight: 600; }
+  .highlight-blue { color: var(--accent); font-weight: 600; }
+  .highlight-purple { color: var(--accent2); font-weight: 600; }
+  .highlight-green { color: var(--green); font-weight: 600; }
+  .highlight-cyan { color: var(--cyan); font-weight: 600; }
+  .highlight-yellow { color: var(--yellow); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>CANDI: JEPA vs End-to-End Reconstruction</h1>
+<p class="subtitle">
+  How the two-stage JEPA pipeline separates imputation from decoding,
+  and why that matters for epigenome denoising.
+</p>
+
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#overview">1. The Core Idea at a Glance</a>
+  <a href="#e2e">2. End-to-End Reconstruction (Baseline)</a>
+  <a href="#jepa-stage1">3. JEPA Stage 1 — Encoder + Predictor Pretraining</a>
+  <a href="#jepa-stage2">4. JEPA Stage 2 — Decoder Training</a>
+  <a href="#predictor-role">5. The Predictor: Where Imputation Actually Happens</a>
+  <a href="#comparison">6. Side-by-Side Comparison</a>
+  <a href="#tradeoffs">7. What Each Paradigm Gets Right</a>
+</div>
+
+<!-- ─────────────── SECTION 1: OVERVIEW ─────────────── -->
+<div class="section" id="overview">
+  <h2 style="margin-top:0">1. The Core Idea at a Glance</h2>
+
+  <p>
+    CANDI takes <span class="highlight-cyan">raw sequencing read counts</span> for epigenomic assays and
+    <span class="highlight-yellow">experimental metadata</span> (sequencing depth, assay type, read length, run type),
+    and predicts the full signal for all 35 assays — including those that were never measured
+    for a given cell type.
+  </p>
+
+  <p>There are two fundamentally different ways to train this system:</p>
+
+  <div class="comparison-grid">
+    <div class="compare-card">
+      <h4><span class="tag tag-e2e">End-to-End</span> Reconstruction-Only</h4>
+      <p style="font-size:0.88rem; color:var(--text-dim)">
+        One monolithic training pass. The encoder, decoder, and output heads all receive gradients
+        from the <strong>reconstruction loss</strong> (how well the outputs match the actual signal).
+        Every component is shaped by the signal-space objective.
+      </p>
+    </div>
+    <div class="compare-card">
+      <h4><span class="tag tag-stage1">Stage 1</span> + <span class="tag tag-stage2">Stage 2</span> JEPA Pipeline</h4>
+      <p style="font-size:0.88rem; color:var(--text-dim)">
+        Two decoupled stages. First train the encoder + predictor to work in <strong>latent space only</strong>
+        (no signal reconstruction). Then freeze them and train lightweight decoders to translate
+        latent representations back to signal space.
+      </p>
+    </div>
+  </div>
+
+  <div class="key-point">
+    <strong>The key separation:</strong>
+    In JEPA, the <span class="highlight-orange">predictor</span> is responsible for imputation and denoising
+    (going from observed context to predicted target, in latent space).
+    The <span class="highlight-purple">decoder</span>'s job is only to translate the predictor's output
+    back to signal space. Metadata conditioning happens at the <span class="highlight-orange">predictor</span> level,
+    not at the decoder.
+  </div>
+</div>
+
+<!-- ─────────────── SECTION 2: E2E ─────────────── -->
+<div class="section" id="e2e">
+  <h2 style="margin-top:0">2. End-to-End Reconstruction <span class="tag tag-e2e">Baseline</span></h2>
+
+  <p>
+    In the standard CANDI pipeline, everything is trained jointly with a single objective:
+    reconstruct the signal from masked inputs. The encoder, decoder, and all three output heads
+    (counts, processed signal, peaks) share gradients through the full compute graph.
+  </p>
+
+  <div class="diagram-box">
+    <div class="pipeline-label">End-to-End CANDI — Single Training Pass</div>
+
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--cyan); background: rgba(34,211,238,0.15)"></div> Inputs</div>
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--yellow); background: rgba(251,191,36,0.15)"></div> Metadata</div>
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--accent); background: rgba(108,140,255,0.15)"></div> Encoder</div>
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--accent2); background: rgba(167,139,250,0.15)"></div> Decoder</div>
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--green); background: rgba(52,211,153,0.15)"></div> Outputs</div>
+      <div class="legend-item"><div class="legend-swatch" style="border-color: var(--red); background: rgba(248,113,113,0.15)"></div> Loss</div>
+    </div>
+
+    <div class="flow">
+      <div class="node node-input">
+        Masked Reads<br><small>[B, L, A+1]</small>
+      </div>
+      <div class="arrow">+</div>
+      <div class="node node-input">
+        DNA Sequence<br><small>[B, 4, G]</small>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-encoder" style="min-width:150px;">
+        Encoder<br>
+        <small>Conv + Transformer</small><br>
+        <small style="color:var(--yellow)">← FiLM from metadata</small>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="node node-encoder" style="padding:0.4rem 0.8rem;font-size:0.78rem;">z <small>[B, L2, F2]</small></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-decoder" style="min-width:150px;">
+        3× Decoders<br>
+        <small>DeConv towers</small><br>
+        <small style="color:var(--yellow)">← FiLM from target metadata</small>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="node node-output" style="padding:0.4rem 0.8rem;font-size:0.78rem;">Counts <small>(NB)</small></div>
+        <div class="node node-output" style="padding:0.4rem 0.8rem;font-size:0.78rem;">Signal <small>(Gaussian)</small></div>
+        <div class="node node-output" style="padding:0.4rem 0.8rem;font-size:0.78rem;">Peaks <small>(Bernoulli)</small></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-loss">
+        NLL Loss<br><small>obs + imp</small>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:1rem;">
+      <div style="font-size:0.8rem; color:var(--yellow); font-weight:600;">
+        ⚡ Metadata (target assay type, depth, etc.) conditions BOTH encoder AND decoder via FiLM
+      </div>
+      <div style="font-size:0.8rem; color:var(--red); margin-top:0.3rem;">
+        ← Gradients flow backward through ALL components from signal-space loss
+      </div>
+    </div>
+  </div>
+
+  <div class="loss-eq">L = w_obs × (w_count × NB_NLL + w_pval × Gauss_NLL + w_peak × BCE)
+  + w_imp × (w_count × NB_NLL + w_pval × Gauss_NLL + w_peak × BCE)</div>
+
+  <h3>Where metadata conditioning happens</h3>
+  <p>
+    In end-to-end CANDI, <span class="highlight-yellow">FiLM layers</span> inject metadata at
+    <em>every convolutional layer</em> in both the encoder and decoder. The decoder is not a
+    pure spatial upsampler — it's a metadata-conditioned function at every stage.
+    This means the decoder must simultaneously learn (a) how to upsample and (b) what the
+    target assay should look like — entangling the two concerns.
+  </p>
+</div>
+
+<!-- ─────────────── SECTION 3: JEPA STAGE 1 ─────────────── -->
+<div class="section" id="jepa-stage1">
+  <h2 style="margin-top:0">3. JEPA Stage 1 — Encoder + Predictor Pretraining <span class="tag tag-stage1">Stage 1</span></h2>
+
+  <p>
+    Stage 1 trains the encoder and predictor entirely in <strong>latent space</strong>.
+    There is no decoder, no signal reconstruction. The sole objective: given a masked/partial
+    context, predict the <em>latent representation</em> that the encoder would have produced
+    from the full (unmasked) target.
+  </p>
+
+  <div class="diagram-box">
+    <div class="pipeline-label">JEPA Stage 1 — Latent Prediction (no signal reconstruction)</div>
+
+    <!-- TWO PARALLEL PATHS -->
+    <div style="display:grid; grid-template-columns: 1fr auto 1fr; gap: 0.5rem; align-items: start;">
+
+      <!-- LEFT: Context path -->
+      <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+        <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700; margin-bottom:0.5rem;">CONTEXT PATH (masked input)</div>
+        <div class="node node-input" style="width:180px;">
+          Masked Reads + DNA<br>
+          <small>some assays hidden</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-meta" style="width:180px; padding:0.5rem;">
+          Context Metadata<br>
+          <small>masked assays → cloze values</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="width:180px;">
+          Encoder<br>
+          <small>Conv + Transformer + FiLM</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+          z_ctx <small>[B, L2, F2]</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="padding:0.4rem 0.8rem; font-size:0.8rem; border-color: #5a6adf;">
+          Projector<br><small>z_ctx → proj_ctx</small>
+        </div>
+      </div>
+
+      <!-- MIDDLE: Predictor -->
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding-top:2rem;">
+        <div style="height:180px;"></div>
+        <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700; margin-bottom:0.5rem; text-align:center;">
+          PREDICTION<br>(latent imputation)
+        </div>
+        <div style="display:flex; align-items:center; gap:0.3rem;">
+          <div style="font-size:0.9rem; color:var(--text-dim);">proj_ctx →</div>
+        </div>
+        <div style="margin-top:0.3rem;">
+          <div class="node node-predictor" style="min-width:190px; padding:1rem;">
+            <strong>Predictor</strong><br>
+            <small>Transformer + AdaLN-zero</small><br>
+            <small style="color:var(--yellow);">← conditioned on target metadata</small>
+          </div>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-predictor" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+          z_pred <small>[B, L2, proj_dim]</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-loss" style="margin-top:0.5rem;">
+          MSE Loss<br>
+          <small>‖z_pred − proj_tgt‖²</small>
+        </div>
+        <div style="margin-top:0.8rem;">
+          <div class="node node-loss" style="padding:0.5rem; font-size:0.8rem; border-color: #e879a0;">
+            + λ × SIGReg<br>
+            <small>isotropy regularization</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Target path -->
+      <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+        <div style="font-size:0.75rem; color:var(--text-dim); font-weight:700; margin-bottom:0.5rem;">TARGET PATH (full input)</div>
+        <div class="node node-input" style="width:180px;">
+          Full Reads + DNA<br>
+          <small>all assays present</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-meta" style="width:180px; padding:0.5rem;">
+          Target Metadata<br>
+          <small>full depth, assay type, ...</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="width:180px;">
+          Encoder <small>(shared weights)</small><br>
+          <small>Conv + Transformer + FiLM</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+          z_tgt <small>[B, L2, F2]</small>
+        </div>
+        <div class="arrow-down">↓</div>
+        <div class="node node-encoder" style="padding:0.4rem 0.8rem; font-size:0.8rem; border-color: #5a6adf;">
+          Projector <small>(shared)</small><br><small>z_tgt → proj_tgt</small>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:1.5rem; font-size:0.85rem; color:var(--text-dim);">
+      The predictor learns: <em>"given what I can see (context), and told what the target
+      experiment is (metadata), predict what the encoder would produce from the full input."</em>
+    </div>
+  </div>
+
+  <div class="loss-eq">L_stage1 = MSE(z_pred, proj_tgt) + λ × SIGReg(proj_ctx, proj_tgt)</div>
+
+  <div class="key-point">
+    <strong>No signal reconstruction in Stage 1.</strong>
+    The encoder learns to produce good latent representations. The predictor learns to impute
+    missing assays and denoise in latent space. SIGReg prevents dimensional collapse by
+    enforcing isotropic covariance in the projection space.
+  </div>
+
+  <h3>Why metadata conditioning is at the predictor</h3>
+  <p>
+    The predictor receives the <span class="highlight-yellow">target metadata</span> (which assay, at
+    what sequencing depth, etc.) via <strong>AdaLN-zero</strong> conditioning. This is the critical
+    design choice: the predictor is told <em>"predict what H3K4me3 at 50M reads would look like"</em>
+    and must synthesize that from whatever partial context is available. The encoder never sees
+    which assays are being requested — it only processes what is actually observed.
+  </p>
+</div>
+
+<!-- ─────────────── SECTION 4: JEPA STAGE 2 ─────────────── -->
+<div class="section" id="jepa-stage2">
+  <h2 style="margin-top:0">4. JEPA Stage 2 — Decoder Training <span class="tag tag-stage2">Stage 2</span></h2>
+
+  <p>
+    With the encoder and predictor frozen, Stage 2 trains three independent decoder towers
+    to translate the predictor's latent output back to signal space. The decoders have
+    <strong>no FiLM conditioning</strong> — they are purely
+    <span class="highlight-purple">latent → signal</span> mappers.
+  </p>
+
+  <div class="diagram-box">
+    <div class="pipeline-label">JEPA Stage 2 — Decoder Training (encoder + predictor frozen)</div>
+
+    <div class="flow" style="flex-wrap: nowrap;">
+      <div class="node node-input">
+        Masked Reads<br>+ DNA
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-encoder node-frozen" style="min-width: 120px;">
+        Encoder<br>
+        <small>🔒 frozen</small>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-encoder node-frozen" style="padding:0.4rem 0.8rem; font-size:0.8rem;">
+        z_ctx
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <div class="node node-predictor node-frozen" style="min-width:140px;">
+          Predictor<br>
+          <small>🔒 frozen</small><br>
+          <small style="color:var(--yellow)">← target meta</small>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="node node-predictor" style="padding:0.4rem 0.8rem; font-size:0.82rem; border-style:solid; opacity:1;">
+          z_pred<br><small>imputed latent</small>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="node node-decoder" style="padding:0.5rem 0.8rem;font-size:0.78rem;">Count Decoder <small>(no FiLM)</small></div>
+        <div class="node node-decoder" style="padding:0.5rem 0.8rem;font-size:0.78rem;">Signal Decoder <small>(no FiLM)</small></div>
+        <div class="node node-decoder" style="padding:0.5rem 0.8rem;font-size:0.78rem;">Peak Decoder <small>(no FiLM)</small></div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div class="node node-output" style="padding:0.4rem 0.6rem;font-size:0.75rem;">NB(n̂,p̂)</div>
+        <div class="node node-output" style="padding:0.4rem 0.6rem;font-size:0.75rem;">𝒩(μ̂,σ̂²)</div>
+        <div class="node node-output" style="padding:0.4rem 0.6rem;font-size:0.75rem;">σ(peak)</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node node-loss">
+        NLL Loss
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:1rem;">
+      <div style="font-size:0.8rem; color:var(--accent2); font-weight:600;">
+        ⚡ Only decoder weights receive gradients — encoder and predictor are frozen
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-dim); margin-top:0.3rem;">
+        Decoders are pure spatial upsamplers: z_pred already contains all imputation/denoising information
+      </div>
+    </div>
+  </div>
+
+  <div class="key-point">
+    <strong>The decoder never needs to know which assay it's reconstructing.</strong>
+    That information was already consumed by the predictor in Stage 1. The decoder simply
+    translates the already-imputed latent z_pred into the three output signal types.
+  </div>
+</div>
+
+<!-- ─────────────── SECTION 5: PREDICTOR ROLE ─────────────── -->
+<div class="section" id="predictor-role">
+  <h2 style="margin-top:0">5. The Predictor: Where Imputation Actually Happens</h2>
+
+  <p>
+    The most important conceptual shift between end-to-end and JEPA is <em>where</em>
+    the imputation and denoising occur. Let's make this concrete:
+  </p>
+
+  <div class="wide-diagram">
+    <!-- E2E side -->
+    <div>
+      <div style="text-align:center; font-weight:700; color:var(--red); margin-bottom:1rem; font-size:0.9rem;">
+        End-to-End: Imputation is Diffused
+      </div>
+      <div class="role-box">
+        <div class="role-icon" style="background:rgba(108,140,255,0.15); color:var(--accent);">E</div>
+        <div class="role-content">
+          <strong style="color:var(--accent)">Encoder</strong>
+          <p>Encodes whatever assays are available. With FiLM conditioning from metadata at every layer, it <em>partially</em> learns what's missing.</p>
+        </div>
+      </div>
+      <div class="role-box">
+        <div class="role-icon" style="background:rgba(167,139,250,0.15); color:var(--accent2);">D</div>
+        <div class="role-content">
+          <strong style="color:var(--accent2)">Decoder</strong>
+          <p>Must <em>simultaneously</em>: (1) upsample latent → full resolution, (2) use FiLM to figure out what the target assay should look like, (3) handle obs vs imputed quality split. Too many jobs for one component.</p>
+        </div>
+      </div>
+      <div style="padding:0.8rem; text-align:center; font-size:0.85rem; color:var(--text-dim); border-top:1px solid var(--border); margin-top:auto;">
+        Imputation pressure is spread across encoder + decoder.
+        Gradients from 3 heads interfere at the shared encoder.
+      </div>
+    </div>
+
+    <!-- JEPA side -->
+    <div>
+      <div style="text-align:center; font-weight:700; color:var(--green); margin-bottom:1rem; font-size:0.9rem;">
+        JEPA: Imputation is Localized
+      </div>
+      <div class="role-box">
+        <div class="role-icon" style="background:rgba(108,140,255,0.15); color:var(--accent);">E</div>
+        <div class="role-content">
+          <strong style="color:var(--accent)">Encoder</strong>
+          <p>Encodes what is observed into a clean latent. Shaped by SIGReg for isotropic geometry, not by reconstruction noise.</p>
+        </div>
+      </div>
+      <div class="role-box">
+        <div class="role-icon" style="background:rgba(251,146,60,0.15); color:var(--orange);">P</div>
+        <div class="role-content">
+          <strong style="color:var(--orange)">Predictor (the star)</strong>
+          <p><strong>All imputation and denoising happen here.</strong> Takes z_ctx + target metadata → z_pred. Conditioned via AdaLN-zero on exactly which assay to predict, at what depth. This is the component that "fills in the blanks."</p>
+        </div>
+      </div>
+      <div class="role-box">
+        <div class="role-icon" style="background:rgba(167,139,250,0.15); color:var(--accent2);">D</div>
+        <div class="role-content">
+          <strong style="color:var(--accent2)">Decoder</strong>
+          <p>Pure latent-to-signal translator. No metadata, no FiLM. z_pred already contains all the information; the decoder just changes the representation format.</p>
+        </div>
+      </div>
+      <div style="padding:0.8rem; text-align:center; font-size:0.85rem; color:var(--text-dim); border-top:1px solid var(--border); margin-top:auto;">
+        Imputation is fully contained in the predictor.
+        Decoder trains independently per head — no interference.
+      </div>
+    </div>
+  </div>
+
+  <h3>The predictor in detail</h3>
+
+  <div class="diagram-box">
+    <div class="pipeline-label">Inside the Predictor</div>
+    <div style="display:flex; align-items:center; justify-content:center; gap:1rem; flex-wrap:wrap; padding:1rem 0;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+        <div class="node node-encoder" style="font-size:0.8rem; padding:0.5rem 0.8rem;">proj_ctx</div>
+        <div style="font-size:0.7rem; color:var(--text-dim);">latent of observed assays</div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:8px; background:rgba(251,146,60,0.08); border:2px solid var(--orange); border-radius:14px; padding:1.2rem;">
+        <div style="font-size:0.8rem; font-weight:700; color:var(--orange);">Transformer Block</div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="font-size:0.75rem; color:var(--text-dim);">Self-Attention</div>
+          <div class="arrow" style="font-size:1rem;">→</div>
+          <div style="font-size:0.75rem; color:var(--text-dim);">FFN</div>
+        </div>
+        <div style="border-top:1px solid rgba(251,146,60,0.3); padding-top:0.5rem; width:100%; text-align:center;">
+          <div style="font-size:0.75rem; font-weight:700; color:var(--yellow);">AdaLN-zero Conditioning</div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">
+            γ, β from target metadata<br>
+            <span style="color:var(--yellow);">(assay type, depth, read length, run type)</span>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+        <div class="node node-predictor" style="font-size:0.8rem; padding:0.5rem 0.8rem;">z_pred</div>
+        <div style="font-size:0.7rem; color:var(--text-dim);">latent of imputed target</div>
+      </div>
+    </div>
+
+    <div style="text-align:center; font-size:0.85rem; color:var(--text-dim); margin-top:0.5rem;">
+      AdaLN-zero modulates the normalization layers with scale (γ) and shift (β) derived from the
+      target metadata. This tells the predictor: <em>"produce the latent for this specific assay at this specific depth."</em>
+    </div>
+  </div>
+
+  <p>
+    Think of the predictor as answering the question:
+    <em>"I can see H3K27ac and CTCF for this cell type. What would H3K4me3 at 50M reads
+    look like in latent space?"</em>
+    — and the decoder then simply renders that latent answer into a count track, a signal track,
+    and a peak call track.
+  </p>
+</div>
+
+<!-- ─────────────── SECTION 6: COMPARISON ─────────────── -->
+<div class="section" id="comparison">
+  <h2 style="margin-top:0">6. Side-by-Side Comparison</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Aspect</th>
+        <th><span class="tag tag-e2e">End-to-End</span></th>
+        <th><span class="tag tag-stage1">Stage 1</span> + <span class="tag tag-stage2">Stage 2</span> JEPA</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>What does imputation</td>
+        <td>Encoder + Decoder jointly (diffused)</td>
+        <td><span class="highlight-orange">Predictor only</span> (localized in latent space)</td>
+      </tr>
+      <tr>
+        <td>Decoder's job</td>
+        <td>Upsample + condition on target metadata</td>
+        <td><span class="highlight-purple">Only upsample</span> (no metadata needed)</td>
+      </tr>
+      <tr>
+        <td>Where metadata enters</td>
+        <td>Encoder FiLM (every layer) + Decoder FiLM (every layer)</td>
+        <td>Encoder FiLM (context) + <span class="highlight-orange">Predictor AdaLN</span> (target)</td>
+      </tr>
+      <tr>
+        <td>Training signal</td>
+        <td>Signal-space NLL (counts, pval, peaks)</td>
+        <td>Stage 1: latent MSE + SIGReg<br>Stage 2: signal-space NLL</td>
+      </tr>
+      <tr>
+        <td>Head interference</td>
+        <td><span class="cross">✗</span> 3 heads share encoder gradients (pval interferes with count+peak)</td>
+        <td><span class="check">✓</span> Encoder shaped by head-agnostic latent loss; decoders are independent</td>
+      </tr>
+      <tr>
+        <td>Variance collapse risk</td>
+        <td><span class="cross">✗</span> GaussianLayer can collapse σ→0 on observed assays</td>
+        <td><span class="check">✓</span> Encoder never sees signal-space loss; decoder has var_min=0.1</td>
+      </tr>
+      <tr>
+        <td>Latent geometry</td>
+        <td>Shaped by reconstruction — may be anisotropic</td>
+        <td><span class="check">✓</span> SIGReg enforces isotropic covariance</td>
+      </tr>
+      <tr>
+        <td>Decoder FiLM layers</td>
+        <td>Per-layer FiLM in every decoder</td>
+        <td><span class="highlight-green">None — decoders are FiLM-free</span></td>
+      </tr>
+      <tr>
+        <td>Can swap/upgrade decoder</td>
+        <td><span class="cross">✗</span> Full retraining needed</td>
+        <td><span class="check">✓</span> Freeze encoder+predictor, retrain decoder only</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ─────────────── SECTION 7: TRADEOFFS ─────────────── -->
+<div class="section" id="tradeoffs">
+  <h2 style="margin-top:0">7. What Each Paradigm Gets Right</h2>
+
+  <div class="comparison-grid">
+    <div class="compare-card">
+      <h4 style="color:var(--red);">End-to-End Strengths</h4>
+      <div class="role-box" style="background:transparent; padding:0.5rem 0;">
+        <div class="role-content">
+          <p><span class="check">✓</span> Simplicity — one training loop, one loss, one optimization.</p>
+          <p><span class="check">✓</span> Direct optimization of the metric we care about (signal quality).</p>
+          <p><span class="check">✓</span> No information bottleneck between latent and signal space.</p>
+          <p><span class="check">✓</span> Current best reconstruction quality (B8 baseline: quality_score 5.68).</p>
+        </div>
+      </div>
+    </div>
+    <div class="compare-card">
+      <h4 style="color:var(--green);">JEPA Strengths</h4>
+      <div class="role-box" style="background:transparent; padding:0.5rem 0;">
+        <div class="role-content">
+          <p><span class="check">✓</span> Clean separation of concerns — imputation vs rendering.</p>
+          <p><span class="check">✓</span> No head interference at the encoder level.</p>
+          <p><span class="check">✓</span> Biologically structured latent space (UMAP clustering by cell type).</p>
+          <p><span class="check">✓</span> Modular — upgrade any stage without retraining others.</p>
+          <p><span class="check">✓</span> Metadata conditioning at the right level (predictor, not decoder).</p>
+          <p><span class="check">✓</span> Latent quality: z_pred is a reusable biological embedding (RNA-seq prediction, etc.).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="key-point">
+    <strong>Current status (May 2026):</strong> JEPA produces superior latent representations
+    (biologically structured, isotropic) but the Stage 2 decoder does not yet match end-to-end
+    reconstruction quality (6.29 vs 5.68 quality score). Batch 2 of E28 — fine-tuning the predictor
+    alongside the decoder, one head at a time — is exploring whether the gap is a frozen-predictor
+    limitation or a decoder architecture issue.
+  </div>
+
+  <div class="diagram-box" style="margin-top:2rem;">
+    <div class="pipeline-label">Summary — Who Does What</div>
+    <table style="margin:0;">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>End-to-End Role</th>
+          <th>JEPA Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="highlight-blue">Encoder</span></td>
+          <td>Encode + partially impute (via FiLM)</td>
+          <td>Encode observed context cleanly</td>
+        </tr>
+        <tr>
+          <td><span class="highlight-orange">Predictor</span></td>
+          <td><em>Does not exist</em></td>
+          <td><strong>Impute + denoise in latent space</strong><br><small>(metadata-conditioned via AdaLN)</small></td>
+        </tr>
+        <tr>
+          <td><span class="highlight-purple">Decoder</span></td>
+          <td>Upsample + condition + reconstruct<br><small>(metadata FiLM at every layer)</small></td>
+          <td>Translate z_pred → signal<br><small>(no metadata, pure upsampler)</small></td>
+        </tr>
+        <tr>
+          <td><span class="highlight-yellow">Target Metadata</span></td>
+          <td>Injected into encoder + decoder FiLM</td>
+          <td>Injected into predictor AdaLN only</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="text-align:center; padding:2rem 0 1rem; color:var(--text-dim); font-size:0.8rem;">
+  CANDI Sandbox Report — Generated May 2026
+</div>
+
+</body>
+</html>
