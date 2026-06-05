@@ -9,3 +9,5 @@ fe17222a -4.951 no_gain decoder.film_mode=per_deconv_layer + meta_embed_dim=64: 
 1aed5e8f -1.711012 KEEP enc.metadata_embed_dim=64 on nhead=8: imp_r2 improved (-0.42→-0.11) but den_r2 worsened (-3.02→-4.58); wider metadata helps imp but consistently hurts den
 7f15bbaa -2.721 no_gain dec.meta_embed_dim=64 added: den_r2 → -8.91; expanding decoder metadata makes den even worse; AVOID wider metadata on both enc and dec
 50305e9a -1.516153 KEEP fusion_norm=layer (no meta embed): imp_r2=-0.44, den_r2=-3.31; slightly regressed vs b9e9ef10 best; fusion_norm not helpful
+38a677d1 -1.111299 KEEP n_transformer=4, nhead=8: imp_r2=-0.12, den_r2=-2.22; BEST SO FAR; more depth helps both paths
+beff805e -1.850 no_gain n_transformer=5: den_r2 blew to -5.12; n=4 is sweet spot (1.03M params); n=5 too large for 20ep/10% data
