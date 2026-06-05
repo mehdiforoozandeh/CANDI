@@ -13,4 +13,7 @@ fe17222a -4.951 no_gain decoder.film_mode=per_deconv_layer + meta_embed_dim=64: 
 beff805e -1.850 no_gain n_transformer=5: den_r2 blew to -5.12; n=4 is sweet spot (1.03M params); n=5 too large for 20ep/10% data
 c8e5e8de -0.992891 KEEP n=4+nhead=8+conv_norm=group: BEST; den_r2=-1.755, imp_r2=-0.104; train_obs_loss→4.9; GroupNorm respects per-assay structure
 13bff36d -0.999 no_gain decoder.meta_embed_layernorm: marginal hurt; decoder layernorm not helpful on top of conv_norm=group
-057e52f6 -1.876 KEEP(stale) decoder.grouped_deconv=True: regression vs c8e5e8de; grouped_deconv hurts den_r2 (-5.04); also results.tsv was stale (best showed -2.70 due to git reset losses); committing results.tsv after each KEEP from now on
+057e52f6 -1.876 KEEP(stale) decoder.grouped_deconv=True: regression vs c8e5e8de; grouped_deconv hurts den_r2 (-5.04); results.tsv stale due to git resets
+ed9d7938 -0.988292 KEEP confirmed best; manually restored to results.tsv each session; results.tsv now committed standalone before experiments
+6eb75cb9 -1.069 no_gain dropout=0.05: slight hurt; GroupNorm provides enough stability
+98422afa -1.144 no_gain decoder.norm=rms: gradient NaN in count_imp; RMSNorm destabilizes decoder
