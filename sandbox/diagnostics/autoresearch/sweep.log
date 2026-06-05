@@ -1,0 +1,76 @@
+srun: job 42824660 queued and waiting for resources
+srun: job 42824660 has been allocated resources
+/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/bin/bash: line 2: /home/mforooz/miniconda3/etc/profile.d/conda.sh: No such file or directory
+/cvmfs/soft.computecanada.ca/gentoo/2023/x86-64-v3/usr/bin/bash: conda: command not found
+EXP imp_weight=7.85 -> 0.012078 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+--- cycle 1 ---
+scope ok
+[autoresearch/may31 fd1056b1] autoresearch: imp_weight=7.95
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP imp_weight=7.95 -> 0.012152 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 ceb14235] autoresearch: imp_weight=8.05
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP imp_weight=8.05 -> 0.012179 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 292f3eda] autoresearch: obs_weight=0.48
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP obs_weight=0.48 -> 0.012371 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 61cdf489] autoresearch: obs_weight=0.52
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP obs_weight=0.52 -> 0.011999 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 ab17484e] autoresearch: lr=8.5e-4
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+EXP lr=8.5e-4 -> 0.028018 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 51eac2ad] autoresearch: lr=9.5e-4
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+EXP lr=9.5e-4 -> 0.012879 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 64026840] autoresearch: lr=1.05e-3
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+EXP lr=1.05e-3 -> 0.016200 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 3b5ef935] autoresearch: clip_norm=0.48
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP clip_norm=0.48 -> 0.012119 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 f86d37ac] autoresearch: depth_center=26.8
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP depth_center=26.8 -> 0.030693 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 e1a9a094] autoresearch: depth_center=27.2
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+EXP depth_center=27.2 -> 0.013093 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 fae2179e] autoresearch: imp7.9 obs0.48
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+EXP imp7.9 obs0.48 -> 0.012319 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+scope ok
+[autoresearch/may31 69974d90] autoresearch: imp8.05 obs0.52
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+EXP imp8.05 obs0.52 -> 0.012038 best=0.009298 discard
+HEAD is now at 35e54515 autoresearch: adamax clip_norm=0.5 imp_weight=8.0 obs_weight=0.5 depth_center=27
+--- cycle 2 ---
+scope ok
+[autoresearch/may31 5242f2c6] autoresearch: imp_weight=7.95
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+srun: forcing job termination
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 42824660.0 ON fc11002 CANCELLED AT 2026-06-02T13:49:22 ***
+srun: error: fc11002: task 0: Killed
+srun: Terminating StepId=42824660.0
