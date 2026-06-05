@@ -1,0 +1,60 @@
+INFO Session 2: appended 4 VB-meta train pins (total train=36)
+INFO T/V/B audit T_DND-41 -> V_DND-41: missing_in_T=12 imp_eval_positions=4
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_DND-41 -> B_DND-41: missing_in_T=12 imp_eval_positions=8
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_RWPE2 -> B_RWPE2: missing_in_T=28 imp_eval_positions=28
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_heart_left_ventricle -> V_heart_left_ventricle: missing_in_T=4 imp_eval_positions=4
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_H1-hESC -> V_H1-hESC: missing_in_T=8 imp_eval_positions=4
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_DND-41 -> B_DND-41: missing_in_T=12 imp_eval_positions=8
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_RWPE2 -> B_RWPE2: missing_in_T=28 imp_eval_positions=28
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+INFO T/V/B audit T_heart_left_ventricle -> V_heart_left_ventricle: missing_in_T=4 imp_eval_positions=4
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+/project/6014832/mforooz/EpiDenoise/sandbox/eval.py:46: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r, _ = spearmanr(p.cpu().numpy(), t.cpu().numpy())
+---
+primary_score:              -0.009603
+metric_phase:               den
+imp_count_r2_gw:            -0.242029
+den_count_r2_gw:            0.290397
+depth_count_ratio:          3.970239
+imp_count_pearson_gw:       0.410942
+imp_count_spearman_gw:      0.517414
+        imp_count_r2_gw_cloze_T:None
+imp_count_r2_gw_canonical:  -0.532481
+imp_r2_task_gap:            0.234924
+dcr_masked_bins:            3.962976
+count_imp_loss:             0.678100
+count_obs_loss:             0.647719
+training_seconds:           175.473904
+peak_vram_mb:               110.026855
+peak_vram_ok:               True
+num_steps:                  5000
+status:                     ok
+error:                      None
+---
