@@ -31,9 +31,8 @@ def _load_baseline_config() -> CANDIv2Config:
 def get_config() -> CANDIv2Config:
     """Return config for this run. Agent may edit encoder/decoder fields here."""
     cfg = _load_baseline_config()
-    cfg.encoder.n_transformer_layers = 3
+    cfg.encoder.n_transformer_layers = 4
     cfg.encoder.nhead = 8
-    cfg.encoder.fusion_norm = "layer"
     return cfg
 
 
