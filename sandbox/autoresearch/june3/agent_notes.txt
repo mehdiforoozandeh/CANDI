@@ -3,3 +3,6 @@ be0d38e2 -2.811851 discard baseline guard_fail: imp/den gw R2 negative at 10% ch
 1bd68ee4 -2.703176 discard n_transformer=3: primary up but imp_r2 worse, guards fail
 78e6f31c None crash gated fusion + fusion_norm layer
 5a82f32f nan guard_fail metadata_embed_dim=64+n_transformer=3 also broke eval (same NaN root cause as NaN eval API); revert
+b9e9ef10 -1.448355 KEEP eval API compat + n_transformer=3 + nhead=8: massive imp_r2 gain (-3.34→-0.42), den_r2 still -3.02; train_obs_loss spiked 6.6 but eval OK
+fe17222a -4.951 no_gain decoder.film_mode=per_deconv_layer + meta_embed_dim=64: den_r2→-16.4; training stalled; never use per_deconv_layer FiLM
+598c1fd5 crash n_cnn_layers=4 on top of best: param_count=1561112 > 5x limit (1503480); need ≤2 transformer layers when n_cnn_layers=4
