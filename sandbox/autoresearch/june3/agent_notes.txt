@@ -31,3 +31,25 @@ c84ff682 -1.338 no_gain decoder.expansion_factor=3: den_r2→-3.052; wider decod
 7a5227d7 -1.020 no_gain dropout=0.0: den_r2→-1.858; dropout=0.1 confirmed optimal
 5c84543a -1.091 no_gain dna_pool_order=early: den_r2→-2.136; late pooling is better
 24d21173 -1.095 no_gain cross_assay_attn (nhead=2 before fusion): den_r2→-1.984; no gain
+24579dc0 -0.803 KEEP decoder.meta_embed_dim=8: den_r2→-0.928 (HUGE gain); decoder over-conditioned at dim=32; dim=8 forces coarse/structural FiLM
+3c83f6a2 -0.991 no_gain decoder.meta_embed_dim=4: FiLM too weak; dim=8 is sweet spot
+1a80a13f -1.112 no_gain decoder.film_mode=none: den_r2→-2.293; FiLM needed at dim=8
+b5a19fb7 -3.072 no_gain decoder.meta_embed_dim=16: den_r2→-10.097 CATASTROPHIC; sweet spot exactly at 8
+b2e2d66f -0.816 no_gain decoder.meta_embed_layernorm=True on dim=8: LN squashes scale info even at 8
+2b381f9b -0.905 no_gain per-assay LN after mask injection: removes useful inter-assay scale info
+e4192781 -0.935 no_gain post-transformer FiLM: pre-FiLM confirmed optimal
+98e043ba -4.075 no_gain missing_data_mode=mask_stem: catastrophic; grad_norms=None; mask_token essential
+9fe77b79 -1.408 no_gain decoder.norm=instance: InstanceNorm bad for deconv tower
+5f78e9e1 -0.914 no_gain encoder.meta_embed_layernorm=False: count_obs_loss↑; encoder LN beneficial
+96aa169d -2.417 no_gain global per-assay NB dispersion (log_n param): catastrophic; per-position linear_n essential
+bc73e47a -0.887 no_gain observed-only pooled_meta for transformer FiLM: including CLOZE meta is better
+c18a0b3e -2.296 no_gain signal-to-DNA cross-attention before fusion: den_r2→-6.31 CATASTROPHIC
+1ccab69c -0.896 no_gain encoder.ff_glu=True (GEGLU): den_r2→-1.15; standard GELU better here
+7e09f6a4 -1.155 no_gain encoder.d_model=96: den_r2→-2.087; more transformer capacity consistently hurts
+89f89386 -1.742 no_gain encoder.post_assay_attn=True: den_r2→-4.901 CATASTROPHIC
+27541802 -1.059 no_gain decoder.film_mode=per_deconv_layer: den_r2→-1.816; more decoder FiLM consistently hurts
+0515078f -0.935 no_gain n_transformer_layers=6: n=4 is optimal depth
+a3a3ade1 -0.925 no_gain conv_kernel_size=5: larger kernels hurt den_r2; k=3 better
+28d4f256 -1.140 no_gain nhead=9 (d_head=8): den_r2→-2.338; nhead=8 (d_head=9) is optimal
+1b69bf60 -1.440 no_gain encoder.ff_mult=2: den_r2→-3.274; FFN must be ff_mult=4
+4bb5117b -2.979 no_gain encoder.metadata_embed_dim=16: den_r2→-9.839 CATASTROPHIC; encoder FiLM needs full dim=32

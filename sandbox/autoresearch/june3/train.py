@@ -35,6 +35,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.nhead = 8
     cfg.encoder.conv_norm = "group"
     cfg.decoder.meta_embed_dim = 8
+    cfg.decoder.norm = "rms"
     return cfg
 
 
