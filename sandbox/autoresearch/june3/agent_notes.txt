@@ -56,3 +56,4 @@ a3a3ade1 -0.925 no_gain conv_kernel_size=5: larger kernels hurt den_r2; k=3 bett
 e208a2e6 -0.763 KEEP decoder.norm=rms: den_r2→-0.758 (BIG gain); RMSNorm preserves amplitude info; LN mean-centering removes scale info needed by NB head
 1efba56f -3.029 no_gain decoder.norm=weight: den_r2→-9.772 CATASTROPHIC; no activation norm = unstable; RMSNorm is optimal (scale-only, not weight norm)
 61404165 -0.970 no_gain decoder.meta_embed_dim=4: den_r2→-1.688; meta_embed_dim=8 is the sweet spot (4 is too small, 32 too large)
+bfe3aa7a -0.728 KEEP encoder.signal_transform=arcsinh: den_r2→-0.601 (NEW BEST, big gain over log1p); arcsinh's symmetric, less-saturating compression pairs well with rms decoder's scale-preserving norm
