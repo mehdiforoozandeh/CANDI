@@ -131,6 +131,7 @@ class DecoderConfig:
     learnable_depth_quadratic: bool = False  # quadratic depth term: beta*(d-center)^2 in log2_mu (+1 param, extends slope)
     grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
     diagonal_eta: bool = False           # per-assay eta head: replace linear_eta(8→8) with Conv1d groups=8 (-56 params, DCR-safe)
+    encoder_skip: bool = False           # U-Net skip: add encoder pre-transformer features to decoder trunk input (+4672 params)
 
 
 # ---------------------------------------------------------------------------

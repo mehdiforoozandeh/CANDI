@@ -423,16 +423,20 @@ class DecoderTrunk(nn.Module):
         z: torch.Tensor,
         film_layers: Optional[nn.ModuleList] = None,
         pooled_meta: Optional[torch.Tensor] = None,
+        skip: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
             z:           [B, L2, proj_dim]
             film_layers: optional per-layer FiLM modules
             pooled_meta: [B, embed_dim] for per-layer FiLM
+            skip:        optional [B, decoder_input_dim, L2] encoder skip features
         Returns:
             [B, L, signal_dim]
         """
         x = self.input_proj(z).permute(0, 2, 1)  # [B, C, L2]
+        if skip is not None:
+            x = x + skip  # add projected encoder pre-transformer features [B, C, L2]
         n_layers = len(self.deconv)
         for i, layer in enumerate(self.deconv):
             x = layer(x)
@@ -539,6 +543,12 @@ class V2Decoder(nn.Module):
         else:
             raise ValueError(f"Unsupported trunk={self.trunk_mode}")
 
+        # -- Encoder skip projection (U-Net style) --
+        self._encoder_skip = bool(cfg.encoder_skip)
+        if self._encoder_skip:
+            dec_input_dim = int(self.signal_dim) * (int(cfg.expansion_factor) ** int(cfg.n_cnn_layers))
+            self.skip_proj = nn.Linear(self.encoder_d_model, dec_input_dim)
+
         # -- Output heads --
         self.neg_binom_layer: Optional[nn.Module] = None
         self.peak_layer: Optional[PeakLayer] = None
@@ -597,11 +607,13 @@ class V2Decoder(nn.Module):
         self,
         z: torch.Tensor,
         y_meta: torch.Tensor,
+        skip_features: Optional[torch.Tensor] = None,
     ) -> Dict[str, Optional[torch.Tensor]]:
         """
         Args:
-            z:      [B, L2, d_model] — encoder latent
-            y_meta: [B, 4, A]        — target metadata (signal assays only, no control)
+            z:             [B, L2, d_model] — encoder latent
+            y_meta:        [B, 4, A]        — target metadata (signal assays only, no control)
+            skip_features: [B, L2, d_model] — encoder pre-transformer features for U-Net skip
         Returns:
             dict with keys: 'p', 'n', 'peak', 'mu', 'var' (None for inactive heads)
         """
@@ -620,6 +632,11 @@ class V2Decoder(nn.Module):
         # Sentinel depths (MISSING/CLOZE) are gated inside DepthOffsetNegativeBinomialLayer.
         count_depth = y_meta[:, 0, :] if self._count_depth_offset else None
 
+        # Compute projected skip features if encoder_skip is enabled [B, dec_input_dim, L2]
+        skip_in: Optional[torch.Tensor] = None
+        if self._encoder_skip and skip_features is not None:
+            skip_in = self.skip_proj(skip_features).permute(0, 2, 1)  # [B, dec_input_dim, L2]
+
         # Decode through trunk(s) and apply heads
         out: Dict[str, Optional[torch.Tensor]] = {
             "p": None, "n": None, "peak": None, "mu": None, "var": None,
@@ -630,6 +647,7 @@ class V2Decoder(nn.Module):
                 z,
                 film_layers=self.per_layer_film_shared if self.film_mode == "per_deconv_layer" else None,
                 pooled_meta=pooled_meta,
+                skip=skip_in,
             )
             if self.neg_binom_layer is not None:
                 if self._count_depth_offset:
@@ -650,7 +668,7 @@ class V2Decoder(nn.Module):
                 if self.per_layer_film is not None and head_name in self.per_layer_film:
                     film_l = self.per_layer_film[head_name]
                 decoded = self.separate_trunks[head_name](
-                    z, film_layers=film_l, pooled_meta=pooled_meta,
+                    z, film_layers=film_l, pooled_meta=pooled_meta, skip=skip_in,
                 )
                 if head_name == "count" and self.neg_binom_layer is not None:
                     if self._count_depth_offset:

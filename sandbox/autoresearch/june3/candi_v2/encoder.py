@@ -944,6 +944,7 @@ class V2Encoder(nn.Module):
 
         # Fuse signal + DNA
         fused = self.fusion(sig, dna)
+        self._pre_transformer_skip = fused  # [B, L2, d_model] for optional decoder skip
 
         # Transformer stack with optional per-layer FiLM and stochastic depth
         pooled_meta = meta_embed.mean(dim=1)
