@@ -53,3 +53,6 @@ a3a3ade1 -0.925 no_gain conv_kernel_size=5: larger kernels hurt den_r2; k=3 bett
 28d4f256 -1.140 no_gain nhead=9 (d_head=8): den_r2→-2.338; nhead=8 (d_head=9) is optimal
 1b69bf60 -1.440 no_gain encoder.ff_mult=2: den_r2→-3.274; FFN must be ff_mult=4
 4bb5117b -2.979 no_gain encoder.metadata_embed_dim=16: den_r2→-9.839 CATASTROPHIC; encoder FiLM needs full dim=32
+e208a2e6 -0.763 KEEP decoder.norm=rms: den_r2→-0.758 (BIG gain); RMSNorm preserves amplitude info; LN mean-centering removes scale info needed by NB head
+1efba56f -3.029 no_gain decoder.norm=weight: den_r2→-9.772 CATASTROPHIC; no activation norm = unstable; RMSNorm is optimal (scale-only, not weight norm)
+61404165 -0.970 no_gain decoder.meta_embed_dim=4: den_r2→-1.688; meta_embed_dim=8 is the sweet spot (4 is too small, 32 too large)
