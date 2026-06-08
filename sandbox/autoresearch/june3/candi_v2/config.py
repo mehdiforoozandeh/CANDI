@@ -116,6 +116,7 @@ class DecoderConfig:
     depth_center: float = 22.5  # only used when count_head="depth_offset"
     mu_eps: float = 1e-6        # only used when count_head="depth_offset"
     learnable_depth_center: bool = False  # make depth_center an nn.Parameter
+    learnable_depth_slope: bool = False   # make depth scaling an nn.Parameter (log-parameterized, init slope=1)
 
 
 # ---------------------------------------------------------------------------

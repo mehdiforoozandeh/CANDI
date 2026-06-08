@@ -205,12 +205,17 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         depth_center: float = 24.0,
         eps: float = 1e-6,
         learnable_depth_center: bool = False,
+        learnable_depth_slope: bool = False,
     ) -> None:
         super().__init__()
         if learnable_depth_center:
             self.depth_center = nn.Parameter(torch.tensor(float(depth_center)))
         else:
             self.depth_center = float(depth_center)
+        if learnable_depth_slope:
+            self.log_depth_slope = nn.Parameter(torch.zeros(1))
+        else:
+            self.log_depth_slope = None
         self.eps = float(eps)
         self.linear_eta = nn.Linear(input_dim, output_dim)
         self.linear_n = nn.Linear(input_dim, output_dim)
@@ -231,6 +236,8 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         # Per-assay gate: sentinels must not enter 2^(d-c) (see class docstring).
         valid = (depth_log2 != MISSING) & (depth_log2 != CLOZE)    # [B, A]
         d_centered = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center  # [B, 1, A]
+        if self.log_depth_slope is not None:
+            d_centered = torch.exp(self.log_depth_slope) * d_centered
         log2_mu_offset = d_centered + eta                            # [B, L, A]
         log2_mu_fallback = eta                                       # [B, L, A]
         log2_mu = torch.where(valid.unsqueeze(1), log2_mu_offset, log2_mu_fallback)
@@ -511,6 +518,7 @@ class V2Decoder(nn.Module):
                     depth_center=float(cfg.depth_center),
                     eps=float(cfg.mu_eps),
                     learnable_depth_center=bool(cfg.learnable_depth_center),
+                    learnable_depth_slope=bool(cfg.learnable_depth_slope),
                 )
             else:
                 self.neg_binom_layer = NegativeBinomialLayer(
