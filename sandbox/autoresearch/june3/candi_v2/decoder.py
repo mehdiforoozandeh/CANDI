@@ -206,6 +206,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         eps: float = 1e-6,
         learnable_depth_center: bool = False,
         learnable_depth_slope: bool = False,
+        depth_slope_init: float = 0.0,
         learnable_depth_quadratic: bool = False,
         grouped_dispersion: bool = False,
     ) -> None:
@@ -215,7 +216,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         else:
             self.depth_center = float(depth_center)
         if learnable_depth_slope:
-            self.log_depth_slope = nn.Parameter(torch.zeros(1))
+            self.log_depth_slope = nn.Parameter(torch.tensor(float(depth_slope_init)))
         else:
             self.log_depth_slope = None
         # quadratic depth term: log2_mu = alpha*(d-c) + beta*(d-c)^2 + eta; init beta=0
@@ -536,6 +537,7 @@ class V2Decoder(nn.Module):
                     eps=float(cfg.mu_eps),
                     learnable_depth_center=bool(cfg.learnable_depth_center),
                     learnable_depth_slope=bool(cfg.learnable_depth_slope),
+                    depth_slope_init=float(cfg.depth_slope_init),
                     learnable_depth_quadratic=bool(cfg.learnable_depth_quadratic),
                     grouped_dispersion=bool(cfg.grouped_dispersion),
                 )
