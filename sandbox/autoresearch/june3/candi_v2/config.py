@@ -73,6 +73,9 @@ class EncoderConfig:
     # Input signal transform (applied internally by encoder)
     signal_transform: Literal["none", "log1p", "arcsinh"] = "log1p"
 
+    # Cross-assay MHA after signal CNN + mask inject, before DNA fusion
+    cross_assay_attention: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Decoder config
@@ -123,6 +126,7 @@ class DecoderConfig:
     depth_slope_constrained: bool = False  # sigmoid-map alpha to [log2(3)/2, log2(5)/2] → DCR∈[3,5] guaranteed; DCR_init=3.87
     learnable_depth_quadratic: bool = False  # quadratic depth term: beta*(d-center)^2 in log2_mu (+1 param, extends slope)
     grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
+    diagonal_eta: bool = False           # per-assay eta head: replace linear_eta(8→8) with Conv1d groups=8 (-56 params, DCR-safe)
 
 
 # ---------------------------------------------------------------------------

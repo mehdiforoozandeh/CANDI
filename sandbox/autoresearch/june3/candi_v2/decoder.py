@@ -210,6 +210,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         depth_slope_constrained: bool = False,
         learnable_depth_quadratic: bool = False,
         grouped_dispersion: bool = False,
+        diagonal_eta: bool = False,
     ) -> None:
         super().__init__()
         if learnable_depth_center:
@@ -224,7 +225,13 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         # quadratic depth term: log2_mu = alpha*(d-c) + beta*(d-c)^2 + eta; init beta=0
         self.depth_quadratic = nn.Parameter(torch.zeros(1)) if learnable_depth_quadratic else None
         self.eps = float(eps)
-        self.linear_eta = nn.Linear(input_dim, output_dim)
+        # diagonal_eta: per-assay mean head (Conv1d groups=output_dim, -56 params, DCR-safe)
+        if diagonal_eta:
+            self.linear_eta = nn.Conv1d(output_dim, output_dim, 1, groups=output_dim)
+            self._diagonal_eta = True
+        else:
+            self.linear_eta = nn.Linear(input_dim, output_dim)
+            self._diagonal_eta = False
         # grouped_dispersion: each assay gets independent scalar dispersion (+bias), -56 params
         if grouped_dispersion:
             self.linear_n = nn.Conv1d(output_dim, output_dim, 1, groups=output_dim)
@@ -245,7 +252,10 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         Returns:
             (p, n), each [B, L, signal_dim]
         """
-        eta = self.linear_eta(x)                                   # [B, L, A]
+        if self._diagonal_eta:
+            eta = self.linear_eta(x.permute(0, 2, 1)).permute(0, 2, 1)  # [B, L, A]
+        else:
+            eta = self.linear_eta(x)                               # [B, L, A]
         # Per-assay gate: sentinels must not enter 2^(d-c) (see class docstring).
         valid = (depth_log2 != MISSING) & (depth_log2 != CLOZE)    # [B, A]
         d_raw = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center       # [B, 1, A]
@@ -550,6 +560,7 @@ class V2Decoder(nn.Module):
                     depth_slope_constrained=bool(cfg.depth_slope_constrained),
                     learnable_depth_quadratic=bool(cfg.learnable_depth_quadratic),
                     grouped_dispersion=bool(cfg.grouped_dispersion),
+                    diagonal_eta=bool(cfg.diagonal_eta),
                 )
             else:
                 self.neg_binom_layer = NegativeBinomialLayer(
