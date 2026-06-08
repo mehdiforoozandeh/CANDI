@@ -126,6 +126,7 @@ class DecoderConfig:
     learnable_depth_center: bool = False  # make depth_center an nn.Parameter
     learnable_depth_slope: bool = False   # make depth scaling an nn.Parameter (log-parameterized, init slope=1)
     depth_slope_init: float = 0.0        # initial log_depth_slope value (0=slope=1; set log(log2(3))≈0.461 for DCR=3 init)
+    depth_slope: float = 1.0            # fixed depth slope when learnable_depth_slope=False (DCR=2^(slope*2); 0.795→DCR=3.013)
     depth_slope_constrained: bool = False  # sigmoid-map alpha to [log2(3)/2, log2(5)/2] → DCR∈[3,5] guaranteed; DCR_init=3.87
     learnable_depth_quadratic: bool = False  # quadratic depth term: beta*(d-center)^2 in log2_mu (+1 param, extends slope)
     grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
