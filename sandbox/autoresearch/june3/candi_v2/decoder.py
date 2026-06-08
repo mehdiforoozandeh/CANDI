@@ -270,42 +270,6 @@ class PreDecoderFiLM(nn.Module):
         return z * (1.0 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
 
-class PerAssayPreDecoderFiLM(nn.Module):
-    """Per-assay FiLM on encoder latent using individual target assay embeddings.
-
-    Unlike PreDecoderFiLM (global pooled conditioning), applies targeted
-    scale/shift to each signal assay's d_per_assay-dimensional slice of the
-    encoder latent. The control track slice is left unmodified.
-    """
-
-    def __init__(self, meta_embed_dim: int, d_model: int, num_signal_assays: int) -> None:
-        super().__init__()
-        self.num_signal_assays = int(num_signal_assays)
-        num_tracks = self.num_signal_assays + 1  # signal assays + 1 control
-        self.d_per_assay = int(d_model) // num_tracks
-        self.proj = nn.Linear(int(meta_embed_dim), 2 * self.d_per_assay)
-        nn.init.xavier_uniform_(self.proj.weight)
-        nn.init.normal_(self.proj.bias, mean=0.0, std=0.1)
-
-    def forward(self, z: torch.Tensor, meta_embed: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            z:          [B, L2, d_model]
-            meta_embed: [B, num_signal_assays, embed_dim]
-        Returns:
-            [B, L2, d_model] — per-assay FiLM-modulated latent
-        """
-        B, L2, d_model = z.shape
-        num_tracks = self.num_signal_assays + 1
-        z_r = z.contiguous().view(B, L2, num_tracks, self.d_per_assay)
-        params = self.proj(meta_embed)                             # [B, A, 2*d_per_assay]
-        scale, shift = params.chunk(2, dim=-1)                     # each [B, A, d_per_assay]
-        z_sig = z_r[:, :, :self.num_signal_assays, :]             # [B, L2, A, d]
-        z_sig = z_sig * (1.0 + scale.unsqueeze(1)) + shift.unsqueeze(1)
-        z_r = torch.cat([z_sig, z_r[:, :, self.num_signal_assays:, :]], dim=2)
-        return z_r.view(B, L2, d_model)
-
-
 class PerDeconvLayerFiLM(nn.Module):
     """FiLM applied at each deconv layer inside the decoder tower."""
 
@@ -474,10 +438,10 @@ class V2Decoder(nn.Module):
             )
 
         # -- Pre-decoder FiLM --
-        self.pre_decoder_film: Optional[nn.Module] = None
+        self.pre_decoder_film: Optional[PreDecoderFiLM] = None
         if self.film_mode in ("single_pre_decoder", "per_deconv_layer"):
-            self.pre_decoder_film = PerAssayPreDecoderFiLM(
-                int(cfg.meta_embed_dim), self.encoder_d_model, self.signal_dim,
+            self.pre_decoder_film = PreDecoderFiLM(
+                int(cfg.meta_embed_dim), self.encoder_d_model,
             )
 
         # -- Per-deconv-layer FiLM --
