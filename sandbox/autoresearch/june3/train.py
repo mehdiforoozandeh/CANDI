@@ -39,8 +39,9 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.signal_transform = "arcsinh"
     cfg.decoder.trunk = "separate"
     cfg.decoder.learnable_depth_center = True
-    cfg.decoder.learnable_depth_slope = True
-    cfg.decoder.encoder_skip = True
+    cfg.decoder.learnable_depth_slope = False
+    cfg.decoder.depth_slope = 0.792
+    cfg.decoder.conv_kernel_size = 5
     return cfg
 
 
