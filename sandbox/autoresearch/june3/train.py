@@ -39,7 +39,6 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.signal_transform = "arcsinh"
     cfg.decoder.trunk = "separate"
     cfg.decoder.learnable_depth_center = True
-    cfg.decoder.film_mode = "per_deconv_layer"
     return cfg
 
 
