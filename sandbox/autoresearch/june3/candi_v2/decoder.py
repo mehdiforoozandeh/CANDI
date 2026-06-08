@@ -206,6 +206,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         eps: float = 1e-6,
         learnable_depth_center: bool = False,
         learnable_depth_slope: bool = False,
+        learnable_depth_quadratic: bool = False,
         grouped_dispersion: bool = False,
     ) -> None:
         super().__init__()
@@ -217,6 +218,8 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
             self.log_depth_slope = nn.Parameter(torch.zeros(1))
         else:
             self.log_depth_slope = None
+        # quadratic depth term: log2_mu = alpha*(d-c) + beta*(d-c)^2 + eta; init beta=0
+        self.depth_quadratic = nn.Parameter(torch.zeros(1)) if learnable_depth_quadratic else None
         self.eps = float(eps)
         self.linear_eta = nn.Linear(input_dim, output_dim)
         # grouped_dispersion: each assay gets independent scalar dispersion (+bias), -56 params
@@ -242,9 +245,13 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         eta = self.linear_eta(x)                                   # [B, L, A]
         # Per-assay gate: sentinels must not enter 2^(d-c) (see class docstring).
         valid = (depth_log2 != MISSING) & (depth_log2 != CLOZE)    # [B, A]
-        d_centered = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center  # [B, 1, A]
+        d_raw = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center       # [B, 1, A]
         if self.log_depth_slope is not None:
-            d_centered = torch.exp(self.log_depth_slope) * d_centered
+            d_centered = torch.exp(self.log_depth_slope) * d_raw
+        else:
+            d_centered = d_raw
+        if self.depth_quadratic is not None:
+            d_centered = d_centered + self.depth_quadratic * d_raw ** 2
         log2_mu_offset = d_centered + eta                            # [B, L, A]
         log2_mu_fallback = eta                                       # [B, L, A]
         log2_mu = torch.where(valid.unsqueeze(1), log2_mu_offset, log2_mu_fallback)
@@ -529,6 +536,7 @@ class V2Decoder(nn.Module):
                     eps=float(cfg.mu_eps),
                     learnable_depth_center=bool(cfg.learnable_depth_center),
                     learnable_depth_slope=bool(cfg.learnable_depth_slope),
+                    learnable_depth_quadratic=bool(cfg.learnable_depth_quadratic),
                     grouped_dispersion=bool(cfg.grouped_dispersion),
                 )
             else:
