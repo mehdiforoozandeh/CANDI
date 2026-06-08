@@ -40,7 +40,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.trunk = "separate"
     cfg.decoder.learnable_depth_center = True
     cfg.decoder.learnable_depth_slope = True
-    cfg.encoder.transformer_layer_drop = 0.1
+    cfg.decoder.conv_kernel_size = 5
     return cfg
 
 
