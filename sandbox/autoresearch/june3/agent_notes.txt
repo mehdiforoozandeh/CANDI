@@ -69,3 +69,4 @@ b49c78fe -0.750 no_gain encoder.fusion_norm=layer (linear fusion + LayerNorm aft
 f758f03c -1.188 no_gain encoder.metadata_embed_dim=48 (with arcsinh+rms+separate-trunk base): den_r2→-2.773; 32 is optimal for encoder FiLM metadata embed; increasing to 48 adds capacity that consistently hurts (32→16 catastrophic, 32→48 also regresses)
 2a14c336 -0.800 no_gain decoder.meta_embed_layernorm=True retest (with separate-trunk arcsinh+rms base): den_r2→-0.848; still slightly hurts even after architecture overhaul; LN on tiny dim=8 embedding remains unhelpful
 3f34b2e9 -0.844 no_gain soft mask blending in MaskTokenInjector (learnable alpha blend, with separate-trunk arcsinh+rms base): den_r2→-1.063; hard replacement remains better; blend adds unnecessary capacity to mask injection
+5bcc0012 -0.940 no_gain decoder.norm=batch (with arcsinh+rms[reverted to]→batch decoder): den_r2→-1.505; BatchNorm's running-stats normalization hurts; RMSNorm remains optimal for deconv tower
