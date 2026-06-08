@@ -784,8 +784,18 @@ class V2Encoder(nn.Module):
         else:
             raise ValueError(f"Unsupported missing_data_mode={self.missing_data_mode}")
 
-        # -- DNA conv tower --
+        # -- Cross-assay attention (after mask inject, before DNA fusion) --
         signal_dim = self.signal_tower.out_channels
+        self.cross_assay_attn: Optional[nn.MultiheadAttention] = None
+        self.cross_assay_norm: Optional[nn.LayerNorm] = None
+        if bool(cfg.cross_assay_attention):
+            d_per_track = self.signal_tower.out_per_assay
+            self.cross_assay_attn = nn.MultiheadAttention(
+                d_per_track, 1, batch_first=True, dropout=float(cfg.dropout)
+            )
+            self.cross_assay_norm = nn.LayerNorm(signal_dim)
+
+        # -- DNA conv tower --
         self.d_model = int(cfg.d_model) if int(cfg.d_model) > 0 else signal_dim
         self.dna_tower = DNAConvTower(
             target_dim=signal_dim,
@@ -918,6 +928,14 @@ class V2Encoder(nn.Module):
         # Mask token injection (after conv, before fusion)
         if self.mask_injector is not None:
             sig = self.mask_injector(sig, availability)
+
+        # Cross-assay attention: each position attends across all tracks
+        if self.cross_assay_attn is not None:
+            B_ca, L2_ca, _ = sig.shape
+            d_per = self.signal_tower.out_per_assay
+            sig_r = sig.view(B_ca * L2_ca, self.num_tracks, d_per)
+            delta, _ = self.cross_assay_attn(sig_r, sig_r, sig_r)
+            sig = self.cross_assay_norm(sig + delta.view(B_ca, L2_ca, -1))
 
         # DNA conv tower
         dna = self.dna_tower(x_dna)
