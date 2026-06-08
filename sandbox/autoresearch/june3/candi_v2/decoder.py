@@ -206,6 +206,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         eps: float = 1e-6,
         learnable_depth_center: bool = False,
         learnable_depth_slope: bool = False,
+        grouped_dispersion: bool = False,
     ) -> None:
         super().__init__()
         if learnable_depth_center:
@@ -218,7 +219,13 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
             self.log_depth_slope = None
         self.eps = float(eps)
         self.linear_eta = nn.Linear(input_dim, output_dim)
-        self.linear_n = nn.Linear(input_dim, output_dim)
+        # grouped_dispersion: each assay gets independent scalar dispersion (+bias), -56 params
+        if grouped_dispersion:
+            self.linear_n = nn.Conv1d(output_dim, output_dim, 1, groups=output_dim)
+            self._grouped_dispersion = True
+        else:
+            self.linear_n = nn.Linear(input_dim, output_dim)
+            self._grouped_dispersion = False
 
     def forward(
         self,
@@ -243,7 +250,10 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         log2_mu = torch.where(valid.unsqueeze(1), log2_mu_offset, log2_mu_fallback)
         mu = torch.pow(2.0, log2_mu)
         mu = mu.clamp(min=self.eps)
-        n = F.softplus(self.linear_n(x)) + self.eps
+        if self._grouped_dispersion:
+            n = F.softplus(self.linear_n(x.permute(0, 2, 1)).permute(0, 2, 1)) + self.eps
+        else:
+            n = F.softplus(self.linear_n(x)) + self.eps
         p = n / (n + mu)
         p = torch.clamp(p, min=self.eps, max=1.0 - self.eps)
         return p, n
@@ -519,6 +529,7 @@ class V2Decoder(nn.Module):
                     eps=float(cfg.mu_eps),
                     learnable_depth_center=bool(cfg.learnable_depth_center),
                     learnable_depth_slope=bool(cfg.learnable_depth_slope),
+                    grouped_dispersion=bool(cfg.grouped_dispersion),
                 )
             else:
                 self.neg_binom_layer = NegativeBinomialLayer(

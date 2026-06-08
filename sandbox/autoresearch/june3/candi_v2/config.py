@@ -119,6 +119,7 @@ class DecoderConfig:
     mu_eps: float = 1e-6        # only used when count_head="depth_offset"
     learnable_depth_center: bool = False  # make depth_center an nn.Parameter
     learnable_depth_slope: bool = False   # make depth scaling an nn.Parameter (log-parameterized, init slope=1)
+    grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
 
 
 # ---------------------------------------------------------------------------
