@@ -67,6 +67,7 @@ class EncoderConfig:
         "dual", "xtransformers", "production_dual"
     ] = "xtransformers"
     dropout: float = 0.1
+    attn_qk_norm: bool = False  # normalize Q/K vectors before attention (prevents score blowup)
 
     # Input signal transform (applied internally by encoder)
     signal_transform: Literal["none", "log1p", "arcsinh"] = "log1p"

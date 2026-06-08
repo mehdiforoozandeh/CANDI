@@ -41,6 +41,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.learnable_depth_center = True
     cfg.decoder.learnable_depth_slope = True
     cfg.encoder.dropout = 0.05
+    cfg.encoder.attn_qk_norm = True
     return cfg
 
 
