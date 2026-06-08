@@ -37,6 +37,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.meta_embed_dim = 8
     cfg.decoder.norm = "rms"
     cfg.encoder.signal_transform = "arcsinh"
+    cfg.decoder.trunk = "separate"
     return cfg
 
 

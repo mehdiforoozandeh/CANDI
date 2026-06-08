@@ -57,3 +57,4 @@ e208a2e6 -0.763 KEEP decoder.norm=rms: den_r2→-0.758 (BIG gain); RMSNorm prese
 1efba56f -3.029 no_gain decoder.norm=weight: den_r2→-9.772 CATASTROPHIC; no activation norm = unstable; RMSNorm is optimal (scale-only, not weight norm)
 61404165 -0.970 no_gain decoder.meta_embed_dim=4: den_r2→-1.688; meta_embed_dim=8 is the sweet spot (4 is too small, 32 too large)
 bfe3aa7a -0.728 KEEP encoder.signal_transform=arcsinh: den_r2→-0.601 (NEW BEST, big gain over log1p); arcsinh's symmetric, less-saturating compression pairs well with rms decoder's scale-preserving norm
+8eadfc2e -1.220 no_gain decoder.film_mode=none (with arcsinh+rms base): den_r2→-2.743; pre-decoder FiLM remains essential even after signal_transform/norm changes
