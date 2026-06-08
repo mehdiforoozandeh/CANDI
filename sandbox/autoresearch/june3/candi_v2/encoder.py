@@ -345,16 +345,19 @@ class MaskTokenInjector(nn.Module):
     assay's d_per_assay-sized channel slice with its learned mask embedding.
     Available assays keep their real conv features.
 
-    The full mask token is [num_tracks, d_per_assay] — effectively a d_model-sized
-    vector partitioned by assay, where available assay slices are overwritten with
-    real signal features.
+    Separate cloze_embedding (training-masked) and missing_embedding (absent) tokens
+    mirror how AssayMetadataEncoder uses distinct depth_cloze_emb / depth_missing_emb,
+    giving the transformer a semantic signal about WHY each assay is absent.
     """
 
     def __init__(self, num_tracks: int, d_per_assay: int) -> None:
         super().__init__()
         self.num_tracks = int(num_tracks)
         self.d_per_assay = int(d_per_assay)
-        self.mask_embedding = nn.Parameter(
+        self.cloze_embedding = nn.Parameter(
+            torch.randn(self.num_tracks, self.d_per_assay) * 0.02
+        )
+        self.missing_embedding = nn.Parameter(
             torch.randn(self.num_tracks, self.d_per_assay) * 0.02
         )
 
@@ -371,9 +374,12 @@ class MaskTokenInjector(nn.Module):
                 f"availability tracks ({assays}) != num_tracks ({self.num_tracks})"
             )
         x = x_conv.view(bsz, seq_len, assays, self.d_per_assay)
-        replace = (availability == CLOZE) | (availability == MISSING)
-        token = self.mask_embedding.view(1, 1, self.num_tracks, self.d_per_assay).to(x.dtype)
-        x = torch.where(replace.unsqueeze(1).unsqueeze(-1), token, x)
+        is_cloze = (availability == CLOZE).unsqueeze(1).unsqueeze(-1)    # [B,1,A,1]
+        is_missing = (availability == MISSING).unsqueeze(1).unsqueeze(-1) # [B,1,A,1]
+        cloze_tok = self.cloze_embedding.view(1, 1, self.num_tracks, self.d_per_assay).to(x.dtype)
+        missing_tok = self.missing_embedding.view(1, 1, self.num_tracks, self.d_per_assay).to(x.dtype)
+        x = torch.where(is_cloze, cloze_tok, x)
+        x = torch.where(is_missing, missing_tok, x)
         return x.view(bsz, seq_len, assays * self.d_per_assay)
 
 
