@@ -36,6 +36,19 @@ def exponential_linspace_int(start, end, num, divisible_by=1):
     return [_round(start * base ** i) for i in range(num)]
 
 
+class RMSNormSeq(nn.Module):
+    """RMS norm for sequence tensors [B, L, d_model], normalizing over the last dim."""
+
+    def __init__(self, dim: int, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = float(eps)
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x * rms * self.weight
+
+
 class MaskStem(nn.Module):
     """Learnable stem for (value, mask) pairs (vendored from model.py).
 
@@ -847,6 +860,11 @@ class V2Encoder(nn.Module):
                 for _ in range(int(cfg.n_transformer_layers))
             ])
 
+        # -- Optional RMSNorm on encoder output --
+        self.output_norm: nn.Module = (
+            RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
+        )
+
     def _prepare_signal(
         self, x_signal_t: torch.Tensor, x_meta: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -913,6 +931,8 @@ class V2Encoder(nn.Module):
             if self.transformer_film_layers is not None:
                 fused = self.transformer_film_layers[i](fused, pooled_meta)
             fused = block(fused)
+
+        fused = self.output_norm(fused)
 
         if return_meta:
             return fused, meta_embed
