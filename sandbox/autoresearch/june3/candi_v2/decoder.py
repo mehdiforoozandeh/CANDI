@@ -205,9 +205,12 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         depth_center: float = 24.0,
         eps: float = 1e-6,
         learnable_depth_center: bool = False,
+        per_assay_depth_center: bool = False,
     ) -> None:
         super().__init__()
-        if learnable_depth_center:
+        if per_assay_depth_center:
+            self.depth_center = nn.Parameter(torch.full((int(output_dim),), float(depth_center)))
+        elif learnable_depth_center:
             self.depth_center = nn.Parameter(torch.tensor(float(depth_center)))
         else:
             self.depth_center = float(depth_center)
@@ -507,6 +510,7 @@ class V2Decoder(nn.Module):
                     depth_center=float(cfg.depth_center),
                     eps=float(cfg.mu_eps),
                     learnable_depth_center=bool(cfg.learnable_depth_center),
+                    per_assay_depth_center=bool(cfg.per_assay_depth_center),
                 )
             else:
                 self.neg_binom_layer = NegativeBinomialLayer(
