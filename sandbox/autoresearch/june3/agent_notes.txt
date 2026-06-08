@@ -59,3 +59,4 @@ e208a2e6 -0.763 KEEP decoder.norm=rms: den_r2→-0.758 (BIG gain); RMSNorm prese
 bfe3aa7a -0.728 KEEP encoder.signal_transform=arcsinh: den_r2→-0.601 (NEW BEST, big gain over log1p); arcsinh's symmetric, less-saturating compression pairs well with rms decoder's scale-preserving norm
 8eadfc2e -1.220 no_gain decoder.film_mode=none (with arcsinh+rms base): den_r2→-2.743; pre-decoder FiLM remains essential even after signal_transform/norm changes
 5c7c68ae -0.727 KEEP decoder.trunk=separate: den_r2→-0.605 (marginal NEW BEST, +0.0001); separate per-head deconv towers slightly help over shared trunk with arcsinh+rms base
+20c8bf43 -0.958 no_gain decoder.expansion_factor=1 (with separate-trunk arcsinh+rms base): den_r2→-1.493; deconv tower needs the 2x channel expansion, narrower hurts
