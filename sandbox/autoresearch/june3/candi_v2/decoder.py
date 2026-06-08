@@ -377,6 +377,7 @@ class DecoderTrunk(nn.Module):
             for i in range(int(n_cnn_layers))
         ])
         self.channel_schedule = channels
+        self.drop = nn.Dropout(p=0.1)
 
     def forward(
         self,
@@ -393,10 +394,13 @@ class DecoderTrunk(nn.Module):
             [B, L, signal_dim]
         """
         x = self.input_proj(z).permute(0, 2, 1)  # [B, C, L2]
+        n_layers = len(self.deconv)
         for i, layer in enumerate(self.deconv):
             x = layer(x)
             if film_layers is not None and pooled_meta is not None:
                 x = film_layers[i](x, pooled_meta)
+            if i < n_layers - 1:
+                x = self.drop(x)
         return x.permute(0, 2, 1)  # [B, L, signal_dim]
 
 
