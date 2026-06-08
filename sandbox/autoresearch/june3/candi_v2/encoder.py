@@ -875,6 +875,8 @@ class V2Encoder(nn.Module):
             RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
         )
 
+        self._transformer_layer_drop: float = float(cfg.transformer_layer_drop)
+
     def _prepare_signal(
         self, x_signal_t: torch.Tensor, x_meta: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -943,9 +945,11 @@ class V2Encoder(nn.Module):
         # Fuse signal + DNA
         fused = self.fusion(sig, dna)
 
-        # Transformer stack with optional per-layer FiLM
+        # Transformer stack with optional per-layer FiLM and stochastic depth
         pooled_meta = meta_embed.mean(dim=1)
         for i, block in enumerate(self.transformer_blocks):
+            if self.training and self._transformer_layer_drop > 0.0 and torch.rand(1).item() < self._transformer_layer_drop:
+                continue  # stochastic depth: skip FiLM+block together
             if self.transformer_film_layers is not None:
                 fused = self.transformer_film_layers[i](fused, pooled_meta)
             fused = block(fused)

@@ -76,6 +76,9 @@ class EncoderConfig:
     # Cross-assay MHA after signal CNN + mask inject, before DNA fusion
     cross_assay_attention: bool = False
 
+    # Stochastic depth: drop transformer layers with this prob during training
+    transformer_layer_drop: float = 0.0
+
 
 # ---------------------------------------------------------------------------
 # Decoder config
