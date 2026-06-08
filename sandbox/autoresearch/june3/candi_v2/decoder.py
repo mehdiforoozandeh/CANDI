@@ -207,6 +207,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         learnable_depth_center: bool = False,
         learnable_depth_slope: bool = False,
         depth_slope_init: float = 0.0,
+        depth_slope_constrained: bool = False,
         learnable_depth_quadratic: bool = False,
         grouped_dispersion: bool = False,
     ) -> None:
@@ -219,6 +220,7 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
             self.log_depth_slope = nn.Parameter(torch.tensor(float(depth_slope_init)))
         else:
             self.log_depth_slope = None
+        self._depth_slope_constrained = bool(depth_slope_constrained)
         # quadratic depth term: log2_mu = alpha*(d-c) + beta*(d-c)^2 + eta; init beta=0
         self.depth_quadratic = nn.Parameter(torch.zeros(1)) if learnable_depth_quadratic else None
         self.eps = float(eps)
@@ -248,7 +250,14 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         valid = (depth_log2 != MISSING) & (depth_log2 != CLOZE)    # [B, A]
         d_raw = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center       # [B, 1, A]
         if self.log_depth_slope is not None:
-            d_centered = torch.exp(self.log_depth_slope) * d_raw
+            if self._depth_slope_constrained:
+                # Sigmoid-map to DCR-valid range: alpha∈[log2(3)/2, log2(5)/2]=[0.7925,1.1610]
+                # DCR=2^(2*alpha)∈[3.0,5.0]; DCR_init=3.87 when log_depth_slope=0
+                _lo, _hi = 0.79248, 1.16096
+                alpha = _lo + (_hi - _lo) * torch.sigmoid(self.log_depth_slope)
+                d_centered = alpha * d_raw
+            else:
+                d_centered = torch.exp(self.log_depth_slope) * d_raw
         else:
             d_centered = d_raw
         if self.depth_quadratic is not None:
@@ -538,6 +547,7 @@ class V2Decoder(nn.Module):
                     learnable_depth_center=bool(cfg.learnable_depth_center),
                     learnable_depth_slope=bool(cfg.learnable_depth_slope),
                     depth_slope_init=float(cfg.depth_slope_init),
+                    depth_slope_constrained=bool(cfg.depth_slope_constrained),
                     learnable_depth_quadratic=bool(cfg.learnable_depth_quadratic),
                     grouped_dispersion=bool(cfg.grouped_dispersion),
                 )
