@@ -115,6 +115,7 @@ class DecoderConfig:
     count_head: Literal["plain", "depth_offset"] = "depth_offset"
     depth_center: float = 22.5  # only used when count_head="depth_offset"
     mu_eps: float = 1e-6        # only used when count_head="depth_offset"
+    learnable_depth_center: bool = False  # make depth_center an nn.Parameter
 
 
 # ---------------------------------------------------------------------------

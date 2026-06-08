@@ -38,6 +38,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.norm = "rms"
     cfg.encoder.signal_transform = "arcsinh"
     cfg.decoder.trunk = "separate"
+    cfg.decoder.learnable_depth_center = True
     return cfg
 
 
