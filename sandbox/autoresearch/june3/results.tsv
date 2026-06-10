@@ -56,3 +56,4 @@ f1488d8c	guard_fail	-0.542684	-0.080998	-0.191036	1.824142	0.936477	0.933512	4.6
 55ab436f	crash	None	None	None	None	None	None	None	833562	42.347656	false	crash	agent_step
 a56555c3	no_gain	-0.674351	-0.109176	-0.572947	1.899681	1.020484	0.977767	4.408134	833562	153.865234	true	ok	agent_step
 79ec79e0	guard_fail	-0.645408	-0.250903	-0.275495	1.823611	0.989061	0.917347	5.465213	835442	152.890625	true	ok	agent_step
+f6a6756c	crash	None	None	None	None	None	None	None	887146	102.431641	false	crash	agent_step
