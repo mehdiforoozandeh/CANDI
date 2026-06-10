@@ -43,7 +43,8 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.conv_kernel_size = 5
     cfg.encoder.conv_norm = "layer"
     cfg.encoder.signal_transform = "log1p"
-    cfg.decoder.learnable_depth_quadratic = True
+    cfg.encoder.n_transformer_layers = 5
+    cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
 
