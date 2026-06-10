@@ -43,7 +43,8 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.conv_kernel_size = 5
     cfg.encoder.conv_norm = "layer"
     cfg.encoder.signal_transform = "log1p"
-    cfg.encoder.dropout = 0.01
+    cfg.encoder.dropout = 0.02
+    cfg.encoder.dna_pool_order = "early"
     cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
