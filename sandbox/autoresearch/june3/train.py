@@ -44,7 +44,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.conv_norm = "layer"
     cfg.encoder.signal_transform = "log1p"
     cfg.encoder.dropout = 0.05
-    cfg.encoder.signal_tower_output_ln = True
+    cfg.encoder.n_cnn_layers = 4
     cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
