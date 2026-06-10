@@ -132,6 +132,7 @@ class DecoderConfig:
     grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
     diagonal_eta: bool = False           # per-assay eta head: replace linear_eta(8→8) with Conv1d groups=8 (-56 params, DCR-safe)
     encoder_skip: bool = False           # U-Net skip: add encoder pre-transformer features to decoder trunk input (+4672 params)
+    dcr_penalty_weight: float = 0.0     # soft DCR penalty: max(0, 3.05-DCR)^2 * weight added to total_weighted loss; keeps alpha learnable but biases DCR≥3.0
 
 
 # ---------------------------------------------------------------------------

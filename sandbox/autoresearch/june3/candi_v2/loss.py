@@ -27,6 +27,20 @@ from sandbox.autoresearch.june3.candi_v2.config import CANDIv2Config
 
 
 # ---------------------------------------------------------------------------
+# DCR soft-penalty singleton (set by V2Decoder at build time)
+# ---------------------------------------------------------------------------
+_DCR_SLOPE_REF: Optional[nn.Parameter] = None
+_DCR_PENALTY_WEIGHT: float = 0.0
+
+
+def set_dcr_slope_ref(param: Optional[nn.Parameter], weight: float = 0.0) -> None:
+    """Register decoder's log_depth_slope param for DCR penalty in _compute_terms."""
+    global _DCR_SLOPE_REF, _DCR_PENALTY_WEIGHT
+    _DCR_SLOPE_REF = param
+    _DCR_PENALTY_WEIGHT = float(weight)
+
+
+# ---------------------------------------------------------------------------
 # Low-level loss utilities (vendored from _utils.py)
 # ---------------------------------------------------------------------------
 
@@ -596,6 +610,12 @@ class SandboxCompositeLoss(nn.Module):
             + terms["pval_obs_weighted"] + terms["pval_imp_weighted"]
             + terms["peak_obs_weighted"] + terms["peak_imp_weighted"]
         )
+        # DCR soft penalty: bias alpha toward DCR≥3.0 without severing joint gradients
+        if _DCR_SLOPE_REF is not None and _DCR_PENALTY_WEIGHT > 0:
+            alpha = torch.exp(_DCR_SLOPE_REF)
+            dcr = torch.pow(2.0, 2.0 * alpha)
+            dcr_penalty = F.relu(3.05 - dcr).pow(2) * _DCR_PENALTY_WEIGHT
+            terms["total_weighted"] = terms["total_weighted"] + dcr_penalty
         return terms
 
     @staticmethod

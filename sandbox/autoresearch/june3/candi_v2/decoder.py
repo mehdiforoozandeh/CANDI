@@ -579,6 +579,11 @@ class V2Decoder(nn.Module):
                 self.neg_binom_layer = NegativeBinomialLayer(
                     self.signal_dim, self.signal_dim,
                 )
+            # Register slope param for DCR soft penalty in loss.py (no-op when weight=0)
+            if float(getattr(cfg, "dcr_penalty_weight", 0.0)) > 0:
+                from sandbox.autoresearch.june3.candi_v2.loss import set_dcr_slope_ref
+                slope_param = getattr(self.neg_binom_layer, "log_depth_slope", None)
+                set_dcr_slope_ref(slope_param, float(cfg.dcr_penalty_weight))
         if "peak" in self._active_heads:
             self.peak_layer = PeakLayer(self.signal_dim, self.signal_dim)
         if "pval" in self._active_heads:
