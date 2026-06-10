@@ -45,6 +45,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.signal_transform = "log1p"
     cfg.encoder.dropout = 0.02
     cfg.encoder.dna_pool_order = "early"
+    cfg.decoder.grouped_dispersion = True
     cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
