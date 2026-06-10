@@ -875,6 +875,21 @@ class V2Encoder(nn.Module):
             RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
         )
 
+        # -- Post-transformer cross-assay attention --
+        # Treats d_model as num_tracks × d_per_track; applies self-attention across
+        # the num_tracks dimension at each genomic position. This adds assay-axis
+        # mixing AFTER the transformer has done position-axis mixing. Avoids the
+        # masked-zero-features problem of pre-transformer CAS because transformer
+        # output is non-zero even for CLOZE-masked assay positions.
+        self.ptcas_attn: Optional[nn.MultiheadAttention] = None
+        self.ptcas_norm: Optional[nn.LayerNorm] = None
+        if bool(getattr(cfg, 'post_transformer_cas', False)):
+            d_per_track = self.d_model // self.num_tracks  # 72 // 9 = 8
+            self.ptcas_attn = nn.MultiheadAttention(
+                embed_dim=d_per_track, num_heads=1, batch_first=True, dropout=0.0,
+            )
+            self.ptcas_norm = nn.LayerNorm(self.d_model)
+
         # -- Optional LayerNorm after signal conv tower (before DNA fusion) --
         # Preserves GroupNorm per-assay structure in conv layers while adding
         # global normalization that may shift alpha gradient landscape.
@@ -970,6 +985,14 @@ class V2Encoder(nn.Module):
             fused = block(fused)
 
         fused = self.output_norm(fused)
+
+        # Post-transformer cross-assay attention: mix assay-chunks at each position
+        if self.ptcas_attn is not None:
+            B_pt, L2_pt, _ = fused.shape
+            d_per = self.d_model // self.num_tracks  # 72 // 9 = 8
+            z_r = fused.contiguous().view(B_pt * L2_pt, self.num_tracks, d_per)
+            delta, _ = self.ptcas_attn(z_r, z_r, z_r)
+            fused = self.ptcas_norm(fused + delta.reshape(B_pt, L2_pt, self.d_model))
 
         if return_meta:
             return fused, meta_embed

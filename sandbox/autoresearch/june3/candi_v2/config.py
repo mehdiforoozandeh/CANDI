@@ -84,6 +84,12 @@ class EncoderConfig:
     # adding a global normalization that may affect alpha's gradient landscape.
     signal_tower_output_ln: bool = False
 
+    # Cross-assay attention AFTER transformer (post-transformer CAS).
+    # Treats the d_model=72 output as num_tracks x d_per_track and applies
+    # self-attention across the num_tracks dimension at each position.
+    # Distinct from pre-transformer CAS (which fails due to masked-zero features).
+    post_transformer_cas: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Decoder config
