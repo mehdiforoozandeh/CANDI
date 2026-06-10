@@ -41,7 +41,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.learnable_depth_center = True
     cfg.decoder.learnable_depth_slope = True
     cfg.decoder.conv_kernel_size = 5
-    cfg.encoder.dropout = 0.2
+    cfg.decoder.dcr_penalty_weight = 0.5
     return cfg
 
 
