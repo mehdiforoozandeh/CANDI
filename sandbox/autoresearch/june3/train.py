@@ -42,7 +42,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.learnable_depth_slope = True
     cfg.decoder.conv_kernel_size = 5
     cfg.encoder.conv_norm = "layer"
-    cfg.encoder.transformer_layer_drop = 0.1
+    cfg.encoder.signal_transform = "log1p"
     return cfg
 
 
