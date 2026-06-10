@@ -945,9 +945,9 @@ class V2Encoder(nn.Module):
         if self.cross_assay_attn is not None:
             B_ca, L2_ca, _ = sig.shape
             d_per = self.signal_tower.out_per_assay
-            sig_r = sig.view(B_ca * L2_ca, self.num_tracks, d_per)
+            sig_r = sig.contiguous().view(B_ca * L2_ca, self.num_tracks, d_per)
             delta, _ = self.cross_assay_attn(sig_r, sig_r, sig_r)
-            sig = self.cross_assay_norm(sig + delta.view(B_ca, L2_ca, -1))
+            sig = self.cross_assay_norm(sig + delta.reshape(B_ca, L2_ca, -1))
 
         # Optional LayerNorm on signal tower output (before DNA fusion)
         if self.signal_tower_output_ln is not None:
