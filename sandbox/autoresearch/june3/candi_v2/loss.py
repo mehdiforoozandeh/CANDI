@@ -614,7 +614,7 @@ class SandboxCompositeLoss(nn.Module):
         if _DCR_SLOPE_REF is not None and _DCR_PENALTY_WEIGHT > 0:
             alpha = torch.exp(_DCR_SLOPE_REF)
             dcr = torch.pow(2.0, 2.0 * alpha)
-            dcr_penalty = F.relu(3.05 - dcr).pow(2) * _DCR_PENALTY_WEIGHT
+            dcr_penalty = F.relu(3.015 - dcr).pow(2) * _DCR_PENALTY_WEIGHT
             terms["total_weighted"] = terms["total_weighted"] + dcr_penalty
         return terms
 

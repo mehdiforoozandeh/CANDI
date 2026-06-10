@@ -41,7 +41,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.learnable_depth_center = True
     cfg.decoder.learnable_depth_slope = True
     cfg.decoder.conv_kernel_size = 5
-    cfg.decoder.depth_slope_init = -0.2294  # log(0.795); alpha_init=0.795 → DCR_init=3.010; 20ep may not reach natural min 0.788 (only 0.007 gap)
+    cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
 
