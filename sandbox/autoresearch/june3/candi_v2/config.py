@@ -79,6 +79,11 @@ class EncoderConfig:
     # Stochastic depth: drop transformer layers with this prob during training
     transformer_layer_drop: float = 0.0
 
+    # Add a full LayerNorm after signal conv tower output (before DNA fusion).
+    # When conv_norm="group", this preserves per-assay GroupNorm structure while
+    # adding a global normalization that may affect alpha's gradient landscape.
+    signal_tower_output_ln: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Decoder config

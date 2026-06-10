@@ -875,6 +875,16 @@ class V2Encoder(nn.Module):
             RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
         )
 
+        # -- Optional LayerNorm after signal conv tower (before DNA fusion) --
+        # Preserves GroupNorm per-assay structure in conv layers while adding
+        # global normalization that may shift alpha gradient landscape.
+        signal_dim_enc = self.signal_tower.out_channels
+        self.signal_tower_output_ln: Optional[nn.Module] = (
+            nn.LayerNorm(signal_dim_enc)
+            if bool(getattr(cfg, "signal_tower_output_ln", False))
+            else None
+        )
+
         self._transformer_layer_drop: float = float(cfg.transformer_layer_drop)
 
     def _prepare_signal(
@@ -938,6 +948,10 @@ class V2Encoder(nn.Module):
             sig_r = sig.view(B_ca * L2_ca, self.num_tracks, d_per)
             delta, _ = self.cross_assay_attn(sig_r, sig_r, sig_r)
             sig = self.cross_assay_norm(sig + delta.view(B_ca, L2_ca, -1))
+
+        # Optional LayerNorm on signal tower output (before DNA fusion)
+        if self.signal_tower_output_ln is not None:
+            sig = self.signal_tower_output_ln(sig)
 
         # DNA conv tower
         dna = self.dna_tower(x_dna)
