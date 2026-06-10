@@ -133,6 +133,7 @@ class DecoderConfig:
     diagonal_eta: bool = False           # per-assay eta head: replace linear_eta(8→8) with Conv1d groups=8 (-56 params, DCR-safe)
     encoder_skip: bool = False           # U-Net skip: add encoder pre-transformer features to decoder trunk input (+4672 params)
     dcr_penalty_weight: float = 0.0     # soft DCR penalty: max(0, 3.05-DCR)^2 * weight added to total_weighted loss; keeps alpha learnable but biases DCR≥3.0
+    count_refine_conv5: bool = False     # post-deconv k=5 residual refinement conv before NB head: wider spatial receptive field at full resolution without changing upsampling geometry
 
 
 # ---------------------------------------------------------------------------

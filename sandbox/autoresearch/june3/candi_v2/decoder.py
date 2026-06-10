@@ -549,6 +549,15 @@ class V2Decoder(nn.Module):
             dec_input_dim = int(self.signal_dim) * (int(cfg.expansion_factor) ** int(cfg.n_cnn_layers))
             self.skip_proj = nn.Linear(self.encoder_d_model, dec_input_dim)
 
+        # -- Post-deconv k=5 spatial refinement (residual, count trunk only) --
+        self._count_refine_conv5 = bool(getattr(cfg, "count_refine_conv5", False))
+        self.count_refine: Optional[nn.Module] = None
+        if self._count_refine_conv5:
+            self.count_refine = nn.Sequential(
+                nn.Conv1d(self.signal_dim, self.signal_dim, kernel_size=5, padding=2),
+                RMSNorm(self.signal_dim),
+            )
+
         # -- Output heads --
         self.neg_binom_layer: Optional[nn.Module] = None
         self.peak_layer: Optional[PeakLayer] = None
@@ -675,6 +684,11 @@ class V2Decoder(nn.Module):
                 decoded = self.separate_trunks[head_name](
                     z, film_layers=film_l, pooled_meta=pooled_meta, skip=skip_in,
                 )
+                if head_name == "count" and self.count_refine is not None:
+                    # residual k=5 refinement: [B, L, C] → permute → conv → permute → add
+                    decoded = decoded + F.gelu(
+                        self.count_refine(decoded.permute(0, 2, 1)).permute(0, 2, 1)
+                    )
                 if head_name == "count" and self.neg_binom_layer is not None:
                     if self._count_depth_offset:
                         p, n = self.neg_binom_layer(decoded, count_depth)
