@@ -55,8 +55,6 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.norm = "group"
     cfg.encoder.output_rms_norm = True  # KEEP12 (real +0.0038 avg over KEEP9)
     # --- EXPERIMENT (single knob, last assignment wins) ---
-    cfg.encoder.n_transformer_layers = 5
-    cfg.decoder.dcr_penalty_weight = 5.0
     return cfg
 
 

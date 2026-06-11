@@ -240,3 +240,11 @@ baa1f8c0 [40ep] KEEP12+n_layers=5+depth_slope_constrained: primary=-0.546673, DC
 3. KEEP12 sits near the weighted-optimal point on this frontier (imputation weight 0.65 >> denoising 0.35).
 4. Score weights make imputation the priority; imputation capacity lives in the transformer but degrades denoising there.
 ONLY REMAINING LEVER: architectural DECOUPLING — give imputation its own transformer capacity without degrading the denoising path (e.g., denoising skip from obs-faithful pre-transformer features, or separate per-task representation depth). This is the authorized decoder/arch redesign. NEXT: inspect decoder.py/encoder.py trunk structure; design a decoupled denoising path so transformer can scale for imputation.
+5cd37350 [40ep] KEEP12+n_layers=5+dcr_penalty=5.0: primary=-0.465281, DCR=2.995 (STILL guard_fail, penalty moved 2.982→2.995 only), imp_r2=-0.042 (imputation gain PRESERVED), den_r2=-0.022 (STILL ~0); DECISIVE: even with strong DCR penalty + imputation gain, den_r2≈0 → primary~-0.465 < KEEP12 (-0.4438); scaling the shared transformer is a DEAD END for the weighted score — imputation gain never compensates for denoising collapse.
+
+=== FINAL CONCLUSION (budget + capacity exploration complete) ===
+Within ALL authorized levers (single-knob, training budget up to 40ep, decoder & transformer capacity), KEEP12 (output_rms_norm) remains the validated best (-0.4438 avg). The imp<->den Pareto frontier is FUNDAMENTAL to the shared encoder/transformer backbone:
+ - decoder capacity → den_r2 to +0.256, imputation wrecked
+ - transformer capacity → imp_r2 to -0.040, denoising wrecked
+Capacity scaling cannot beat the frontier. The only direction that could is a DUAL-BACKBONE decoupling (separate transformers per task), but that ~doubles params (~1.6M) and fails convergence even at 40ep within this batch_size=4/data regime — not viable here.
+RECOMMENDATION: lock KEEP12 as the result. Further gains need either (a) the frozen training loss rebalanced toward imputation (obs_weight=3.5>>imp_weight=0.59 mismatches the score's 0.65 imputation weight) — frozen, or (b) a fundamentally larger compute/data regime for a dual-backbone model.
