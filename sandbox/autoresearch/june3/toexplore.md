@@ -216,3 +216,42 @@ self.den_decoder = V2Decoder(cfg.decoder, ...)   # for denoised (observed) assay
 6. **The sweet spots (empirical)**: n_layers=4, nhead=8, dropout=0.02, meta_embed_dim=8 (decoder), meta_embed_dim=32 (encoder). These have withstood the architectural overhaul.
 
 7. **Novel paths with highest ROI**: Cross-assay consistency loss (Tier 4, directly targets imputation), 3-layer fusion (Tier 2, continues the winning trend), transformer_layer_drop=0.05 (Tier 1, small regularization, low risk).
+
+---
+
+## Session update (2026-06-11) — KEEP8 experiments and new directions
+
+**Current best: KEEP8 (15b88826), primary=-0.473875**
+
+KEEP8 stack: KEEP7 (layer_drop=0.05) + consistency_weight=0.1 (+0.000116, marginal)
+
+### All KEEP8 experiments tried (all no_gain or guard_fail):
+- consistency_weight: 0.05 (untried), 0.1 (KEEP8), 0.15, 0.5 (no_gain or worse)
+- aux_mse_imp_weight=0.05: near-miss -0.474076 (off by 0.0002)
+- dropout: 0.01 (regression), 0.02 (KEEP8)
+- encoder_skip=True: guard_fail (DCR pattern)
+- decoder.expansion_factor=3: over-param, train_obs_loss→6.92
+- ff_mult: 2 (guard_fail), 4 (KEEP8), 3 (in progress)
+- layer_drop: 0.04, 0.05 (KEEP8), 0.07, 0.10
+- nhead: 6, 8 (KEEP8), 9 (all non-8 catastrophic)
+- count_refine_conv5: guard_fail
+- n_transformer_layers=5: guard_fail
+- meta_embed_dim=6: catastrophic
+- attn_dropout=0.1: slight regression
+- ff_glu=True: catastrophic
+- fusion_residual=True: guard_fail
+- dcr_penalty_weight: 1.2/2.0 (zero effect, DCR already in range)
+- consistency_weight=0.15: near-miss
+
+### New infrastructure added (2026-06-11):
+- `decoder.aux_mse_obs_weight`: auxiliary log1p MSE on OBSERVED positions (symmetric to imp MSE). Targets den_r2 directly. Try with 0.05.
+- `encoder.transformer_sandwich_norm`: extra LN after attn+FFN in xtransformers. No new linear params. May stabilize transformer.
+- `encoder.transformer_shift_tokens`: token shift in xtransformers (shift=1). Free convolution-like context, no new params.
+- `encoder.transformer_use_rmsnorm`: RMSNorm in xtransformers (consistent with decoder.norm=rms). No new linear params.
+
+### Remaining unexplored (safe options):
+1. aux_mse_obs_weight=0.05 ← HIGHEST PRIORITY (novel, direct denoising signal)
+2. transformer_sandwich_norm=True ← second priority (stabilization)
+3. transformer_use_rmsnorm=True ← third priority
+4. transformer_shift_tokens=1 ← fourth priority  
+5. transformer_attn_dropout=0.05 ← fifth priority (between 0.02 and tested 0.1)
