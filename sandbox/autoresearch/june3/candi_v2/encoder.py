@@ -864,6 +864,7 @@ class V2Encoder(nn.Module):
                     ff_dropout=float(cfg.dropout),
                     ff_mult=4, pre_norm=True,
                     attn_qk_norm=bool(cfg.attn_qk_norm),
+                    ff_glu=bool(getattr(cfg, 'ff_glu', False)),
                 )
                 for _ in range(int(cfg.n_transformer_layers))
             ])

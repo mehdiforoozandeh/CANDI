@@ -90,6 +90,9 @@ class EncoderConfig:
     # Distinct from pre-transformer CAS (which fails due to masked-zero features).
     post_transformer_cas: bool = False
 
+    # GEGLU feedforward in xtransformers (ff_glu=True → glu=True in FeedForward)
+    ff_glu: bool = False
+
     # Deep fusion: use 2-layer LinearFusion (signal+DNA concat → hidden → output)
     # instead of the default single-layer projection. Adds one extra Linear+GELU.
     fusion_deep: bool = False
