@@ -55,7 +55,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.norm = "group"
     cfg.encoder.output_rms_norm = True  # KEEP12 (real +0.0038 avg over KEEP9)
     # --- EXPERIMENT (single knob, last assignment wins) ---
-    cfg.encoder.film_mode = "per_conv"
+    cfg.encoder.post_transformer_cas = True
     return cfg
 
 
