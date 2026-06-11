@@ -50,8 +50,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.attn_qk_norm = True
     cfg.encoder.transformer_layer_drop = 0.05
     cfg.decoder.dcr_penalty_weight = 1.5
-    cfg.decoder.consistency_weight = 0.1
-    cfg.encoder.transformer_layer_drop = 0.04
+    cfg.decoder.consistency_weight = 0.15
     return cfg
 
 
