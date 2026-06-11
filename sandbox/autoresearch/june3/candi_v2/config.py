@@ -79,6 +79,9 @@ class EncoderConfig:
     # Stochastic depth: drop transformer layers with this prob during training
     transformer_layer_drop: float = 0.0
 
+    # Per-layer attention dropout (overrides cfg.dropout for attention weights only; 0.0 = use cfg.dropout)
+    transformer_attn_dropout: float = 0.0
+
     # Add a full LayerNorm after signal conv tower output (before DNA fusion).
     # When conv_norm="group", this preserves per-assay GroupNorm structure while
     # adding a global normalization that may affect alpha's gradient landscape.

@@ -860,7 +860,7 @@ class V2Encoder(nn.Module):
                 XEncoder(
                     dim=self.d_model, depth=1, heads=int(cfg.nhead),
                     rotary_pos_emb=True,
-                    attn_dropout=float(cfg.dropout),
+                    attn_dropout=float(cfg.transformer_attn_dropout) if float(getattr(cfg, 'transformer_attn_dropout', 0.0)) > 0.0 else float(cfg.dropout),
                     ff_dropout=float(cfg.dropout),
                     ff_mult=4, pre_norm=True,
                     attn_qk_norm=bool(cfg.attn_qk_norm),
