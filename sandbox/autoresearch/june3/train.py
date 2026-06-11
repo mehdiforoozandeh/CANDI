@@ -46,6 +46,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.dropout = 0.02
     cfg.encoder.dna_pool_order = "early"
     cfg.encoder.fusion_deep = True
+    cfg.encoder.fusion_norm = "layer"
     cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
