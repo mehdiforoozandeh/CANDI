@@ -48,6 +48,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.fusion_deep = True
     cfg.encoder.fusion_norm = "layer"
     cfg.encoder.attn_qk_norm = True
+    cfg.encoder.transformer_layer_drop = 0.05
     cfg.decoder.dcr_penalty_weight = 1.5
     return cfg
 
