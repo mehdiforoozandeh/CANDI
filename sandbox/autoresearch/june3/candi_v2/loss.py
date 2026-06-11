@@ -539,12 +539,13 @@ class SandboxCompositeLoss(nn.Module):
     forward_with_terms is forwarded verbatim to agent_step → keep_rule → TSV.
     """
 
-    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0, aux_mse_imp_weight: float = 0.0, aux_mse_obs_weight: float = 0.0):
+    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0, aux_mse_imp_weight: float = 0.0, aux_mse_obs_weight: float = 0.0, spatial_smoothness_weight: float = 0.0):
         super().__init__()
         self.cand = cand
         self._consistency_weight = float(consistency_weight)
         self._aux_mse_imp_weight = float(aux_mse_imp_weight)
         self._aux_mse_obs_weight = float(aux_mse_obs_weight)
+        self._spatial_smoothness_weight = float(spatial_smoothness_weight)
 
     @staticmethod
     def _safe_unweight(weighted: torch.Tensor, weight: float) -> torch.Tensor:
@@ -635,6 +636,12 @@ class SandboxCompositeLoss(nn.Module):
             )
             terms["total_weighted"] = terms["total_weighted"] + aux_mse_obs * self._aux_mse_obs_weight
             terms["aux_mse_obs"] = aux_mse_obs
+        # TV-L1 spatial smoothness: penalize sharp adjacent-position changes in log1p(mu)
+        if self._spatial_smoothness_weight > 0.0:
+            diff = torch.log1p(output_mu[:, 1:, :].float()) - torch.log1p(output_mu[:, :-1, :].float())
+            smoothness = diff.abs().mean()
+            terms["total_weighted"] = terms["total_weighted"] + smoothness * self._spatial_smoothness_weight
+            terms["spatial_smoothness"] = smoothness
         # Cross-assay consistency: imputed track means ≈ observed track means at same locus
         if self._consistency_weight > 0.0:
             obs_f = observed_map.float()
@@ -780,4 +787,5 @@ def build_v2_loss(cfg: CANDIv2Config) -> SandboxCompositeLoss:
         consistency_weight=float(getattr(cfg.decoder, 'consistency_weight', 0.0)),
         aux_mse_imp_weight=float(getattr(cfg.decoder, 'aux_mse_imp_weight', 0.0)),
         aux_mse_obs_weight=float(getattr(cfg.decoder, 'aux_mse_obs_weight', 0.0)),
+        spatial_smoothness_weight=float(getattr(cfg.decoder, 'spatial_smoothness_weight', 0.0)),
     )

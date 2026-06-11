@@ -185,6 +185,7 @@ class DecoderConfig:
     consistency_weight: float = 0.0     # cross-assay consistency: MSE(log1p(imp_mean), log1p(obs_mean).detach()) per position; guides imputed predictions toward observed locus statistics
     aux_mse_imp_weight: float = 0.0     # auxiliary log1p MSE on masked positions: F.mse_loss(log1p(mu_imp), log1p(y_imp)) — smooth direct gradient for imputation alongside NB NLL
     aux_mse_obs_weight: float = 0.0     # auxiliary log1p MSE on observed positions: F.mse_loss(log1p(mu_obs), log1p(y_obs)) — smooth direct gradient for denoising alongside NB NLL
+    spatial_smoothness_weight: float = 0.0  # TV-L1 on log1p(mu): penalize sharp adjacent-position changes in predicted counts
 
 
 # ---------------------------------------------------------------------------
