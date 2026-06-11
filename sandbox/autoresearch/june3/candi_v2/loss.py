@@ -539,11 +539,12 @@ class SandboxCompositeLoss(nn.Module):
     forward_with_terms is forwarded verbatim to agent_step → keep_rule → TSV.
     """
 
-    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0, aux_mse_imp_weight: float = 0.0):
+    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0, aux_mse_imp_weight: float = 0.0, aux_mse_obs_weight: float = 0.0):
         super().__init__()
         self.cand = cand
         self._consistency_weight = float(consistency_weight)
         self._aux_mse_imp_weight = float(aux_mse_imp_weight)
+        self._aux_mse_obs_weight = float(aux_mse_obs_weight)
 
     @staticmethod
     def _safe_unweight(weighted: torch.Tensor, weight: float) -> torch.Tensor:
@@ -626,6 +627,14 @@ class SandboxCompositeLoss(nn.Module):
             )
             terms["total_weighted"] = terms["total_weighted"] + aux_mse * self._aux_mse_imp_weight
             terms["aux_mse_imp"] = aux_mse
+        # Auxiliary log1p MSE on observed positions: smooth direct gradient for denoising alongside NB NLL
+        if self._aux_mse_obs_weight > 0.0 and observed_map.any():
+            aux_mse_obs = F.mse_loss(
+                torch.log1p(output_mu[observed_map]),
+                torch.log1p(y_data[observed_map].float()),
+            )
+            terms["total_weighted"] = terms["total_weighted"] + aux_mse_obs * self._aux_mse_obs_weight
+            terms["aux_mse_obs"] = aux_mse_obs
         # Cross-assay consistency: imputed track means ≈ observed track means at same locus
         if self._consistency_weight > 0.0:
             obs_f = observed_map.float()
@@ -770,4 +779,5 @@ def build_v2_loss(cfg: CANDIv2Config) -> SandboxCompositeLoss:
         cand,
         consistency_weight=float(getattr(cfg.decoder, 'consistency_weight', 0.0)),
         aux_mse_imp_weight=float(getattr(cfg.decoder, 'aux_mse_imp_weight', 0.0)),
+        aux_mse_obs_weight=float(getattr(cfg.decoder, 'aux_mse_obs_weight', 0.0)),
     )

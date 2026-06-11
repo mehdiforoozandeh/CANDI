@@ -871,6 +871,9 @@ class V2Encoder(nn.Module):
                     ff_mult=int(getattr(cfg, 'transformer_ff_mult', 4)), pre_norm=True,
                     attn_qk_norm=bool(cfg.attn_qk_norm),
                     ff_glu=bool(getattr(cfg, 'ff_glu', False)),
+                    sandwich_norm=bool(getattr(cfg, 'transformer_sandwich_norm', False)),
+                    shift_tokens=int(getattr(cfg, 'transformer_shift_tokens', 0)),
+                    use_rmsnorm=bool(getattr(cfg, 'transformer_use_rmsnorm', False)),
                 )
                 for _ in range(int(cfg.n_transformer_layers))
             ])

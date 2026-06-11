@@ -99,6 +99,18 @@ class EncoderConfig:
     # GEGLU feedforward in xtransformers (ff_glu=True → glu=True in FeedForward)
     ff_glu: bool = False
 
+    # Sandwich norm in xtransformers: adds extra LN after attn+FFN in each transformer block
+    # (no new linear params — only scale/shift — so should not disrupt DCR gradient)
+    transformer_sandwich_norm: bool = False
+
+    # Token shift in xtransformers (0=off, 1=shift by 1 token in 1/2 of dims)
+    # Provides free 1-D convolution-like context without adding parameters
+    transformer_shift_tokens: int = 0
+
+    # Use RMSNorm instead of LayerNorm inside xtransformers (no new linear params)
+    # Consistent with decoder.norm=rms; may improve gradient flow in transformer
+    transformer_use_rmsnorm: bool = False
+
     # Residual skip in LinearFusion: add shortcut Linear(144→72) to fused output before LN
     fusion_residual: bool = False
 
@@ -168,6 +180,7 @@ class DecoderConfig:
     count_refine_conv5: bool = False     # post-deconv k=5 residual refinement conv before NB head: wider spatial receptive field at full resolution without changing upsampling geometry
     consistency_weight: float = 0.0     # cross-assay consistency: MSE(log1p(imp_mean), log1p(obs_mean).detach()) per position; guides imputed predictions toward observed locus statistics
     aux_mse_imp_weight: float = 0.0     # auxiliary log1p MSE on masked positions: F.mse_loss(log1p(mu_imp), log1p(y_imp)) — smooth direct gradient for imputation alongside NB NLL
+    aux_mse_obs_weight: float = 0.0     # auxiliary log1p MSE on observed positions: F.mse_loss(log1p(mu_obs), log1p(y_obs)) — smooth direct gradient for denoising alongside NB NLL
 
 
 # ---------------------------------------------------------------------------
