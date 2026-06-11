@@ -157,6 +157,7 @@ class DecoderConfig:
     encoder_skip: bool = False           # U-Net skip: add encoder pre-transformer features to decoder trunk input (+4672 params)
     dcr_penalty_weight: float = 0.0     # soft DCR penalty: max(0, 3.05-DCR)^2 * weight added to total_weighted loss; keeps alpha learnable but biases DCR≥3.0
     count_refine_conv5: bool = False     # post-deconv k=5 residual refinement conv before NB head: wider spatial receptive field at full resolution without changing upsampling geometry
+    consistency_weight: float = 0.0     # cross-assay consistency: MSE(log1p(imp_mean), log1p(obs_mean).detach()) per position; guides imputed predictions toward observed locus statistics
 
 
 # ---------------------------------------------------------------------------

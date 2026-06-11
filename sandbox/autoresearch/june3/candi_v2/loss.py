@@ -539,9 +539,10 @@ class SandboxCompositeLoss(nn.Module):
     forward_with_terms is forwarded verbatim to agent_step → keep_rule → TSV.
     """
 
-    def __init__(self, cand: CANDI_LOSS):
+    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0):
         super().__init__()
         self.cand = cand
+        self._consistency_weight = float(consistency_weight)
 
     @staticmethod
     def _safe_unweight(weighted: torch.Tensor, weight: float) -> torch.Tensor:
@@ -616,6 +617,20 @@ class SandboxCompositeLoss(nn.Module):
             dcr = torch.pow(2.0, 2.0 * alpha)
             dcr_penalty = F.relu(3.015 - dcr).pow(2) * _DCR_PENALTY_WEIGHT
             terms["total_weighted"] = terms["total_weighted"] + dcr_penalty
+        # Cross-assay consistency: imputed track means ≈ observed track means at same locus
+        if self._consistency_weight > 0.0:
+            obs_f = observed_map.float()
+            imp_f = mm.float()
+            obs_mean = (output_mu * obs_f).sum(-1) / obs_f.sum(-1).clamp(min=1.0)
+            imp_mean = (output_mu * imp_f).sum(-1) / imp_f.sum(-1).clamp(min=1.0)
+            valid = observed_map.any(-1) & mm.any(-1)
+            if valid.any():
+                cons = F.mse_loss(
+                    torch.log1p(imp_mean[valid]),
+                    torch.log1p(obs_mean[valid]).detach(),
+                )
+                terms["total_weighted"] = terms["total_weighted"] + cons * self._consistency_weight
+                terms["consistency_loss"] = cons
         return terms
 
     @staticmethod
@@ -742,4 +757,4 @@ def build_v2_loss(cfg: CANDIv2Config) -> SandboxCompositeLoss:
         obs_weight=float(lw.obs_weight),
         imp_weight=float(lw.imp_weight),
     )
-    return SandboxCompositeLoss(cand)
+    return SandboxCompositeLoss(cand, consistency_weight=float(getattr(cfg.decoder, 'consistency_weight', 0.0)))
