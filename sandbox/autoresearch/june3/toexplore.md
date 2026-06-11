@@ -247,8 +247,8 @@ gave a massive improvement. Always re-test "failed" experiments on new KEEP base
 
 ### Next experiments on KEEP9 base (in priority order):
 1. `pre_transformer_bottleneck=True` ← GUARD_FAIL (-0.613): small-init (σ=0.01) does NOT prevent DCR disruption; 100% grad clipping; GENERALIZED RULE confirmed regardless of init scale; ABANDONED
-2. `decoder.conv_kernel_size=7` ← CURRENTLY RUNNING (larger spatial kernel k=5→7; GroupNorm may synergize)
-3. `consistency_weight` re-test: try 0.05, 0.15 on KEEP9 base (den_r2=+0.121 changes optimal balance)
+2. `decoder.conv_kernel_size=7` ← NO_GAIN (-0.633): grad_norm=73.7 explosion; count_imp grad=NaN; k=7 adds decoder Conv1d params → Jacobian amplification → gradient explosion; conv_kernel_size=5 LOCKED
+3. `consistency_weight=0.15` ← CURRENTLY RUNNING (was near-miss -0.000201 on KEEP8; KEEP9 den_r2=+0.121 may make this KEEP)
 4. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
 5. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
 6. `decoder.expansion_factor` re-test: currently 2, try 3 (failed on KEEP8, might work on KEEP9)
