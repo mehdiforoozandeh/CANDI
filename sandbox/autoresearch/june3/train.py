@@ -52,7 +52,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.dcr_penalty_weight = 1.5
     cfg.decoder.consistency_weight = 0.1
     cfg.decoder.norm = "group"
-    cfg.decoder.spatial_smoothness_weight = 0.01
+    cfg.encoder.transformer_attn_dropout = 0.1
     return cfg
 
 
