@@ -248,7 +248,10 @@ gave a massive improvement. Always re-test "failed" experiments on new KEEP base
 ### Next experiments on KEEP9 base (in priority order):
 1. `pre_transformer_bottleneck=True` ← GUARD_FAIL (-0.613): small-init (σ=0.01) does NOT prevent DCR disruption; 100% grad clipping; GENERALIZED RULE confirmed regardless of init scale; ABANDONED
 2. `decoder.conv_kernel_size=7` ← NO_GAIN (-0.633): grad_norm=73.7 explosion; count_imp grad=NaN; k=7 adds decoder Conv1d params → Jacobian amplification → gradient explosion; conv_kernel_size=5 LOCKED
-3. `consistency_weight=0.15` ← CURRENTLY RUNNING (was near-miss -0.000201 on KEEP8; KEEP9 den_r2=+0.121 may make this KEEP)
+3. `consistency_weight=0.15` ← NO_GAIN (-0.000091 near-miss); consistency_weight=0.10 is at flat optimum
+4. `encoder.dropout=0.025` ← NO_GAIN (-0.452): den_r2→+0.166 (improved!) but count_imp_loss→1.830 (regressed); dropout trade-off: more dropout → better denoising, worse imputation; 0.02 LOCKED
+5. `decoder.expansion_factor=3` ← NO_GAIN (-0.598): catastrophic quality collapse; guards pass but model can't converge in 10 epochs with 100k extra params; PERMANENTLY LOCKED
+6. `encoder.fusion_norm="group"` ← CURRENTLY RUNNING (GroupNorm after fusion; _FusionGroupNorm wrapper for [B,L,C] tensors; 8 groups for 72-dim; inspired by decoder.norm=group breakthrough)
 4. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
 5. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
 6. `decoder.expansion_factor` re-test: currently 2, try 3 (failed on KEEP8, might work on KEEP9)
