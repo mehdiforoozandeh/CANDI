@@ -56,6 +56,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.output_rms_norm = True  # KEEP12 (real +0.0038 avg over KEEP9)
     # --- EXPERIMENT (single knob, last assignment wins) ---
     cfg.encoder.n_transformer_layers = 5
+    cfg.decoder.depth_slope_constrained = True
     return cfg
 
 
