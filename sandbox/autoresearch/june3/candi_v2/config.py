@@ -123,6 +123,10 @@ class EncoderConfig:
     # fusion_deep when set to 2 or 3.
     fusion_depth: int = 1
 
+    # Residual bottleneck (dim//2) between fusion output and transformer input.
+    # Uses small-init weights (σ=0.01) to start near-identity, preventing DCR disruption.
+    pre_transformer_bottleneck: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Decoder config

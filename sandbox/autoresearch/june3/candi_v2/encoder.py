@@ -536,6 +536,28 @@ class DNAConvTower(nn.Module):
 # Fusion layers
 # ---------------------------------------------------------------------------
 
+
+class LatentBottleneck(nn.Module):
+    """Residual bottleneck between fusion and transformer.
+
+    Uses small-init weights (σ=0.01) so it starts near-identity — avoids disrupting
+    the alpha-gradient calibration on step 1 (unlike random-init Linear layers).
+    As training proceeds, the bottleneck gradually learns useful transformations.
+    """
+
+    def __init__(self, d_in: int, d_bottleneck: int) -> None:
+        super().__init__()
+        self.down = nn.Linear(d_in, d_bottleneck)
+        self.up = nn.Linear(d_bottleneck, d_in)
+        nn.init.normal_(self.down.weight, mean=0.0, std=0.01)
+        nn.init.zeros_(self.down.bias)
+        nn.init.normal_(self.up.weight, mean=0.0, std=0.01)
+        nn.init.zeros_(self.up.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.up(F.gelu(self.down(x)))
+
+
 class LinearFusion(nn.Module):
     """Concatenate signal + DNA features → linear project → GELU → optional norm.
 
@@ -852,6 +874,11 @@ class V2Encoder(nn.Module):
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
 
+        # -- Optional pre-transformer bottleneck (small-init, near-identity at start) --
+        self.pre_bottleneck: Optional[LatentBottleneck] = None
+        if bool(getattr(cfg, 'pre_transformer_bottleneck', False)):
+            self.pre_bottleneck = LatentBottleneck(self.d_model, self.d_model // 2)
+
         # -- Transformer stack --
         if self.transformer_type == "dual":
             self.transformer_blocks = nn.ModuleList([
@@ -1001,6 +1028,10 @@ class V2Encoder(nn.Module):
         # Fuse signal + DNA
         fused = self.fusion(sig, dna)
         self._pre_transformer_skip = fused  # [B, L2, d_model] for optional decoder skip
+
+        # Optional pre-transformer bottleneck (near-identity at init)
+        if self.pre_bottleneck is not None:
+            fused = self.pre_bottleneck(fused)
 
         # Transformer stack with optional per-layer FiLM and stochastic depth
         pooled_meta = meta_embed.mean(dim=1)
