@@ -240,30 +240,55 @@ gave a massive improvement. Always re-test "failed" experiments on new KEEP base
 - fusion_depth=3: guard_fail (DCR disruption, depth-2 is absolute max)
 - dropout=0.015: regression (den_r2→-0.007)
 - aux_mse_obs=0.05: near-zero effect
+- aux_mse_imp=0.05: improved by ~0.019 (KEEP8: -0.474→-0.455) BUT didn't beat KEEP9; retry on KEEP9
 
 ### KEEP9 base = KEEP8 + decoder.norm=group
-- decoder.norm="group" was the unlock
-- Current experiment: pre_transformer_bottleneck=True (small-init LatentBottleneck)
+- decoder.norm="group" gave +0.026 (largest gain in this phase)
+- den_r2: +0.030 → +0.121 (4× denoising improvement)
+- GENERALIZED RULE confirmed: results from old bases do NOT transfer; decoder.norm=group failed on earlier bases
 
-### Next experiments on KEEP9 base (in priority order):
-1. `pre_transformer_bottleneck=True` ← GUARD_FAIL (-0.613): small-init (σ=0.01) does NOT prevent DCR disruption; 100% grad clipping; GENERALIZED RULE confirmed regardless of init scale; ABANDONED
-2. `decoder.conv_kernel_size=7` ← NO_GAIN (-0.633): grad_norm=73.7 explosion; count_imp grad=NaN; k=7 adds decoder Conv1d params → Jacobian amplification → gradient explosion; conv_kernel_size=5 LOCKED
-3. `consistency_weight=0.15` ← NO_GAIN (-0.000091 near-miss); consistency_weight=0.10 is at flat optimum
-4. `encoder.dropout=0.025` ← NO_GAIN (-0.452): den_r2→+0.166 (improved!) but count_imp_loss→1.830 (regressed); dropout trade-off: more dropout → better denoising, worse imputation; 0.02 LOCKED
-5. `decoder.expansion_factor=3` ← NO_GAIN (-0.598): catastrophic quality collapse; guards pass but model can't converge in 10 epochs with 100k extra params; PERMANENTLY LOCKED
-6. `encoder.fusion_norm="group"` ← CURRENTLY RUNNING (GroupNorm after fusion; _FusionGroupNorm wrapper for [B,L,C] tensors; 8 groups for 72-dim; inspired by decoder.norm=group breakthrough)
-4. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
-5. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
-6. `decoder.expansion_factor` re-test: currently 2, try 3 (failed on KEEP8, might work on KEEP9)
-7. Previously-failed things that might work on KEEP9:
-   - aux_mse_imp_weight=0.05 (near-miss on KEEP8, might KEEP on KEEP9)
-   - aux_mse_obs_weight=0.05 (near-zero on KEEP8)
-   - fusion_depth=3 (guard_fail on KEEP8, DCR disruption — unlikely to help)
-8. Creative: decoder.norm="layer" (back to LN) to see if group was the key factor
-9. Creative: decoder.norm="batch" or other norms
+### All KEEP9 base experiments tried → NO GAIN (order run):
+1. `pre_transformer_bottleneck=True` ← GUARD_FAIL (-0.613): small-init (σ=0.01) still disrupts DCR; grad_clip=100%, grad_norm=17.5; GENERALIZED RULE holds regardless of init scale
+2. `decoder.conv_kernel_size=7` ← NO_GAIN (-0.633): grad_norm=73.7 explosion; k=7 adds Conv1d params → Jacobian amplification → gradient explosion; k=5 LOCKED
+3. `consistency_weight=0.15` ← NEAR-MISS (-0.448, -0.000091 below KEEP9); 0.10 is at flat optimum
+4. `encoder.dropout=0.025` ← NO_GAIN (-0.452): den_r2→+0.166 improved but count_imp_loss→1.830 worsened; more dropout → better denoising / worse imputation; 0.02 LOCKED
+5. `decoder.expansion_factor=3` ← NO_GAIN (-0.598): catastrophic quality collapse; +100k params can't converge in 10 epochs; PERMANENTLY LOCKED
+6. `encoder.fusion_norm="group"` ← NO_GAIN (-0.499): den_r2→-0.013 collapsed; GroupNorm breaks cross-feature LayerNorm essential for cross-assay attention; fusion_norm=layer LOCKED
+7. `encoder.transformer_attn_dropout=0.1` ← NO_GAIN (-0.480): den_r2→+0.008 collapsed; any attention modification hurts denoising; TRANSFORMER FULLY LOCKED rule confirmed again
+8. `decoder.spatial_smoothness_weight=0.01` ← NEAR-MISS (-0.448, -0.000488 below KEEP9); GroupNorm already provides spatial smoothing; near-zero effect
+9. `encoder.ff_glu=True` ← NO_GAIN (-0.584): CATASTROPHIC; param+84k (+84k from GEGLU doubling FFN first linear); den_r2→-0.074; same over-parameterization pattern; ff_glu ABANDONED
+10. `decoder.learnable_depth_quadratic=True` ← GUARD_FAIL (-0.475): DCR=2.998<3.0; den_r2→-0.174; beta*(d-c)^2 competes with alpha gradient even starting at 0; quadratic depth ABANDONED; only depth_center+slope are safe
+
+### NEW RULE: Depth head is extremely sensitive
+Any new parameter in the depth calibration pathway (log2_mu = alpha*(d-c) + eta) fails:
+- pre_transformer_bottleneck: disrupts alpha gradient path (upstream of depth head)
+- learnable_depth_quadratic: competing gradient for alpha (same pathway)
+- Only safe extensions: learnable_depth_center and learnable_depth_slope (direct parameterization, no competing paths)
+
+### Currently running on KEEP9 base:
+- `aux_mse_imp_weight=0.05` ← RUNNING: auxiliary log1p MSE on masked positions; direct smooth gradient for imputation; 0 new params; targets count_imp_loss bottleneck; improved KEEP8 by ~0.019; on KEEP9 base with GroupNorm, might KEEP
+
+### Remaining experiments to try on KEEP9 base (priority order):
+1. `aux_mse_imp_weight=0.1` — if 0.05 helps, try stronger (weight 2×)
+2. `aux_mse_obs_weight=0.05` — auxiliary MSE on observed positions; similar mechanism for denoising
+3. `encoder.conv_norm="group"` — try removing the "layer" overwrite; KEEP1 was conv_norm=group; might work differently on full KEEP9 base (current effective value = "layer")
+4. `decoder.norm="weight"` — WeightNorm via nn.utils.weight_norm on deconv; normalizes WEIGHT direction (not activations); 5th untested decoder norm; different mechanism from GroupNorm; might be DCR-safe
+5. `decoder.meta_embed_dim=10 or 12` — slightly increase FiLM conditioning embed (currently 8); might give richer depth conditioning
+6. `encoder.signal_tower_output_ln=True` — LayerNorm after signal conv tower OUTPUT, before DNA fusion; different from fusion_norm=layer (which is after fusion); might stabilize signal for cleaner fusion
+7. `encoder.dropout=0.01` — try lower dropout (current: 0.02); 0.025 hurt imputation, maybe 0.01 improves it (less noise on signal features)
+8. `decoder.aux_mse_obs_weight=0.1` — stronger denoising auxiliary MSE on observed positions
+9. `decoder.dcr_penalty_weight=2.0` — slightly stronger DCR penalty (current: 1.5); might allow better depth calibration without guard_fail
+10. Re-test old failures on KEEP9: fusion_residual=True, output_rms_norm=True, nhead=6
+
+### NEW RULES learned this session (june3 session 2):
+1. DEPTH HEAD SENSITIVITY: Any new competing parameter in depth calibration path → DCR disruption. Only direct parameterization (center/slope) is safe.
+2. FUSION NORM: GroupNorm after fusion collapses den_r2 (breaks cross-feature LayerNorm for transformer). fusion_norm=layer is the only safe option.
+3. TRANSFORMER IMMUTABILITY: ANY internal transformer change (attn_dropout, ff_glu, norm type, etc.) hurts den_r2. The transformer configuration is completely locked.
+4. PARAMETER BUDGET: Any addition >~25k params (encoder) or >~5k params (decoder) causes convergence failure in 10-epoch budget.
 
 ### New infrastructure (added this session):
 - `encoder.pre_transformer_bottleneck: bool = False` in config.py
 - `LatentBottleneck` class in encoder.py (small-init, near-identity start, residual)
 - `decoder.aux_mse_obs_weight`: auxiliary MSE on observed positions
-- `encoder.transformer_*` variants (all tried, all toxic)
+- `decoder.spatial_smoothness_weight`: TV-L1 penalty on log1p(mu)
+- `encoder.fusion_norm`: ["layer","none","group"] option + _FusionGroupNorm wrapper
