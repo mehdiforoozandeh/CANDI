@@ -246,11 +246,11 @@ gave a massive improvement. Always re-test "failed" experiments on new KEEP base
 - Current experiment: pre_transformer_bottleneck=True (small-init LatentBottleneck)
 
 ### Next experiments on KEEP9 base (in priority order):
-1. `pre_transformer_bottleneck=True` ← CURRENTLY RUNNING (small-init residual, near-identity start)
-2. `consistency_weight` re-test: 0.1 (KEEP8 value), also try 0.05, 0.15 on KEEP9 base
-3. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
-4. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
-5. `decoder.conv_kernel_size` re-test: currently 5 (KEEP), try 7
+1. `pre_transformer_bottleneck=True` ← GUARD_FAIL (-0.613): small-init (σ=0.01) does NOT prevent DCR disruption; 100% grad clipping; GENERALIZED RULE confirmed regardless of init scale; ABANDONED
+2. `decoder.conv_kernel_size=7` ← CURRENTLY RUNNING (larger spatial kernel k=5→7; GroupNorm may synergize)
+3. `consistency_weight` re-test: try 0.05, 0.15 on KEEP9 base (den_r2=+0.121 changes optimal balance)
+4. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
+5. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
 6. `decoder.expansion_factor` re-test: currently 2, try 3 (failed on KEEP8, might work on KEEP9)
 7. Previously-failed things that might work on KEEP9:
    - aux_mse_imp_weight=0.05 (near-miss on KEEP8, might KEEP on KEEP9)
