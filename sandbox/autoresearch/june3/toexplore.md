@@ -305,3 +305,82 @@ Any new parameter in the depth calibration pathway (log2_mu = alpha*(d-c) + eta)
 - `decoder.aux_mse_obs_weight`: auxiliary MSE on observed positions
 - `decoder.spatial_smoothness_weight`: TV-L1 penalty on log1p(mu)
 - `encoder.fusion_norm`: ["layer","none","group"] option + _FusionGroupNorm wrapper
+
+---
+
+## SESSION 3 (2026-06-11) — single-knob search EXHAUSTED, noise floor identified
+
+**Effective current best config = KEEP9 (decoder.norm="group"), primary≈-0.4476.**
+KEEP10 (spatial_smoothness=0.05) and "KEEP11" are NOT real gains — see noise-floor finding.
+
+### CRITICAL: measured run-to-run noise floor ≈ 0.0007
+A get_config dead-code bug ran decoder.norm=group twice under the "KEEP11 layer" label, so KEEP10 and "KEEP11" were the IDENTICAL config — yet scored -0.447587 vs -0.446886 (Δ=0.0007). That Δ between identical configs = the training noise floor. Therefore:
+- Any "gain" < ~0.0007 is meaningless. KEEP10 (+0.000058) and KEEP11 (+0.000701) are both noise.
+- The only validated real gain since KEEP6 is KEEP9 (group norm, +0.026 ≈ 37× noise).
+- A real single-knob gain now needs >~0.001 AND a confirming repeat run.
+- train.py get_config was CLEANED (each field assigned once) to remove the dead duplicates.
+
+### Session-3 experiments (ALL no_gain/guard_fail/catastrophic):
+1. signal_tower_output_ln=True → no_gain (-0.484): LN on raw signal strips intensity
+2. meta_embed_layernorm=True → no_gain (-0.470): LN on FiLM meta weakens depth conditioning
+3. decoder.norm=weight → CATASTROPHIC (-2.171, den_r2 -6.65): WeightNorm scalar wrecks alpha
+4. aux_mse_imp=0.02+aux_mse_obs=0.02 → near-miss (-0.450): den_r2+0.168 but imp_loss+0.051 (Pareto)
+5. spatial_smoothness=0.05 → noise-keep (-0.447587, +0.000058)
+6. consistency_weight=0.08 → no_gain (-0.467); 0.10 is curve peak
+7. dcr_penalty=2.0 → no_gain (inert, DCR already in [3,5])
+8. decoder.norm=layer (GENUINE) → no_gain (-0.523, den_r2 -0.152): LayerNorm FAR worse than GroupNorm
+9. encoder.signal_transform=arcsinh → no_gain (-0.461): compresses signal, imp_loss+0.049
+10. encoder.missing_data_mode=mask_stem → no_gain (-0.484): loses mask-token signal
+11. decoder.diagonal_eta=True → guard_fail (-1.128, den_r2 -2.643): NB-head change toxic even at -56 params
+12. decoder.film_mode=per_deconv_layer → no_gain (-0.788, +1008 params): over-conditions decoder
+13. encoder.film_mode=post_conv → guard_fail (-0.648): transformer-stage FiLM is needed
+
+### Generalized LOCKED rules (reinforced):
+- decoder.norm=group is UNIQUELY optimal (layer/rms/batch/instance/weight all worse-to-catastrophic)
+- NB/depth head (mu, eta, dispersion, alpha) is STRUCTURALLY IMMUTABLE — any change (add OR remove params, grouped OR dense) collapses den_r2. PREDICTS grouped_dispersion fails (skipped).
+- Transformer internals fully locked; encoder/decoder FiLM structure locked at defaults
+- den_r2 ↔ count_imp_loss is a hard Pareto frontier; no config knob escapes it
+
+### STRATEGIC RECOMMENDATION (for the user):
+Single-knob AR is at the noise floor — continuing samples noise. Real breakthroughs require relaxing FROZEN constraints (all outside AR scope):
+1. **Training budget 10→20-30 epochs** (THE binding constraint — every capacity experiment fails to converge, not because it's wrong). Highest leverage.
+2. **Masking/data strategy** (caps imputation ceiling from data side)
+3. **Decoder redesign** that decouples imputation vs denoising capacity (escapes the Pareto frontier)
+
+### Remaining untested non-toxic knobs (low EV, in-progress):
+- encoder.fusion_residual, encoder.output_rms_norm, decoder.grouped_deconv,
+  decoder.depth_slope_constrained, encoder/decoder.film_mode other variants
+
+---
+
+## SESSION 3+4 FINAL CONSOLIDATION (2026-06-11) — KEEP12 locked, AR concluded
+
+### FINAL BEST: KEEP12 = encoder.output_rms_norm=True on the KEEP9 stack
+Validated primary ≈ **-0.4438 avg** (two runs: -0.442593 lucky / -0.445070 confirm; real +0.0038 over KEEP9).
+Full KEEP12 stack (effective, in train.py get_config):
+  encoder: n_transformer_layers=4, nhead=8, conv_norm="layer", signal_transform="log1p",
+           dropout=0.02, dna_pool_order="early", fusion_deep=True, fusion_norm="layer",
+           attn_qk_norm=True, transformer_layer_drop=0.05, **output_rms_norm=True** (KEEP12)
+  decoder: trunk="separate", learnable_depth_center=True, learnable_depth_slope=True,
+           conv_kernel_size=5, meta_embed_dim=8, norm="group", dcr_penalty_weight=1.5,
+           consistency_weight=0.1, spatial_smoothness_weight=0.05
+
+### KEEP progression (real gains only, > noise floor ~0.002):
+KEEP6 -0.476 → KEEP9 -0.4476 (decoder.norm=group, +0.026) → KEEP12 -0.4438 (output_rms_norm, +0.0038).
+(KEEP10 spatial_smoothness +0.000058 and "KEEP11" layer were within-noise / dead-code; not real.)
+
+### Why AR was concluded (user decision: consolidate & stop):
+1. NOISE FLOOR ≈ 0.002 primary (den_r2 run-to-run variance ~0.06). Gains below this are meaningless.
+2. Single-knob space exhausted: every untested knob is locked/toxic (NB head immutable, transformer internals immutable, encoder/decoder FiLM removal catastrophic, all norms mapped — group decoder + rms encoder-output are the wins).
+3. Budget relaxation (authorized, run_budget.py @40ep) proved capacity WAS under-converging but capacity scaling can't beat the score: imp<->den Pareto frontier is rooted in the SHARED transformer backbone.
+   - decoder capacity → den_r2 +0.256 (best ever), imputation wrecked
+   - transformer capacity → imp_r2 -0.040 (best ever), denoising wrecked
+4. Decoder "separate" trunks are per-HEAD not per-task → decoder redesign alone can't decouple. Only a dual-backbone (~2x params) could, and it won't converge at batch_size=4/40ep.
+
+### The fundamental limits (need a different regime to break):
+- Frozen training loss is denoising-heavy (obs_weight=3.5 >> imp_weight=0.59) while the SCORE weights imputation 0.65 > denoising 0.35 — a structural objective mismatch (loss_weights frozen).
+- Shared backbone forces the imp<->den Pareto frontier.
+- batch_size=4 + ~20-40 epoch budget caps the param scale that can converge.
+To go further: relax loss_weights toward the score, OR larger compute/data for a dual-backbone model. Both outside the current AR scope.
+
+### New artifact: run_budget.py (in-scope; monkeypatches prepare.EPOCHS in-process; user-authorized budget tool).
