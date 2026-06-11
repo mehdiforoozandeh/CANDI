@@ -53,8 +53,9 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.consistency_weight = 0.1
     cfg.decoder.spatial_smoothness_weight = 0.05
     cfg.decoder.norm = "group"
+    cfg.encoder.output_rms_norm = True  # KEEP12 (real +0.0038 avg over KEEP9)
     # --- EXPERIMENT (single knob, last assignment wins) ---
-    cfg.encoder.output_rms_norm = True
+    cfg.decoder.depth_slope_constrained = True
     return cfg
 
 
