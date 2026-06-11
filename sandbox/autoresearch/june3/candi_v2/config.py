@@ -57,7 +57,7 @@ class EncoderConfig:
 
     # Fusion of signal + DNA towers
     fusion_mode: Literal["linear", "gated"] = "linear"
-    fusion_norm: Literal["layer", "none"] = "none"
+    fusion_norm: Literal["layer", "none", "group"] = "none"
 
     # Transformer
     d_model: int = 0  # 0 = auto (signal tower output dim)

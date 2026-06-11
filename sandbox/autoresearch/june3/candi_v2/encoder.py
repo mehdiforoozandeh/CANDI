@@ -558,6 +558,17 @@ class LatentBottleneck(nn.Module):
         return x + self.up(F.gelu(self.down(x)))
 
 
+class _FusionGroupNorm(nn.Module):
+    """GroupNorm for channel-last [B, L, C] tensors — permutes to [B, C, L] for GroupNorm then back."""
+
+    def __init__(self, num_groups: int, num_channels: int) -> None:
+        super().__init__()
+        self.gn = nn.GroupNorm(num_groups, num_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.gn(x.transpose(-1, -2)).transpose(-1, -2)
+
+
 class LinearFusion(nn.Module):
     """Concatenate signal + DNA features → linear project → GELU → optional norm.
 
@@ -590,6 +601,8 @@ class LinearFusion(nn.Module):
             self.norm: nn.Module = nn.LayerNorm(out_dim)
         elif fusion_norm == "none":
             self.norm = nn.Identity()
+        elif fusion_norm == "group":
+            self.norm = _FusionGroupNorm(8, out_dim)
         else:
             raise ValueError(f"Unsupported fusion_norm={fusion_norm}")
         self.dropout = nn.Dropout(dropout)
