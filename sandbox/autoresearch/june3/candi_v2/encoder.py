@@ -868,7 +868,7 @@ class V2Encoder(nn.Module):
                     rotary_pos_emb=True,
                     attn_dropout=float(cfg.transformer_attn_dropout) if float(getattr(cfg, 'transformer_attn_dropout', 0.0)) > 0.0 else float(cfg.dropout),
                     ff_dropout=float(cfg.dropout),
-                    ff_mult=4, pre_norm=True,
+                    ff_mult=int(getattr(cfg, 'transformer_ff_mult', 4)), pre_norm=True,
                     attn_qk_norm=bool(cfg.attn_qk_norm),
                     ff_glu=bool(getattr(cfg, 'ff_glu', False)),
                 )

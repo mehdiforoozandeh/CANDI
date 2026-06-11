@@ -82,6 +82,9 @@ class EncoderConfig:
     # Per-layer attention dropout (overrides cfg.dropout for attention weights only; 0.0 = use cfg.dropout)
     transformer_attn_dropout: float = 0.0
 
+    # FFN intermediate multiplier for xtransformers (ff_dim = d_model * ff_mult); default=4
+    transformer_ff_mult: int = 4
+
     # Add a full LayerNorm after signal conv tower output (before DNA fusion).
     # When conv_norm="group", this preserves per-assay GroupNorm structure while
     # adding a global normalization that may affect alpha's gradient landscape.
