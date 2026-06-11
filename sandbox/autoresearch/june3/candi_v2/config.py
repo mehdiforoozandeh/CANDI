@@ -96,6 +96,9 @@ class EncoderConfig:
     # GEGLU feedforward in xtransformers (ff_glu=True → glu=True in FeedForward)
     ff_glu: bool = False
 
+    # Residual skip in LinearFusion: add shortcut Linear(144→72) to fused output before LN
+    fusion_residual: bool = False
+
     # Deep fusion: use 2-layer LinearFusion (signal+DNA concat → hidden → output)
     # instead of the default single-layer projection. Adds one extra Linear+GELU.
     fusion_deep: bool = False

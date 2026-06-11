@@ -555,6 +555,7 @@ class LinearFusion(nn.Module):
         fusion_norm: str = "layer",
         deep: bool = False,
         depth: int = 1,
+        residual: bool = False,
     ) -> None:
         super().__init__()
         effective_depth = max(depth, 2 if deep else 1)
@@ -570,15 +571,19 @@ class LinearFusion(nn.Module):
         else:
             raise ValueError(f"Unsupported fusion_norm={fusion_norm}")
         self.dropout = nn.Dropout(dropout)
+        self.res_proj = nn.Linear(signal_dim + dna_dim, out_dim) if residual else None
 
     def forward(self, signal: torch.Tensor, dna: torch.Tensor) -> torch.Tensor:
         if signal.shape[:2] != dna.shape[:2]:
             raise ValueError(
                 f"Fusion sequence mismatch: signal={tuple(signal.shape)}, dna={tuple(dna.shape)}"
             )
-        fused = self.gelu(self.fusion_proj(torch.cat([signal, dna], dim=-1)))
+        cat = torch.cat([signal, dna], dim=-1)
+        fused = self.gelu(self.fusion_proj(cat))
         for proj in self.hidden_projs:
             fused = self.gelu(proj(fused))
+        if self.res_proj is not None:
+            fused = fused + self.res_proj(cat)
         return self.dropout(self.norm(fused))
 
 
@@ -842,6 +847,7 @@ class V2Encoder(nn.Module):
                 fusion_norm=fusion_norm,
                 deep=bool(getattr(cfg, 'fusion_deep', False)),
                 depth=int(getattr(cfg, 'fusion_depth', 1)),
+                residual=bool(getattr(cfg, 'fusion_residual', False)),
             )
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
