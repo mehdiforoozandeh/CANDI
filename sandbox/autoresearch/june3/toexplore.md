@@ -219,39 +219,48 @@ self.den_decoder = V2Decoder(cfg.decoder, ...)   # for denoised (observed) assay
 
 ---
 
-## Session update (2026-06-11) — KEEP8 experiments and new directions
+## Session update (2026-06-11, continued) — KEEP9 breakthrough and next steps
 
-**Current best: KEEP8 (15b88826), primary=-0.473875**
+**Current best: KEEP9 (166a88d0), primary=-0.447645**
 
-KEEP8 stack: KEEP7 (layer_drop=0.05) + consistency_weight=0.1 (+0.000116, marginal)
+KEEP9 stack: KEEP8 + decoder.norm="group" (GroupNorm in decoder deconv blocks)
 
-### All KEEP8 experiments tried (all no_gain or guard_fail):
-- consistency_weight: 0.05 (untried), 0.1 (KEEP8), 0.15, 0.5 (no_gain or worse)
-- aux_mse_imp_weight=0.05: near-miss -0.474076 (off by 0.0002)
-- dropout: 0.01 (regression), 0.02 (KEEP8)
-- encoder_skip=True: guard_fail (DCR pattern)
-- decoder.expansion_factor=3: over-param, train_obs_loss→6.92
-- ff_mult: 2 (guard_fail), 4 (KEEP8), 3 (in progress)
-- layer_drop: 0.04, 0.05 (KEEP8), 0.07, 0.10
-- nhead: 6, 8 (KEEP8), 9 (all non-8 catastrophic)
-- count_refine_conv5: guard_fail
-- n_transformer_layers=5: guard_fail
-- meta_embed_dim=6: catastrophic
-- attn_dropout=0.1: slight regression
-- ff_glu=True: catastrophic
-- fusion_residual=True: guard_fail
-- dcr_penalty_weight: 1.2/2.0 (zero effect, DCR already in range)
-- consistency_weight=0.15: near-miss
+**MAJOR INSIGHT**: decoder.norm="group" gave +0.026 (biggest gain since KEEP5/KEEP6 era):
+- den_r2: +0.030 → +0.121 (4× denoising improvement!)
+- imp_r2: -0.081 → -0.075 (slight improvement)
+- Mechanism: GroupNorm provides channel-group spatial normalization that preserves spatial
+  structure better than RMSNorm for the deconv architecture
 
-### New infrastructure added (2026-06-11):
-- `decoder.aux_mse_obs_weight`: auxiliary log1p MSE on OBSERVED positions (symmetric to imp MSE). Targets den_r2 directly. Try with 0.05.
-- `encoder.transformer_sandwich_norm`: extra LN after attn+FFN in xtransformers. No new linear params. May stabilize transformer.
-- `encoder.transformer_shift_tokens`: token shift in xtransformers (shift=1). Free convolution-like context, no new params.
-- `encoder.transformer_use_rmsnorm`: RMSNorm in xtransformers (consistent with decoder.norm=rms). No new linear params.
+**KEY LESSON**: Results from old bases do NOT transfer. decoder.norm="group" was tried
+on older bases and showed no gain or hurt. On KEEP8 base with the full stack, it suddenly
+gave a massive improvement. Always re-test "failed" experiments on new KEEP bases.
 
-### Remaining unexplored (safe options):
-1. aux_mse_obs_weight=0.05 ← HIGHEST PRIORITY (novel, direct denoising signal)
-2. transformer_sandwich_norm=True ← second priority (stabilization)
-3. transformer_use_rmsnorm=True ← third priority
-4. transformer_shift_tokens=1 ← fourth priority  
-5. transformer_attn_dropout=0.05 ← fifth priority (between 0.02 and tested 0.1)
+### All KEEP8 experiments tried → NO GAIN:
+- transformer changes (sandwich_norm, use_rmsnorm, shift_tokens): ALL collapse den_r2
+- fusion_depth=3: guard_fail (DCR disruption, depth-2 is absolute max)
+- dropout=0.015: regression (den_r2→-0.007)
+- aux_mse_obs=0.05: near-zero effect
+
+### KEEP9 base = KEEP8 + decoder.norm=group
+- decoder.norm="group" was the unlock
+- Current experiment: pre_transformer_bottleneck=True (small-init LatentBottleneck)
+
+### Next experiments on KEEP9 base (in priority order):
+1. `pre_transformer_bottleneck=True` ← CURRENTLY RUNNING (small-init residual, near-identity start)
+2. `consistency_weight` re-test: 0.1 (KEEP8 value), also try 0.05, 0.15 on KEEP9 base
+3. `encoder.dropout` re-test: 0.025, 0.03 on KEEP9 base
+4. `encoder.transformer_layer_drop` re-test: was 0.05 (KEEP7), re-test 0.04, 0.07
+5. `decoder.conv_kernel_size` re-test: currently 5 (KEEP), try 7
+6. `decoder.expansion_factor` re-test: currently 2, try 3 (failed on KEEP8, might work on KEEP9)
+7. Previously-failed things that might work on KEEP9:
+   - aux_mse_imp_weight=0.05 (near-miss on KEEP8, might KEEP on KEEP9)
+   - aux_mse_obs_weight=0.05 (near-zero on KEEP8)
+   - fusion_depth=3 (guard_fail on KEEP8, DCR disruption — unlikely to help)
+8. Creative: decoder.norm="layer" (back to LN) to see if group was the key factor
+9. Creative: decoder.norm="batch" or other norms
+
+### New infrastructure (added this session):
+- `encoder.pre_transformer_bottleneck: bool = False` in config.py
+- `LatentBottleneck` class in encoder.py (small-init, near-identity start, residual)
+- `decoder.aux_mse_obs_weight`: auxiliary MSE on observed positions
+- `encoder.transformer_*` variants (all tried, all toxic)
