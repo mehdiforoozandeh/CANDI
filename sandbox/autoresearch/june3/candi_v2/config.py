@@ -94,6 +94,11 @@ class EncoderConfig:
     # instead of the default single-layer projection. Adds one extra Linear+GELU.
     fusion_deep: bool = False
 
+    # Override the number of Linear+GELU layers in LinearFusion (1, 2, or 3).
+    # 1=default, 2=same as fusion_deep=True, 3=triple-layer. Takes priority over
+    # fusion_deep when set to 2 or 3.
+    fusion_depth: int = 1
+
 
 # ---------------------------------------------------------------------------
 # Decoder config

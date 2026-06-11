@@ -539,8 +539,11 @@ class DNAConvTower(nn.Module):
 class LinearFusion(nn.Module):
     """Concatenate signal + DNA features → linear project → GELU → optional norm.
 
-    When deep=True, adds a second Linear+GELU hidden layer before the norm:
-        [signal|dna] → Linear(in→out) → GELU → Linear(out→out) → GELU → norm → dropout
+    depth controls the number of Linear+GELU layers (1, 2, or 3):
+      depth=1: [signal|dna] → Linear(in→out) → GELU → norm → dropout
+      depth=2: adds one hidden Linear(out→out) → GELU before norm
+      depth=3: adds two hidden Linear(out→out) → GELU layers before norm
+    deep=True is equivalent to depth=2 (for backward compatibility).
     """
 
     def __init__(
@@ -551,12 +554,14 @@ class LinearFusion(nn.Module):
         dropout: float,
         fusion_norm: str = "layer",
         deep: bool = False,
+        depth: int = 1,
     ) -> None:
         super().__init__()
+        effective_depth = max(depth, 2 if deep else 1)
         self.fusion_proj = nn.Linear(signal_dim + dna_dim, out_dim)
         self.gelu = nn.GELU()
-        self.deep_proj: Optional[nn.Linear] = (
-            nn.Linear(out_dim, out_dim) if deep else None
+        self.hidden_projs = nn.ModuleList(
+            [nn.Linear(out_dim, out_dim) for _ in range(effective_depth - 1)]
         )
         if fusion_norm == "layer":
             self.norm: nn.Module = nn.LayerNorm(out_dim)
@@ -572,8 +577,8 @@ class LinearFusion(nn.Module):
                 f"Fusion sequence mismatch: signal={tuple(signal.shape)}, dna={tuple(dna.shape)}"
             )
         fused = self.gelu(self.fusion_proj(torch.cat([signal, dna], dim=-1)))
-        if self.deep_proj is not None:
-            fused = self.gelu(self.deep_proj(fused))
+        for proj in self.hidden_projs:
+            fused = self.gelu(proj(fused))
         return self.dropout(self.norm(fused))
 
 
@@ -836,6 +841,7 @@ class V2Encoder(nn.Module):
                 out_dim=self.d_model, dropout=float(cfg.dropout),
                 fusion_norm=fusion_norm,
                 deep=bool(getattr(cfg, 'fusion_deep', False)),
+                depth=int(getattr(cfg, 'fusion_depth', 1)),
             )
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
