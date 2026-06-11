@@ -537,7 +537,11 @@ class DNAConvTower(nn.Module):
 # ---------------------------------------------------------------------------
 
 class LinearFusion(nn.Module):
-    """Concatenate signal + DNA features → linear project → GELU → optional norm."""
+    """Concatenate signal + DNA features → linear project → GELU → optional norm.
+
+    When deep=True, adds a second Linear+GELU hidden layer before the norm:
+        [signal|dna] → Linear(in→out) → GELU → Linear(out→out) → GELU → norm → dropout
+    """
 
     def __init__(
         self,
@@ -546,10 +550,14 @@ class LinearFusion(nn.Module):
         out_dim: int,
         dropout: float,
         fusion_norm: str = "layer",
+        deep: bool = False,
     ) -> None:
         super().__init__()
         self.fusion_proj = nn.Linear(signal_dim + dna_dim, out_dim)
         self.gelu = nn.GELU()
+        self.deep_proj: Optional[nn.Linear] = (
+            nn.Linear(out_dim, out_dim) if deep else None
+        )
         if fusion_norm == "layer":
             self.norm: nn.Module = nn.LayerNorm(out_dim)
         elif fusion_norm == "none":
@@ -563,8 +571,10 @@ class LinearFusion(nn.Module):
             raise ValueError(
                 f"Fusion sequence mismatch: signal={tuple(signal.shape)}, dna={tuple(dna.shape)}"
             )
-        fused = self.fusion_proj(torch.cat([signal, dna], dim=-1))
-        return self.dropout(self.norm(self.gelu(fused)))
+        fused = self.gelu(self.fusion_proj(torch.cat([signal, dna], dim=-1)))
+        if self.deep_proj is not None:
+            fused = self.gelu(self.deep_proj(fused))
+        return self.dropout(self.norm(fused))
 
 
 class GatedDNAFusion(nn.Module):
@@ -825,6 +835,7 @@ class V2Encoder(nn.Module):
                 signal_dim=signal_dim, dna_dim=self.dna_tower.out_channels,
                 out_dim=self.d_model, dropout=float(cfg.dropout),
                 fusion_norm=fusion_norm,
+                deep=bool(getattr(cfg, 'fusion_deep', False)),
             )
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
