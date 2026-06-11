@@ -265,26 +265,39 @@ Any new parameter in the depth calibration pathway (log2_mu = alpha*(d-c) + eta)
 - learnable_depth_quadratic: competing gradient for alpha (same pathway)
 - Only safe extensions: learnable_depth_center and learnable_depth_slope (direct parameterization, no competing paths)
 
-### Currently running on KEEP9 base:
-- `aux_mse_imp_weight=0.05` ← RUNNING: auxiliary log1p MSE on masked positions; direct smooth gradient for imputation; 0 new params; targets count_imp_loss bottleneck; improved KEEP8 by ~0.019; on KEEP9 base with GroupNorm, might KEEP
+### All KEEP9 base experiments tried → NO GAIN (complete list):
+(preceding 10 in the block above, continuing:)
+11. `aux_mse_imp_weight=0.05` ← NEAR-MISS (-0.448248, gap=-0.0006): near-zero effect; model is capacity-limited not gradient-limited; imputation bottleneck is architecture not gradient signal
+12. `aux_mse_obs_weight=0.05` ← NEAR-MISS (-0.447810, gap=-0.000165): near-zero effect; denoising already near-optimal with GroupNorm
+13. `aux_mse_obs_weight=0.02` ← NO_GAIN (-0.447799): uniform ±noise; both aux loss weights tried; auxiliary MSE on observed/imputed positions is exhausted
+14. `encoder.conv_norm="group"` ← CATASTROPHIC (-0.748539): den_r2→-1.007; ENCODER LayerNorm is essential for cross-assay attention; encoder.conv_norm=layer PERMANENTLY LOCKED
+15. `encoder.dropout=0.01` ← NO_GAIN (-0.480156): regression on BOTH tasks (imp_r2=-0.097, count_imp_loss=1.793); even TRAINING loss worsens; dropout=0.02 acts as data augmentation for cross-assay robustness; DROPOUT ≥ 0.02 PERMANENTLY LOCKED
+16. `nhead=6` ← NO_GAIN (-0.629xxx): den_r2 regression; d_head=12 causes training instability; nhead=8 (d_head=9) LOCKED as optimal
+17. `decoder.meta_embed_dim=6` ← NO_GAIN (-0.602xxx): FiLM can't encode depth signal at dim=6; meta_embed_dim=8 LOCKED
+18. `encoder.nhead=9` ← GUARD_FAIL (-0.649233): +73728 unexpected params (total=912314); DCR=2.974<3.0; xtransformers allocates additional params for nhead=9 (mechanism unclear); nhead=8 PERMANENTLY LOCKED
 
-### Remaining experiments to try on KEEP9 base (priority order):
-1. `aux_mse_imp_weight=0.1` — if 0.05 helps, try stronger (weight 2×)
-2. `aux_mse_obs_weight=0.05` — auxiliary MSE on observed positions; similar mechanism for denoising
-3. `encoder.conv_norm="group"` — try removing the "layer" overwrite; KEEP1 was conv_norm=group; might work differently on full KEEP9 base (current effective value = "layer")
-4. `decoder.norm="weight"` — WeightNorm via nn.utils.weight_norm on deconv; normalizes WEIGHT direction (not activations); 5th untested decoder norm; different mechanism from GroupNorm; might be DCR-safe
-5. `decoder.meta_embed_dim=10 or 12` — slightly increase FiLM conditioning embed (currently 8); might give richer depth conditioning
-6. `encoder.signal_tower_output_ln=True` — LayerNorm after signal conv tower OUTPUT, before DNA fusion; different from fusion_norm=layer (which is after fusion); might stabilize signal for cleaner fusion
-7. `encoder.dropout=0.01` — try lower dropout (current: 0.02); 0.025 hurt imputation, maybe 0.01 improves it (less noise on signal features)
-8. `decoder.aux_mse_obs_weight=0.1` — stronger denoising auxiliary MSE on observed positions
-9. `decoder.dcr_penalty_weight=2.0` — slightly stronger DCR penalty (current: 1.5); might allow better depth calibration without guard_fail
-10. Re-test old failures on KEEP9: fusion_residual=True, output_rms_norm=True, nhead=6
+### Next experiment QUEUED (train.py already updated, session ended):
+- `encoder.signal_tower_output_ln=True` ← NEXT: LN after signal conv tower, before fusion; +144 params; no DCR risk; might stabilize signal for cleaner cross-modal fusion; different from fusion_norm=layer (which is AFTER fusion)
 
-### NEW RULES learned this session (june3 session 2):
+### Remaining experiments to try on KEEP9 base (priority order, post-session):
+1. `encoder.signal_tower_output_ln=True` ← NEXT (already in train.py, fb239e0e)
+2. `decoder.meta_embed_layernorm=True` — LN on FiLM meta embedding; +16 params; was no_gain on KEEP0 but not tried on KEEP9
+3. `decoder.norm="weight"` — WeightNorm via nn.utils.weight_norm; normalizes WEIGHT direction not activations; 5th untested decoder norm; DCR-safe hypothesis
+4. `aux_mse_imp=0.02 + aux_mse_obs=0.02` — combined at low weight; synergistic effect hypothesis; individual effects neutral but combination might compound
+5. `decoder.spatial_smoothness_weight=0.05` — 5× stronger TV-L1 spatial regularization (was 0.01 near-miss; try stronger)
+6. `decoder.dcr_penalty_weight=2.0` — slightly stronger DCR penalty; might refine depth calibration
+7. `consistency_weight=0.08` — try slightly lower than 0.10 (since 0.15 was near-miss, 0.10 might not be exactly optimal)
+
+### NEW RULES learned this session (june3 session 2 continued):
 1. DEPTH HEAD SENSITIVITY: Any new competing parameter in depth calibration path → DCR disruption. Only direct parameterization (center/slope) is safe.
 2. FUSION NORM: GroupNorm after fusion collapses den_r2 (breaks cross-feature LayerNorm for transformer). fusion_norm=layer is the only safe option.
-3. TRANSFORMER IMMUTABILITY: ANY internal transformer change (attn_dropout, ff_glu, norm type, etc.) hurts den_r2. The transformer configuration is completely locked.
-4. PARAMETER BUDGET: Any addition >~25k params (encoder) or >~5k params (decoder) causes convergence failure in 10-epoch budget.
+3. TRANSFORMER IMMUTABILITY: ANY internal transformer change (attn_dropout, ff_glu, norm type, nhead, etc.) hurts den_r2 or fails DCR. The transformer configuration is completely locked.
+4. PARAMETER BUDGET: Any addition >~25k params causes convergence failure in 10-epoch budget.
+5. ENCODER CONV_NORM=LAYER LOCKED: encoder GroupNorm destroys cross-assay LayerNorm needed for transformer; even "encoder.conv_norm=group" (different from fusion) is CATASTROPHIC (den_r2→-1.007).
+6. DROPOUT AUGMENTATION: encoder.dropout ≥ 0.02 is a hard minimum; it acts as data augmentation for cross-assay robustness, not pure regularization.
+7. NHEAD=8 LOCKED: xtransformers allocates unexpected additional params for nhead=9 (73k+); nhead=8 is the only safe value.
+8. AUXILIARY LOSSES NEUTRAL: aux_mse_imp and aux_mse_obs at any weight are within training noise on KEEP9; model is capacity-limited not gradient-limited.
+9. META_EMBED_DIM=8 LOCKED: dim=6 can't encode depth signal (FiLM too compressed); dim=8 is minimum viable.
 
 ### New infrastructure (added this session):
 - `encoder.pre_transformer_bottleneck: bool = False` in config.py
