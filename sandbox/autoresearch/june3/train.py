@@ -52,7 +52,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.dcr_penalty_weight = 1.5
     cfg.decoder.consistency_weight = 0.1
     cfg.decoder.norm = "group"
-    cfg.decoder.aux_mse_obs_weight = 0.05
+    cfg.decoder.aux_mse_obs_weight = 0.02
     return cfg
 
 
