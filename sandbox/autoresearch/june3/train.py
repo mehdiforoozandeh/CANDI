@@ -51,7 +51,7 @@ def get_config() -> CANDIv2Config:
     cfg.encoder.transformer_layer_drop = 0.05
     cfg.decoder.dcr_penalty_weight = 1.5
     cfg.decoder.consistency_weight = 0.1
-    cfg.decoder.meta_embed_dim = 6
+    cfg.decoder.aux_mse_imp_weight = 0.05
     return cfg
 
 

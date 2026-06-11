@@ -164,6 +164,7 @@ class DecoderConfig:
     dcr_penalty_weight: float = 0.0     # soft DCR penalty: max(0, 3.05-DCR)^2 * weight added to total_weighted loss; keeps alpha learnable but biases DCR≥3.0
     count_refine_conv5: bool = False     # post-deconv k=5 residual refinement conv before NB head: wider spatial receptive field at full resolution without changing upsampling geometry
     consistency_weight: float = 0.0     # cross-assay consistency: MSE(log1p(imp_mean), log1p(obs_mean).detach()) per position; guides imputed predictions toward observed locus statistics
+    aux_mse_imp_weight: float = 0.0     # auxiliary log1p MSE on masked positions: F.mse_loss(log1p(mu_imp), log1p(y_imp)) — smooth direct gradient for imputation alongside NB NLL
 
 
 # ---------------------------------------------------------------------------
