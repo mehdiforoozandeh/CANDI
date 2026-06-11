@@ -54,7 +54,7 @@ def get_config() -> CANDIv2Config:
     cfg.decoder.spatial_smoothness_weight = 0.05
     cfg.decoder.norm = "group"
     # --- EXPERIMENT (single knob, last assignment wins) ---
-    cfg.decoder.diagonal_eta = True
+    cfg.decoder.film_mode = "per_deconv_layer"
     return cfg
 
 
