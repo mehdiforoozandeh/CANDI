@@ -30,7 +30,32 @@ def _load_baseline_config() -> CANDIv2Config:
 
 def get_config() -> CANDIv2Config:
     """Return config for this run. Agent may edit encoder/decoder fields here."""
-    return _load_baseline_config()
+    cfg = _load_baseline_config()
+    # --- KEEP base (cleaned 2026-06-11: removed dead duplicate assignments) ---
+    # encoder
+    cfg.encoder.n_transformer_layers = 4
+    cfg.encoder.nhead = 8
+    cfg.encoder.conv_norm = "layer"
+    cfg.encoder.signal_transform = "log1p"
+    cfg.encoder.dropout = 0.02
+    cfg.encoder.dna_pool_order = "early"
+    cfg.encoder.fusion_deep = True
+    cfg.encoder.fusion_norm = "layer"
+    cfg.encoder.attn_qk_norm = True
+    cfg.encoder.transformer_layer_drop = 0.05
+    # decoder
+    cfg.decoder.trunk = "separate"
+    cfg.decoder.learnable_depth_center = True
+    cfg.decoder.learnable_depth_slope = True
+    cfg.decoder.conv_kernel_size = 5
+    cfg.decoder.meta_embed_dim = 8
+    cfg.decoder.dcr_penalty_weight = 1.5
+    cfg.decoder.consistency_weight = 0.1
+    cfg.decoder.spatial_smoothness_weight = 0.05
+    cfg.decoder.norm = "group"
+    cfg.encoder.output_rms_norm = True  # KEEP12 (real +0.0038 avg over KEEP9)
+    # --- EXPERIMENT (single knob, last assignment wins) ---
+    return cfg
 
 
 def build_model(cfg: CANDIv2Config, device: torch.device) -> CANDIv2:

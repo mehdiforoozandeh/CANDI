@@ -57,7 +57,7 @@ class EncoderConfig:
 
     # Fusion of signal + DNA towers
     fusion_mode: Literal["linear", "gated"] = "linear"
-    fusion_norm: Literal["layer", "none"] = "none"
+    fusion_norm: Literal["layer", "none", "group"] = "none"
 
     # Transformer
     d_model: int = 0  # 0 = auto (signal tower output dim)
@@ -67,9 +67,65 @@ class EncoderConfig:
         "dual", "xtransformers", "production_dual"
     ] = "xtransformers"
     dropout: float = 0.1
+    attn_qk_norm: bool = False  # normalize Q/K vectors before attention (prevents score blowup)
+    output_rms_norm: bool = False  # RMSNorm on encoder output [B, L2, d_model] before decoder
 
     # Input signal transform (applied internally by encoder)
     signal_transform: Literal["none", "log1p", "arcsinh"] = "log1p"
+
+    # Cross-assay MHA after signal CNN + mask inject, before DNA fusion
+    cross_assay_attention: bool = False
+
+    # Stochastic depth: drop transformer layers with this prob during training
+    transformer_layer_drop: float = 0.0
+
+    # Per-layer attention dropout (overrides cfg.dropout for attention weights only; 0.0 = use cfg.dropout)
+    transformer_attn_dropout: float = 0.0
+
+    # FFN intermediate multiplier for xtransformers (ff_dim = d_model * ff_mult); default=4
+    transformer_ff_mult: int = 4
+
+    # Add a full LayerNorm after signal conv tower output (before DNA fusion).
+    # When conv_norm="group", this preserves per-assay GroupNorm structure while
+    # adding a global normalization that may affect alpha's gradient landscape.
+    signal_tower_output_ln: bool = False
+
+    # Cross-assay attention AFTER transformer (post-transformer CAS).
+    # Treats the d_model=72 output as num_tracks x d_per_track and applies
+    # self-attention across the num_tracks dimension at each position.
+    # Distinct from pre-transformer CAS (which fails due to masked-zero features).
+    post_transformer_cas: bool = False
+
+    # GEGLU feedforward in xtransformers (ff_glu=True → glu=True in FeedForward)
+    ff_glu: bool = False
+
+    # Sandwich norm in xtransformers: adds extra LN after attn+FFN in each transformer block
+    # (no new linear params — only scale/shift — so should not disrupt DCR gradient)
+    transformer_sandwich_norm: bool = False
+
+    # Token shift in xtransformers (0=off, 1=shift by 1 token in 1/2 of dims)
+    # Provides free 1-D convolution-like context without adding parameters
+    transformer_shift_tokens: int = 0
+
+    # Use RMSNorm instead of LayerNorm inside xtransformers (no new linear params)
+    # Consistent with decoder.norm=rms; may improve gradient flow in transformer
+    transformer_use_rmsnorm: bool = False
+
+    # Residual skip in LinearFusion: add shortcut Linear(144→72) to fused output before LN
+    fusion_residual: bool = False
+
+    # Deep fusion: use 2-layer LinearFusion (signal+DNA concat → hidden → output)
+    # instead of the default single-layer projection. Adds one extra Linear+GELU.
+    fusion_deep: bool = False
+
+    # Override the number of Linear+GELU layers in LinearFusion (1, 2, or 3).
+    # 1=default, 2=same as fusion_deep=True, 3=triple-layer. Takes priority over
+    # fusion_deep when set to 2 or 3.
+    fusion_depth: int = 1
+
+    # Residual bottleneck (dim//2) between fusion output and transformer input.
+    # Uses small-init weights (σ=0.01) to start near-identity, preventing DCR disruption.
+    pre_transformer_bottleneck: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +171,21 @@ class DecoderConfig:
     count_head: Literal["plain", "depth_offset"] = "depth_offset"
     depth_center: float = 22.5  # only used when count_head="depth_offset"
     mu_eps: float = 1e-6        # only used when count_head="depth_offset"
+    learnable_depth_center: bool = False  # make depth_center an nn.Parameter
+    learnable_depth_slope: bool = False   # make depth scaling an nn.Parameter (log-parameterized, init slope=1)
+    depth_slope_init: float = 0.0        # initial log_depth_slope value (0=slope=1; set log(log2(3))≈0.461 for DCR=3 init)
+    depth_slope: float = 1.0            # fixed depth slope when learnable_depth_slope=False (DCR=2^(slope*2); 0.795→DCR=3.013)
+    depth_slope_constrained: bool = False  # sigmoid-map alpha to [log2(3)/2, log2(5)/2] → DCR∈[3,5] guaranteed; DCR_init=3.87
+    learnable_depth_quadratic: bool = False  # quadratic depth term: beta*(d-center)^2 in log2_mu (+1 param, extends slope)
+    grouped_dispersion: bool = False      # per-assay independent dispersion: replace linear_n(8→8) with Conv1d groups=8 (-56 params)
+    diagonal_eta: bool = False           # per-assay eta head: replace linear_eta(8→8) with Conv1d groups=8 (-56 params, DCR-safe)
+    encoder_skip: bool = False           # U-Net skip: add encoder pre-transformer features to decoder trunk input (+4672 params)
+    dcr_penalty_weight: float = 0.0     # soft DCR penalty: max(0, 3.05-DCR)^2 * weight added to total_weighted loss; keeps alpha learnable but biases DCR≥3.0
+    count_refine_conv5: bool = False     # post-deconv k=5 residual refinement conv before NB head: wider spatial receptive field at full resolution without changing upsampling geometry
+    consistency_weight: float = 0.0     # cross-assay consistency: MSE(log1p(imp_mean), log1p(obs_mean).detach()) per position; guides imputed predictions toward observed locus statistics
+    aux_mse_imp_weight: float = 0.0     # auxiliary log1p MSE on masked positions: F.mse_loss(log1p(mu_imp), log1p(y_imp)) — smooth direct gradient for imputation alongside NB NLL
+    aux_mse_obs_weight: float = 0.0     # auxiliary log1p MSE on observed positions: F.mse_loss(log1p(mu_obs), log1p(y_obs)) — smooth direct gradient for denoising alongside NB NLL
+    spatial_smoothness_weight: float = 0.0  # TV-L1 on log1p(mu): penalize sharp adjacent-position changes in predicted counts
 
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,19 @@ def exponential_linspace_int(start, end, num, divisible_by=1):
     return [_round(start * base ** i) for i in range(num)]
 
 
+class RMSNormSeq(nn.Module):
+    """RMS norm for sequence tensors [B, L, d_model], normalizing over the last dim."""
+
+    def __init__(self, dim: int, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = float(eps)
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x * rms * self.weight
+
+
 class MaskStem(nn.Module):
     """Learnable stem for (value, mask) pairs (vendored from model.py).
 
@@ -523,8 +536,48 @@ class DNAConvTower(nn.Module):
 # Fusion layers
 # ---------------------------------------------------------------------------
 
+
+class LatentBottleneck(nn.Module):
+    """Residual bottleneck between fusion and transformer.
+
+    Uses small-init weights (σ=0.01) so it starts near-identity — avoids disrupting
+    the alpha-gradient calibration on step 1 (unlike random-init Linear layers).
+    As training proceeds, the bottleneck gradually learns useful transformations.
+    """
+
+    def __init__(self, d_in: int, d_bottleneck: int) -> None:
+        super().__init__()
+        self.down = nn.Linear(d_in, d_bottleneck)
+        self.up = nn.Linear(d_bottleneck, d_in)
+        nn.init.normal_(self.down.weight, mean=0.0, std=0.01)
+        nn.init.zeros_(self.down.bias)
+        nn.init.normal_(self.up.weight, mean=0.0, std=0.01)
+        nn.init.zeros_(self.up.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.up(F.gelu(self.down(x)))
+
+
+class _FusionGroupNorm(nn.Module):
+    """GroupNorm for channel-last [B, L, C] tensors — permutes to [B, C, L] for GroupNorm then back."""
+
+    def __init__(self, num_groups: int, num_channels: int) -> None:
+        super().__init__()
+        self.gn = nn.GroupNorm(num_groups, num_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.gn(x.transpose(-1, -2)).transpose(-1, -2)
+
+
 class LinearFusion(nn.Module):
-    """Concatenate signal + DNA features → linear project → GELU → optional norm."""
+    """Concatenate signal + DNA features → linear project → GELU → optional norm.
+
+    depth controls the number of Linear+GELU layers (1, 2, or 3):
+      depth=1: [signal|dna] → Linear(in→out) → GELU → norm → dropout
+      depth=2: adds one hidden Linear(out→out) → GELU before norm
+      depth=3: adds two hidden Linear(out→out) → GELU layers before norm
+    deep=True is equivalent to depth=2 (for backward compatibility).
+    """
 
     def __init__(
         self,
@@ -533,25 +586,40 @@ class LinearFusion(nn.Module):
         out_dim: int,
         dropout: float,
         fusion_norm: str = "layer",
+        deep: bool = False,
+        depth: int = 1,
+        residual: bool = False,
     ) -> None:
         super().__init__()
+        effective_depth = max(depth, 2 if deep else 1)
         self.fusion_proj = nn.Linear(signal_dim + dna_dim, out_dim)
         self.gelu = nn.GELU()
+        self.hidden_projs = nn.ModuleList(
+            [nn.Linear(out_dim, out_dim) for _ in range(effective_depth - 1)]
+        )
         if fusion_norm == "layer":
             self.norm: nn.Module = nn.LayerNorm(out_dim)
         elif fusion_norm == "none":
             self.norm = nn.Identity()
+        elif fusion_norm == "group":
+            self.norm = _FusionGroupNorm(8, out_dim)
         else:
             raise ValueError(f"Unsupported fusion_norm={fusion_norm}")
         self.dropout = nn.Dropout(dropout)
+        self.res_proj = nn.Linear(signal_dim + dna_dim, out_dim) if residual else None
 
     def forward(self, signal: torch.Tensor, dna: torch.Tensor) -> torch.Tensor:
         if signal.shape[:2] != dna.shape[:2]:
             raise ValueError(
                 f"Fusion sequence mismatch: signal={tuple(signal.shape)}, dna={tuple(dna.shape)}"
             )
-        fused = self.fusion_proj(torch.cat([signal, dna], dim=-1))
-        return self.dropout(self.norm(self.gelu(fused)))
+        cat = torch.cat([signal, dna], dim=-1)
+        fused = self.gelu(self.fusion_proj(cat))
+        for proj in self.hidden_projs:
+            fused = self.gelu(proj(fused))
+        if self.res_proj is not None:
+            fused = fused + self.res_proj(cat)
+        return self.dropout(self.norm(fused))
 
 
 class GatedDNAFusion(nn.Module):
@@ -771,8 +839,18 @@ class V2Encoder(nn.Module):
         else:
             raise ValueError(f"Unsupported missing_data_mode={self.missing_data_mode}")
 
-        # -- DNA conv tower --
+        # -- Cross-assay attention (after mask inject, before DNA fusion) --
         signal_dim = self.signal_tower.out_channels
+        self.cross_assay_attn: Optional[nn.MultiheadAttention] = None
+        self.cross_assay_norm: Optional[nn.LayerNorm] = None
+        if bool(cfg.cross_assay_attention):
+            d_per_track = self.signal_tower.out_per_assay
+            self.cross_assay_attn = nn.MultiheadAttention(
+                d_per_track, 1, batch_first=True, dropout=float(cfg.dropout)
+            )
+            self.cross_assay_norm = nn.LayerNorm(signal_dim)
+
+        # -- DNA conv tower --
         self.d_model = int(cfg.d_model) if int(cfg.d_model) > 0 else signal_dim
         self.dna_tower = DNAConvTower(
             target_dim=signal_dim,
@@ -802,9 +880,17 @@ class V2Encoder(nn.Module):
                 signal_dim=signal_dim, dna_dim=self.dna_tower.out_channels,
                 out_dim=self.d_model, dropout=float(cfg.dropout),
                 fusion_norm=fusion_norm,
+                deep=bool(getattr(cfg, 'fusion_deep', False)),
+                depth=int(getattr(cfg, 'fusion_depth', 1)),
+                residual=bool(getattr(cfg, 'fusion_residual', False)),
             )
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
+
+        # -- Optional pre-transformer bottleneck (small-init, near-identity at start) --
+        self.pre_bottleneck: Optional[LatentBottleneck] = None
+        if bool(getattr(cfg, 'pre_transformer_bottleneck', False)):
+            self.pre_bottleneck = LatentBottleneck(self.d_model, self.d_model // 2)
 
         # -- Transformer stack --
         if self.transformer_type == "dual":
@@ -820,9 +906,14 @@ class V2Encoder(nn.Module):
                 XEncoder(
                     dim=self.d_model, depth=1, heads=int(cfg.nhead),
                     rotary_pos_emb=True,
-                    attn_dropout=float(cfg.dropout),
+                    attn_dropout=float(cfg.transformer_attn_dropout) if float(getattr(cfg, 'transformer_attn_dropout', 0.0)) > 0.0 else float(cfg.dropout),
                     ff_dropout=float(cfg.dropout),
-                    ff_mult=4, pre_norm=True,
+                    ff_mult=int(getattr(cfg, 'transformer_ff_mult', 4)), pre_norm=True,
+                    attn_qk_norm=bool(cfg.attn_qk_norm),
+                    ff_glu=bool(getattr(cfg, 'ff_glu', False)),
+                    sandwich_norm=bool(getattr(cfg, 'transformer_sandwich_norm', False)),
+                    shift_tokens=int(getattr(cfg, 'transformer_shift_tokens', 0)),
+                    use_rmsnorm=bool(getattr(cfg, 'transformer_use_rmsnorm', False)),
                 )
                 for _ in range(int(cfg.n_transformer_layers))
             ])
@@ -845,6 +936,38 @@ class V2Encoder(nn.Module):
                 TransformerFeatureFiLM(int(cfg.metadata_embed_dim), self.d_model)
                 for _ in range(int(cfg.n_transformer_layers))
             ])
+
+        # -- Optional RMSNorm on encoder output --
+        self.output_norm: nn.Module = (
+            RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
+        )
+
+        # -- Post-transformer cross-assay attention --
+        # Treats d_model as num_tracks × d_per_track; applies self-attention across
+        # the num_tracks dimension at each genomic position. This adds assay-axis
+        # mixing AFTER the transformer has done position-axis mixing. Avoids the
+        # masked-zero-features problem of pre-transformer CAS because transformer
+        # output is non-zero even for CLOZE-masked assay positions.
+        self.ptcas_attn: Optional[nn.MultiheadAttention] = None
+        self.ptcas_norm: Optional[nn.LayerNorm] = None
+        if bool(getattr(cfg, 'post_transformer_cas', False)):
+            d_per_track = self.d_model // self.num_tracks  # 72 // 9 = 8
+            self.ptcas_attn = nn.MultiheadAttention(
+                embed_dim=d_per_track, num_heads=1, batch_first=True, dropout=0.0,
+            )
+            self.ptcas_norm = nn.LayerNorm(self.d_model)
+
+        # -- Optional LayerNorm after signal conv tower (before DNA fusion) --
+        # Preserves GroupNorm per-assay structure in conv layers while adding
+        # global normalization that may shift alpha gradient landscape.
+        signal_dim_enc = self.signal_tower.out_channels
+        self.signal_tower_output_ln: Optional[nn.Module] = (
+            nn.LayerNorm(signal_dim_enc)
+            if bool(getattr(cfg, "signal_tower_output_ln", False))
+            else None
+        )
+
+        self._transformer_layer_drop: float = float(cfg.transformer_layer_drop)
 
     def _prepare_signal(
         self, x_signal_t: torch.Tensor, x_meta: torch.Tensor,
@@ -900,18 +1023,47 @@ class V2Encoder(nn.Module):
         if self.mask_injector is not None:
             sig = self.mask_injector(sig, availability)
 
+        # Cross-assay attention: each position attends across all tracks
+        if self.cross_assay_attn is not None:
+            B_ca, L2_ca, _ = sig.shape
+            d_per = self.signal_tower.out_per_assay
+            sig_r = sig.contiguous().view(B_ca * L2_ca, self.num_tracks, d_per)
+            delta, _ = self.cross_assay_attn(sig_r, sig_r, sig_r)
+            sig = self.cross_assay_norm(sig + delta.reshape(B_ca, L2_ca, -1))
+
+        # Optional LayerNorm on signal tower output (before DNA fusion)
+        if self.signal_tower_output_ln is not None:
+            sig = self.signal_tower_output_ln(sig)
+
         # DNA conv tower
         dna = self.dna_tower(x_dna)
 
         # Fuse signal + DNA
         fused = self.fusion(sig, dna)
+        self._pre_transformer_skip = fused  # [B, L2, d_model] for optional decoder skip
 
-        # Transformer stack with optional per-layer FiLM
+        # Optional pre-transformer bottleneck (near-identity at init)
+        if self.pre_bottleneck is not None:
+            fused = self.pre_bottleneck(fused)
+
+        # Transformer stack with optional per-layer FiLM and stochastic depth
         pooled_meta = meta_embed.mean(dim=1)
         for i, block in enumerate(self.transformer_blocks):
+            if self.training and self._transformer_layer_drop > 0.0 and torch.rand(1).item() < self._transformer_layer_drop:
+                continue  # stochastic depth: skip FiLM+block together
             if self.transformer_film_layers is not None:
                 fused = self.transformer_film_layers[i](fused, pooled_meta)
             fused = block(fused)
+
+        fused = self.output_norm(fused)
+
+        # Post-transformer cross-assay attention: mix assay-chunks at each position
+        if self.ptcas_attn is not None:
+            B_pt, L2_pt, _ = fused.shape
+            d_per = self.d_model // self.num_tracks  # 72 // 9 = 8
+            z_r = fused.contiguous().view(B_pt * L2_pt, self.num_tracks, d_per)
+            delta, _ = self.ptcas_attn(z_r, z_r, z_r)
+            fused = self.ptcas_norm(fused + delta.reshape(B_pt, L2_pt, self.d_model))
 
         if return_meta:
             return fused, meta_embed

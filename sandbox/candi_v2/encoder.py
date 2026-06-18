@@ -37,6 +37,19 @@ except ImportError as exc:
     ) from exc
 
 
+class RMSNormSeq(nn.Module):
+    """RMS norm for sequence tensors [B, L, d_model], normalizing over the last dim."""
+
+    def __init__(self, dim: int, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = float(eps)
+        self.weight = nn.Parameter(torch.ones(dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return x * rms * self.weight
+
+
 # ---------------------------------------------------------------------------
 # Metadata embedding
 # ---------------------------------------------------------------------------
@@ -493,10 +506,15 @@ class LinearFusion(nn.Module):
         out_dim: int,
         dropout: float,
         fusion_norm: str = "layer",
+        deep: bool = False,
     ) -> None:
         super().__init__()
         self.fusion_proj = nn.Linear(signal_dim + dna_dim, out_dim)
         self.gelu = nn.GELU()
+        # deep=True adds one hidden Linear(out->out)+GELU before the norm
+        self.hidden_projs = nn.ModuleList(
+            [nn.Linear(out_dim, out_dim) for _ in range(1 if deep else 0)]
+        )
         if fusion_norm == "layer":
             self.norm: nn.Module = nn.LayerNorm(out_dim)
         elif fusion_norm == "none":
@@ -510,8 +528,10 @@ class LinearFusion(nn.Module):
             raise ValueError(
                 f"Fusion sequence mismatch: signal={tuple(signal.shape)}, dna={tuple(dna.shape)}"
             )
-        fused = self.fusion_proj(torch.cat([signal, dna], dim=-1))
-        return self.dropout(self.norm(self.gelu(fused)))
+        fused = self.gelu(self.fusion_proj(torch.cat([signal, dna], dim=-1)))
+        for proj in self.hidden_projs:
+            fused = self.gelu(proj(fused))
+        return self.dropout(self.norm(fused))
 
 
 class GatedDNAFusion(nn.Module):
@@ -761,7 +781,7 @@ class V2Encoder(nn.Module):
             self.fusion = LinearFusion(
                 signal_dim=signal_dim, dna_dim=self.dna_tower.out_channels,
                 out_dim=self.d_model, dropout=float(cfg.dropout),
-                fusion_norm=fusion_norm,
+                fusion_norm=fusion_norm, deep=bool(cfg.fusion_deep),
             )
         else:
             raise ValueError(f"Unsupported fusion_mode={fusion_mode}")
@@ -783,6 +803,7 @@ class V2Encoder(nn.Module):
                     attn_dropout=float(cfg.dropout),
                     ff_dropout=float(cfg.dropout),
                     ff_mult=4, pre_norm=True,
+                    attn_qk_norm=bool(cfg.attn_qk_norm),
                 )
                 for _ in range(int(cfg.n_transformer_layers))
             ])
@@ -805,6 +826,14 @@ class V2Encoder(nn.Module):
                 TransformerFeatureFiLM(int(cfg.metadata_embed_dim), self.d_model)
                 for _ in range(int(cfg.n_transformer_layers))
             ])
+
+        # -- Optional RMSNorm on encoder output (before decoder) --
+        self.output_norm: nn.Module = (
+            RMSNormSeq(self.d_model) if bool(cfg.output_rms_norm) else nn.Identity()
+        )
+
+        # -- Stochastic depth: prob of dropping a transformer layer during training --
+        self._transformer_layer_drop: float = float(cfg.transformer_layer_drop)
 
     def _prepare_signal(
         self, x_signal_t: torch.Tensor, x_meta: torch.Tensor,
@@ -866,12 +895,20 @@ class V2Encoder(nn.Module):
         # Fuse signal + DNA
         fused = self.fusion(sig, dna)
 
-        # Transformer stack with optional per-layer FiLM
+        # Transformer stack with optional per-layer FiLM and stochastic depth
         pooled_meta = meta_embed.mean(dim=1)
         for i, block in enumerate(self.transformer_blocks):
+            if (
+                self.training
+                and self._transformer_layer_drop > 0.0
+                and torch.rand(1).item() < self._transformer_layer_drop
+            ):
+                continue  # stochastic depth: skip FiLM + block together
             if self.transformer_film_layers is not None:
                 fused = self.transformer_film_layers[i](fused, pooled_meta)
             fused = block(fused)
+
+        fused = self.output_norm(fused)
 
         if return_meta:
             return fused, meta_embed

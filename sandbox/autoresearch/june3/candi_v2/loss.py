@@ -27,6 +27,20 @@ from sandbox.autoresearch.june3.candi_v2.config import CANDIv2Config
 
 
 # ---------------------------------------------------------------------------
+# DCR soft-penalty singleton (set by V2Decoder at build time)
+# ---------------------------------------------------------------------------
+_DCR_SLOPE_REF: Optional[nn.Parameter] = None
+_DCR_PENALTY_WEIGHT: float = 0.0
+
+
+def set_dcr_slope_ref(param: Optional[nn.Parameter], weight: float = 0.0) -> None:
+    """Register decoder's log_depth_slope param for DCR penalty in _compute_terms."""
+    global _DCR_SLOPE_REF, _DCR_PENALTY_WEIGHT
+    _DCR_SLOPE_REF = param
+    _DCR_PENALTY_WEIGHT = float(weight)
+
+
+# ---------------------------------------------------------------------------
 # Low-level loss utilities (vendored from _utils.py)
 # ---------------------------------------------------------------------------
 
@@ -525,9 +539,13 @@ class SandboxCompositeLoss(nn.Module):
     forward_with_terms is forwarded verbatim to agent_step → keep_rule → TSV.
     """
 
-    def __init__(self, cand: CANDI_LOSS):
+    def __init__(self, cand: CANDI_LOSS, consistency_weight: float = 0.0, aux_mse_imp_weight: float = 0.0, aux_mse_obs_weight: float = 0.0, spatial_smoothness_weight: float = 0.0):
         super().__init__()
         self.cand = cand
+        self._consistency_weight = float(consistency_weight)
+        self._aux_mse_imp_weight = float(aux_mse_imp_weight)
+        self._aux_mse_obs_weight = float(aux_mse_obs_weight)
+        self._spatial_smoothness_weight = float(spatial_smoothness_weight)
 
     @staticmethod
     def _safe_unweight(weighted: torch.Tensor, weight: float) -> torch.Tensor:
@@ -596,6 +614,48 @@ class SandboxCompositeLoss(nn.Module):
             + terms["pval_obs_weighted"] + terms["pval_imp_weighted"]
             + terms["peak_obs_weighted"] + terms["peak_imp_weighted"]
         )
+        # DCR soft penalty: bias alpha toward DCR≥3.0 without severing joint gradients
+        if _DCR_SLOPE_REF is not None and _DCR_PENALTY_WEIGHT > 0:
+            alpha = torch.exp(_DCR_SLOPE_REF)
+            dcr = torch.pow(2.0, 2.0 * alpha)
+            dcr_penalty = F.relu(3.015 - dcr).pow(2) * _DCR_PENALTY_WEIGHT
+            terms["total_weighted"] = terms["total_weighted"] + dcr_penalty
+        # Auxiliary log1p MSE on imputed positions: smooth direct gradient alongside NB NLL
+        if self._aux_mse_imp_weight > 0.0 and mm.any():
+            aux_mse = F.mse_loss(
+                torch.log1p(output_mu[mm]),
+                torch.log1p(y_data[mm].float()),
+            )
+            terms["total_weighted"] = terms["total_weighted"] + aux_mse * self._aux_mse_imp_weight
+            terms["aux_mse_imp"] = aux_mse
+        # Auxiliary log1p MSE on observed positions: smooth direct gradient for denoising alongside NB NLL
+        if self._aux_mse_obs_weight > 0.0 and observed_map.any():
+            aux_mse_obs = F.mse_loss(
+                torch.log1p(output_mu[observed_map]),
+                torch.log1p(y_data[observed_map].float()),
+            )
+            terms["total_weighted"] = terms["total_weighted"] + aux_mse_obs * self._aux_mse_obs_weight
+            terms["aux_mse_obs"] = aux_mse_obs
+        # TV-L1 spatial smoothness: penalize sharp adjacent-position changes in log1p(mu)
+        if self._spatial_smoothness_weight > 0.0:
+            diff = torch.log1p(output_mu[:, 1:, :].float()) - torch.log1p(output_mu[:, :-1, :].float())
+            smoothness = diff.abs().mean()
+            terms["total_weighted"] = terms["total_weighted"] + smoothness * self._spatial_smoothness_weight
+            terms["spatial_smoothness"] = smoothness
+        # Cross-assay consistency: imputed track means ≈ observed track means at same locus
+        if self._consistency_weight > 0.0:
+            obs_f = observed_map.float()
+            imp_f = mm.float()
+            obs_mean = (output_mu * obs_f).sum(-1) / obs_f.sum(-1).clamp(min=1.0)
+            imp_mean = (output_mu * imp_f).sum(-1) / imp_f.sum(-1).clamp(min=1.0)
+            valid = observed_map.any(-1) & mm.any(-1)
+            if valid.any():
+                cons = F.mse_loss(
+                    torch.log1p(imp_mean[valid]),
+                    torch.log1p(obs_mean[valid]).detach(),
+                )
+                terms["total_weighted"] = terms["total_weighted"] + cons * self._consistency_weight
+                terms["consistency_loss"] = cons
         return terms
 
     @staticmethod
@@ -722,4 +782,10 @@ def build_v2_loss(cfg: CANDIv2Config) -> SandboxCompositeLoss:
         obs_weight=float(lw.obs_weight),
         imp_weight=float(lw.imp_weight),
     )
-    return SandboxCompositeLoss(cand)
+    return SandboxCompositeLoss(
+        cand,
+        consistency_weight=float(getattr(cfg.decoder, 'consistency_weight', 0.0)),
+        aux_mse_imp_weight=float(getattr(cfg.decoder, 'aux_mse_imp_weight', 0.0)),
+        aux_mse_obs_weight=float(getattr(cfg.decoder, 'aux_mse_obs_weight', 0.0)),
+        spatial_smoothness_weight=float(getattr(cfg.decoder, 'spatial_smoothness_weight', 0.0)),
+    )

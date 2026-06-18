@@ -80,8 +80,9 @@ class CANDIv2(nn.Module):
         # Encode
         z = self.encoder.encode(x_data, x_dna, x_meta, return_meta=False)
 
-        # Decode
-        out = self.decoder(z, y_meta)
+        # Decode (pass pre-transformer encoder features for optional U-Net skip)
+        skip = getattr(self.encoder, '_pre_transformer_skip', None)
+        out = self.decoder(z, y_meta, skip_features=skip)
 
         # Attach encoder latent for downstream analysis
         out["z"] = z.detach()

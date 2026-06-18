@@ -115,6 +115,33 @@ def _build_mixed_meta(
     return mixed
 
 
+def _build_vb_natural_missing_meta(
+    t_meta: torch.Tensor,
+    vb_meta: torch.Tensor,
+    y_avail: torch.Tensor,
+    canonical_meta: Optional[torch.Tensor],
+) -> torch.Tensor:
+    """V/B natural metadata for assays missing in T (y_avail==0); canonical fallback.
+
+    Used when ``use_canonical_missing_meta=False`` (E32 / CANDI v2 default): inject the
+    paired V_*/B_* biosample's real covariates at imp-eval slots so depth_offset heads
+    see the correct sequencing depth. Falls back to EIC canonical medians when V/B meta
+    row 0 is invalid (-1).
+    """
+    device = t_meta.device
+    mixed = t_meta.clone()
+    missing = (y_avail.to(device) == 0).unsqueeze(1).expand_as(mixed)
+    vb = vb_meta.to(device)
+    valid_vb = (vb[:, 0:1, :] != -1.0).expand_as(mixed)
+    use_vb = missing & valid_vb
+    mixed[use_vb] = vb[use_vb]
+    if canonical_meta is not None:
+        can_exp = canonical_meta.to(device).unsqueeze(0).expand_as(mixed)
+        still_missing = missing & (mixed[:, 0:1, :] == -1.0).expand_as(mixed)
+        mixed[still_missing] = can_exp[still_missing]
+    return mixed
+
+
 _BRANCH_RAW_TO_LOG = {
     "count_obs_raw": "count_obs",
     "count_imp_raw": "count_imp",
@@ -523,19 +550,29 @@ def run_eval_pass(
         if isinstance(_ymi, torch.Tensor):
             y_meta_fwd = _build_mixed_meta(y_meta_fwd, _ymi.to(device), prep["masked_map"])
 
-        # Canonical metadata for truly missing assay slots (y_avail=0).
-        if use_canonical_missing_meta and canonical_meta is not None:
-            y_avail_b = ev_batch.get("y_avail")
-            if isinstance(y_avail_b, torch.Tensor):
-                missing_mask = (y_avail_b.to(device) == 0)  # [B, F]
-                if missing_mask.any():
+        # Metadata for truly missing assay slots (y_avail=0) — these ARE the imp eval
+        # targets (held-out unseen assays). The model must be conditioned on the
+        # held-out assay's own covariates, else it imputes the wrong assay.
+        y_avail_b = ev_batch.get("y_avail")
+        if isinstance(y_avail_b, torch.Tensor):
+            missing_mask = (y_avail_b.to(device) == 0)  # [B, F]
+            if missing_mask.any():
+                if use_canonical_missing_meta and canonical_meta is not None:
                     can_meta_d = canonical_meta.to(device)  # [4, F]
                     miss_exp = missing_mask.unsqueeze(1).expand_as(y_meta_fwd)
                     can_exp = can_meta_d.unsqueeze(0).expand_as(y_meta_fwd)
                     y_meta_fwd[miss_exp] = can_exp[miss_exp]
-                    # Extend query_mask so FiLM conditioning applies to missing slots.
-                    # Their predictions are unsupervised (no GT) and not logged.
-                    query_mask_fwd = query_mask_fwd | missing_mask
+                elif not use_canonical_missing_meta and isinstance(_ymi, torch.Tensor):
+                    # E32 / CANDI v2 default: inject the paired V_*/B_* biosample's real
+                    # covariates at imp-eval slots so depth_offset heads see correct depth.
+                    y_meta_fwd = _build_vb_natural_missing_meta(
+                        y_meta_fwd,
+                        _ymi.to(device),
+                        y_avail_b.to(device),
+                        canonical_meta,
+                    )
+                # Extend query_mask so FiLM conditioning applies to missing slots.
+                query_mask_fwd = query_mask_fwd | missing_mask
 
         _rt = ev_batch.get("region_type")
         _ydi = ev_batch.get("y_data_imp")

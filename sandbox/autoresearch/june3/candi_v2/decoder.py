@@ -204,12 +204,43 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         *,
         depth_center: float = 24.0,
         eps: float = 1e-6,
+        learnable_depth_center: bool = False,
+        learnable_depth_slope: bool = False,
+        depth_slope_init: float = 0.0,
+        depth_slope: float = 1.0,
+        depth_slope_constrained: bool = False,
+        learnable_depth_quadratic: bool = False,
+        grouped_dispersion: bool = False,
+        diagonal_eta: bool = False,
     ) -> None:
         super().__init__()
-        self.depth_center = float(depth_center)
+        if learnable_depth_center:
+            self.depth_center = nn.Parameter(torch.tensor(float(depth_center)))
+        else:
+            self.depth_center = float(depth_center)
+        if learnable_depth_slope:
+            self.log_depth_slope = nn.Parameter(torch.tensor(float(depth_slope_init)))
+        else:
+            self.log_depth_slope = None
+            self._fixed_slope = float(depth_slope)
+        self._depth_slope_constrained = bool(depth_slope_constrained)
+        # quadratic depth term: log2_mu = alpha*(d-c) + beta*(d-c)^2 + eta; init beta=0
+        self.depth_quadratic = nn.Parameter(torch.zeros(1)) if learnable_depth_quadratic else None
         self.eps = float(eps)
-        self.linear_eta = nn.Linear(input_dim, output_dim)
-        self.linear_n = nn.Linear(input_dim, output_dim)
+        # diagonal_eta: per-assay mean head (Conv1d groups=output_dim, -56 params, DCR-safe)
+        if diagonal_eta:
+            self.linear_eta = nn.Conv1d(output_dim, output_dim, 1, groups=output_dim)
+            self._diagonal_eta = True
+        else:
+            self.linear_eta = nn.Linear(input_dim, output_dim)
+            self._diagonal_eta = False
+        # grouped_dispersion: each assay gets independent scalar dispersion (+bias), -56 params
+        if grouped_dispersion:
+            self.linear_n = nn.Conv1d(output_dim, output_dim, 1, groups=output_dim)
+            self._grouped_dispersion = True
+        else:
+            self.linear_n = nn.Linear(input_dim, output_dim)
+            self._grouped_dispersion = False
 
     def forward(
         self,
@@ -223,16 +254,35 @@ class DepthOffsetNegativeBinomialLayer(nn.Module):
         Returns:
             (p, n), each [B, L, signal_dim]
         """
-        eta = self.linear_eta(x)                                   # [B, L, A]
+        if self._diagonal_eta:
+            eta = self.linear_eta(x.permute(0, 2, 1)).permute(0, 2, 1)  # [B, L, A]
+        else:
+            eta = self.linear_eta(x)                               # [B, L, A]
         # Per-assay gate: sentinels must not enter 2^(d-c) (see class docstring).
         valid = (depth_log2 != MISSING) & (depth_log2 != CLOZE)    # [B, A]
-        d_centered = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center  # [B, 1, A]
+        d_raw = depth_log2.unsqueeze(1).to(x.dtype) - self.depth_center       # [B, 1, A]
+        if self.log_depth_slope is not None:
+            if self._depth_slope_constrained:
+                # Sigmoid-map to DCR-valid range: alpha∈[log2(3)/2, log2(5)/2]=[0.7925,1.1610]
+                # DCR=2^(2*alpha)∈[3.0,5.0]; DCR_init=3.87 when log_depth_slope=0
+                _lo, _hi = 0.79248, 1.16096
+                alpha = _lo + (_hi - _lo) * torch.sigmoid(self.log_depth_slope)
+                d_centered = alpha * d_raw
+            else:
+                d_centered = torch.exp(self.log_depth_slope) * d_raw
+        else:
+            d_centered = self._fixed_slope * d_raw
+        if self.depth_quadratic is not None:
+            d_centered = d_centered + self.depth_quadratic * d_raw ** 2
         log2_mu_offset = d_centered + eta                            # [B, L, A]
         log2_mu_fallback = eta                                       # [B, L, A]
         log2_mu = torch.where(valid.unsqueeze(1), log2_mu_offset, log2_mu_fallback)
         mu = torch.pow(2.0, log2_mu)
         mu = mu.clamp(min=self.eps)
-        n = F.softplus(self.linear_n(x)) + self.eps
+        if self._grouped_dispersion:
+            n = F.softplus(self.linear_n(x.permute(0, 2, 1)).permute(0, 2, 1)) + self.eps
+        else:
+            n = F.softplus(self.linear_n(x)) + self.eps
         p = n / (n + mu)
         p = torch.clamp(p, min=self.eps, max=1.0 - self.eps)
         return p, n
@@ -366,26 +416,34 @@ class DecoderTrunk(nn.Module):
             for i in range(int(n_cnn_layers))
         ])
         self.channel_schedule = channels
+        self.drop = nn.Dropout(p=0.1)
 
     def forward(
         self,
         z: torch.Tensor,
         film_layers: Optional[nn.ModuleList] = None,
         pooled_meta: Optional[torch.Tensor] = None,
+        skip: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
             z:           [B, L2, proj_dim]
             film_layers: optional per-layer FiLM modules
             pooled_meta: [B, embed_dim] for per-layer FiLM
+            skip:        optional [B, decoder_input_dim, L2] encoder skip features
         Returns:
             [B, L, signal_dim]
         """
         x = self.input_proj(z).permute(0, 2, 1)  # [B, C, L2]
+        if skip is not None:
+            x = x + skip  # add projected encoder pre-transformer features [B, C, L2]
+        n_layers = len(self.deconv)
         for i, layer in enumerate(self.deconv):
             x = layer(x)
             if film_layers is not None and pooled_meta is not None:
                 x = film_layers[i](x, pooled_meta)
+            if i < n_layers - 1:
+                x = self.drop(x)
         return x.permute(0, 2, 1)  # [B, L, signal_dim]
 
 
@@ -485,6 +543,21 @@ class V2Decoder(nn.Module):
         else:
             raise ValueError(f"Unsupported trunk={self.trunk_mode}")
 
+        # -- Encoder skip projection (U-Net style) --
+        self._encoder_skip = bool(cfg.encoder_skip)
+        if self._encoder_skip:
+            dec_input_dim = int(self.signal_dim) * (int(cfg.expansion_factor) ** int(cfg.n_cnn_layers))
+            self.skip_proj = nn.Linear(self.encoder_d_model, dec_input_dim)
+
+        # -- Post-deconv k=5 spatial refinement (residual, count trunk only) --
+        self._count_refine_conv5 = bool(getattr(cfg, "count_refine_conv5", False))
+        self.count_refine: Optional[nn.Module] = None
+        if self._count_refine_conv5:
+            self.count_refine = nn.Sequential(
+                nn.Conv1d(self.signal_dim, self.signal_dim, kernel_size=5, padding=2),
+                RMSNorm(self.signal_dim),
+            )
+
         # -- Output heads --
         self.neg_binom_layer: Optional[nn.Module] = None
         self.peak_layer: Optional[PeakLayer] = None
@@ -502,11 +575,24 @@ class V2Decoder(nn.Module):
                     self.signal_dim, self.signal_dim,
                     depth_center=float(cfg.depth_center),
                     eps=float(cfg.mu_eps),
+                    learnable_depth_center=bool(cfg.learnable_depth_center),
+                    learnable_depth_slope=bool(cfg.learnable_depth_slope),
+                    depth_slope_init=float(cfg.depth_slope_init),
+                    depth_slope=float(cfg.depth_slope),
+                    depth_slope_constrained=bool(cfg.depth_slope_constrained),
+                    learnable_depth_quadratic=bool(cfg.learnable_depth_quadratic),
+                    grouped_dispersion=bool(cfg.grouped_dispersion),
+                    diagonal_eta=bool(cfg.diagonal_eta),
                 )
             else:
                 self.neg_binom_layer = NegativeBinomialLayer(
                     self.signal_dim, self.signal_dim,
                 )
+            # Register slope param for DCR soft penalty in loss.py (no-op when weight=0)
+            if float(getattr(cfg, "dcr_penalty_weight", 0.0)) > 0:
+                from sandbox.autoresearch.june3.candi_v2.loss import set_dcr_slope_ref
+                slope_param = getattr(self.neg_binom_layer, "log_depth_slope", None)
+                set_dcr_slope_ref(slope_param, float(cfg.dcr_penalty_weight))
         if "peak" in self._active_heads:
             self.peak_layer = PeakLayer(self.signal_dim, self.signal_dim)
         if "pval" in self._active_heads:
@@ -535,11 +621,13 @@ class V2Decoder(nn.Module):
         self,
         z: torch.Tensor,
         y_meta: torch.Tensor,
+        skip_features: Optional[torch.Tensor] = None,
     ) -> Dict[str, Optional[torch.Tensor]]:
         """
         Args:
-            z:      [B, L2, d_model] — encoder latent
-            y_meta: [B, 4, A]        — target metadata (signal assays only, no control)
+            z:             [B, L2, d_model] — encoder latent
+            y_meta:        [B, 4, A]        — target metadata (signal assays only, no control)
+            skip_features: [B, L2, d_model] — encoder pre-transformer features for U-Net skip
         Returns:
             dict with keys: 'p', 'n', 'peak', 'mu', 'var' (None for inactive heads)
         """
@@ -558,6 +646,11 @@ class V2Decoder(nn.Module):
         # Sentinel depths (MISSING/CLOZE) are gated inside DepthOffsetNegativeBinomialLayer.
         count_depth = y_meta[:, 0, :] if self._count_depth_offset else None
 
+        # Compute projected skip features if encoder_skip is enabled [B, dec_input_dim, L2]
+        skip_in: Optional[torch.Tensor] = None
+        if self._encoder_skip and skip_features is not None:
+            skip_in = self.skip_proj(skip_features).permute(0, 2, 1)  # [B, dec_input_dim, L2]
+
         # Decode through trunk(s) and apply heads
         out: Dict[str, Optional[torch.Tensor]] = {
             "p": None, "n": None, "peak": None, "mu": None, "var": None,
@@ -568,6 +661,7 @@ class V2Decoder(nn.Module):
                 z,
                 film_layers=self.per_layer_film_shared if self.film_mode == "per_deconv_layer" else None,
                 pooled_meta=pooled_meta,
+                skip=skip_in,
             )
             if self.neg_binom_layer is not None:
                 if self._count_depth_offset:
@@ -588,8 +682,13 @@ class V2Decoder(nn.Module):
                 if self.per_layer_film is not None and head_name in self.per_layer_film:
                     film_l = self.per_layer_film[head_name]
                 decoded = self.separate_trunks[head_name](
-                    z, film_layers=film_l, pooled_meta=pooled_meta,
+                    z, film_layers=film_l, pooled_meta=pooled_meta, skip=skip_in,
                 )
+                if head_name == "count" and self.count_refine is not None:
+                    # residual k=5 refinement: [B, L, C] → permute → conv → permute → add
+                    decoded = decoded + F.gelu(
+                        self.count_refine(decoded.permute(0, 2, 1)).permute(0, 2, 1)
+                    )
                 if head_name == "count" and self.neg_binom_layer is not None:
                     if self._count_depth_offset:
                         p, n = self.neg_binom_layer(decoded, count_depth)
