@@ -417,16 +417,12 @@ def train(cfg: CANDIv2Config, args) -> int:
                 ram_cache_max_bytes=int(cfg.data.ram_cache_max_bytes),
                 canonical_meta=canonical_meta,
                 use_canonical_missing_meta=bool(cfg.eval.use_canonical_missing_meta),
-                include_median_metrics=True,
-                eval_mask_chunk_size=int(cfg.training.masking.chunk_size),
             )
             print(json.dumps({"epoch": ep, "eval_prefixed": metrics}, indent=2), file=sys.stderr)
-            eval_metrics_dict, eval_metrics_median_dict, eval_losses_dict = _split_eval_families(metrics)
+            eval_metrics_dict, eval_losses_dict = _split_eval_families(metrics)
             if wb is not None:
                 wb.log(metrics, step=global_step)
             epoch_record["eval_metrics"] = eval_metrics_dict
-            if eval_metrics_median_dict:
-                epoch_record["eval_metrics_median"] = eval_metrics_median_dict
             epoch_record["eval_losses"] = eval_losses_dict
 
             ds_ev = SandboxH5Dataset(

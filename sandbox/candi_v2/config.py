@@ -58,6 +58,7 @@ class EncoderConfig:
     # Fusion of signal + DNA towers
     fusion_mode: Literal["linear", "gated"] = "linear"
     fusion_norm: Literal["layer", "none"] = "none"
+    fusion_deep: bool = False  # 2-layer LinearFusion (extra Linear+GELU) instead of 1-layer
 
     # Transformer
     d_model: int = 0  # 0 = auto (signal tower output dim)
@@ -67,6 +68,9 @@ class EncoderConfig:
         "dual", "xtransformers", "production_dual"
     ] = "xtransformers"
     dropout: float = 0.1
+    attn_qk_norm: bool = False  # normalize Q/K vectors before attention (xtransformers)
+    transformer_layer_drop: float = 0.0  # stochastic depth: drop transformer layers with this prob (train only)
+    output_rms_norm: bool = False  # RMSNorm on encoder output [B, L2, d_model] before decoder
 
     # Input signal transform (applied internally by encoder)
     signal_transform: Literal["none", "log1p", "arcsinh"] = "log1p"
