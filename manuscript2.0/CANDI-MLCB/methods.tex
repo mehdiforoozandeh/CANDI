@@ -262,3 +262,15 @@ We employ nested cross-validation to rigorously evaluate predictive performance 
 
 If denoised signals outperform observed signals, this indicates the model successfully removes noise while preserving biologically relevant information. If denoised+imputed signals further improve predictions, this demonstrates that imputation adds meaningful regulatory context by filling in missing assays with biologically accurate predictions. The latent embeddings $\mathbf{Z}$ represent a rich, compressed representation of the epigenomic state that may contain biologically relevant information not explicitly decoded into signal predictions but potentially informative for expression prediction.
 
+\subsection{Chromatin State Annotation Reproducibility}
+
+Semi-automated genome annotation (SAGA) summarizes multiple epigenomic tracks into a single chromatin state annotation, but such annotations are frequently irreproducible across replicates because they inherit the noise of their input data~\cite{shahraki2024robust}. To test whether CANDI mitigates this, we annotated the genome with an 18-state hidden Markov model at 200~bp resolution using four input sources:
+\begin{enumerate}
+    \item Observed signals from available assays
+    \item CANDI denoised signals for available assays
+    \item CANDI denoised+imputed signals across all 35 assays
+    \item CANDI latent embeddings $\mathbf{Z}$
+\end{enumerate}
+
+Because CANDI's signal predictions are Gaussian distributions rather than point estimates, we annotate them with a soft-evidence HMM whose emission is the predicted distribution, $b_k(\hat{\mu}_t, \hat{\sigma}^2_t) = P(\hat{\mu}_t, \hat{\sigma}^2_t \mid q_t = k)$, so that predictive uncertainty propagates into the annotation; observed signals and latent embeddings are annotated with a standard Gaussian HMM. We quantify reproducibility with SAGAconf~\cite{shahraki2024robust}, which compares two replicate annotations of a biosample, assigns each genomic position a calibrated reproducibility score, and reports the \emph{robustness ratio}: the fraction of the genome that receives a confident, reproducible state assignment.
+

@@ -93,3 +93,17 @@ Our results show that denoised signals marginally outperform raw observed signal
 Furthermore, while the predictive power of observed and denoised signals depends heavily on the number of available input assays, the performance of the Imputed+Denoised and Latent settings is robust to input sparsity, demonstrating CANDI's ability to compensate for missing data (Figure \ref{fig:conf}: J).
 
 
+\subsection{CANDI-derived chromatin state annotations are more reproducible}
+
+A primary downstream use of epigenomic data is chromatin state annotation, yet these annotations are notoriously irreproducible when derived from noisy or sparse measurements~\cite{shahraki2024robust}. Because CANDI denoises and imputes epigenomic signal while explicitly modeling its uncertainty, we hypothesized that annotations built on CANDI's outputs would be more reproducible than those built on observed data. We annotated six held-out biosamples with an 18-state hidden Markov model using four input sources---observed signals, CANDI denoised signals, CANDI denoised+imputed signals, and CANDI latent embeddings---and measured reproducibility using SAGAconf's robustness ratio, the fraction of the genome assigned a confident, reproducible chromatin state (Methods).
+
+In every biosample, at least one CANDI-derived source yielded a more reproducible annotation than observed data, and the latent representation $\mathbf{Z}$ was the most consistently reproducible, achieving the highest robustness ratio in four of the six biosamples (Figure~\ref{fig:saga}). The improvement was often substantial: in neural progenitor cells, the latent-derived annotation confidently reproduced 87\% of the genome compared to 60\% for observed data. This parallels our gene-expression results---the same denoised, imputed, and latent representations that best predict transcription also produce the most reproducible chromatin state annotations---indicating that CANDI distills consistent biological structure from noisy measurements rather than merely smoothing the input signal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{saga.png}
+    \caption{\textbf{CANDI-derived chromatin state annotations are more reproducible.} Each panel corresponds to one held-out biosample. Chromatin state annotations were computed from four input sources---observed signals (\emph{obs}), CANDI denoised signals (\emph{den}), CANDI denoised+imputed signals (\emph{denimp}), and CANDI latent embeddings (\emph{latent})---and scored with SAGAconf. Bars show the robustness ratio: the fraction of the genome receiving a confident, reproducible state assignment (higher is more reproducible). In every biosample, at least one CANDI-derived source exceeds the observed-data annotation, with the latent representation most consistently best.}
+    \label{fig:saga}
+\end{figure}
+
+
