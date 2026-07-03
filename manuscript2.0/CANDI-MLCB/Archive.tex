@@ -1,0 +1,135 @@
+\documentclass[twoside,11pt]{article}
+
+\usepackage{jmlr2e}
+\usepackage{lscape}
+\usepackage{rotating}
+\usepackage{todonotes}
+\usepackage{amsmath}
+
+% Definitions of handy macros can go here
+
+\newcommand{\dataset}{{\cal D}}
+\newcommand{\fracpartial}[2]{\frac{\partial #1}{\partial  #2}}
+
+% Heading arguments are {volume}{year}{pages}{submitted}{published}{author-full-names}
+
+% \jmlrheading{1}{2000}{1-48}{4/00}{10/00}{Marina Meil\u{a} and Michael I. Jordan}
+
+% Short headings should be running head and authors last names
+
+% \ShortHeadings{Towards robust annotation of genomic functional elements}
+\firstpageno{1}
+
+\begin{document}
+
+\title{Self-supervised denoising of genomic data by modeling experimental variables and uncertainty}
+
+\author{\centering\name Mehdi Foroozandeh, Maxwell Libbrecht\\}
+
+\maketitle
+
+\vspace{-2em}
+\begin{abstract}%   <- trailing '%' for backward compatibility of .sty file
+
+\end{abstract}
+
+\begin{keywords}
+  denoising; imputation; uncertainty modeling; self-supervised learning; epigenomics
+\end{keywords}
+
+\section{Introduction}
+
+The availability of genomic and epigenomic sequence data, including ChIP-seq data and DNA accessibility, is rapidly increasing. A major confounding factor in genomic research is the noisy and often irreproducible measurements obtained using sequencing methods. 
+\todo[inline]{Cite existing normalization methods: MACS2, S3norm, etc}
+Our recent study \cite{shahraki2024robust} showed that much of the irreproducibility in chromatin state assignments (derived from several ChIP-seq measurements) stems from poor data quality.
+
+Imputed experiments have shown to be less noisy  \cite{ernst2015large}, using other experiments in different cell types and assays within the same cell type to impute an experiment of interest. As these methods aggregate signals across several experiments, they are expected to average out noise and to distill true signals in their imputations. \todo[inline]{Describe practice of ignoring each experiment respectively and imputing it from the others; cite usage by Roadmap, IHEC (and ENCODE?)}
+
+Several imputation methods have been proposed.\todo{can shorten this paragraph} ChromImpute \cite{ernst2015large} is widely used with a simple design using regression trees. However, it requires training one model per assay-cell type pair (203 separate models in the original paper), which cannot capture recurring patterns across experiments and cell types, and does not account for neighboring positions. Avocado \cite{schreiber2020avocado} and PREDICTD \cite{durham2018predictd} are matrix factorization-based methods that learn distinct representations for cell types, experiments, and genomic positions, but they are highly over-parameterized (Avocado: 3.4B parameters, PREDICTD: 11.5B parameters per model). eDICE \cite{hawkins2023getting}, the current state-of-the-art using attention-based methods, is parameter-efficient (6M) but lacks consideration of neighboring positions. Recent studies such as EPCOT \cite{zhang2023generalizable} and dHICA \cite{wen2024discriminative} have used only accessibility data (DNase or ATAC-seq) alongside reference genome DNA sequences to predict histone modification assays. The International Human Epigenome Consortium (IHEC) uses ChromImpute to obtain denoised data in their pipeline \cite{bujold2016international}.
+
+The ENCODE Imputation Challenge (EIC) \cite{schreiber2023encode}, a competition encouraging researchers to design  imputation methods, revealed inherent challenges with imputation tasks and data, particularly due to experimental variability e.g. different assays, labs, and data processing methods, etc. For benchmarking, they used quantile normalization to adjust signal values and reduce batch effects. Yet, quantile normalization did not correct differences in peak shapes between single-end and paired-end data. EIC suggested future methods should rely on raw read counts and account for experimental covariates like read length, sequencing depth, and single-end vs. pair-end sequencing.
+
+\todo[inline]{Change motivation. Limitation of current methods: They throw away entirely the data set they're trying to impute.}
+A significant limitation of current methods is that imputation for denoising cannot be performed ``zero-shot"; several experiments in the same cell type and same assay are needed to assure accurate imputation. EIC \cite{schreiber2023encode} also highlighted performance disparity between imputations of well-characterized and poorly-characterized cell types. While more closely related and informative experiments in the training set should lead to more accurate imputations for any given target, fewer experiments may lead to inaccurate and irreproducible results. No current imputation method explicitly models uncertainty in their predictions. As shown by SAGAconf \cite{shahraki2024robust}, available data and methods suffer from poorly calibrated measures of confidence. Given the stochastic and uncertain nature of available data and their underlying biological processes, there is a desperate need for methods that explicitly model uncertainty in their predictions.
+
+Self-supervised learning (SSL) leverages large amounts of unlabeled data by detecting structural and recurring patterns. Inspired by the success of SSL paradigms, we present a method specifically trained for cell-type agnostic denoising of genomic data, enabling zero-shot use for new cell-types. The underlying idea is that epigenetic marks represent a molecular language regulating the genome consistently across different cell types. Our approach models experimental variables and metadata, using raw read counts to predict negative binomial distributions for each genomic position, thereby capturing prediction uncertainty and enhancing experimental data by simulating higher sequencing depth.
+
+
+
+\todo[inline]{Can explain just the approach: i.e. what data sets are input/output. And maybe architecture.}
+\section{Methods}
+\subsection{Data Collection and Preprocessing}
+We collected data from the ENCODE portal, starting from BAM files of sequenced reads aligned to the reference genome hg38. We selected a comprehensive set of assays to ensure broad coverage of genomic features. This included DNA accessibility assays (DNase-seq and ATAC-seq), histone modification ChIP-seq assays (all XX assays included in the ENCODE Imputation Challenge), and transcription factor ChIP-seq assays (Supplementary Section REF). 
+We included all biosamples (i.e. cell lines, tissues and cell types) with at least one histone modification data available, all biosamples with either DNase or ATAC-seq data available, and all biosamples with more than three of the selected TF assays available.
+
+
+To process the BAM files into signals, we divided the genome into bins of 25 base pairs (bp) each. We counted the number of reads aligning to each genomic bin, generating a signal representing read density per bin.
+
+To train the model to upsample experiments across different levels of sequencing depth, we generated downsampled versions of each BAM file that simulate lower read depth. The downsampling factors were as follows: no downsampling (all reads aligned to the genome), 1/2, 1/4, and 1/8 downsampling, randomly aligning half, a quarter, and an eighth of the reads to the genome, respectively.
+
+Each processed experiment data is associated with four metadata covariates: sequencing depth (total number of aligned reads), sequencing type (whether the sequencing was single-end or paired-end), read length (in base pairs), and genome coverage (fraction of genomic bins with at least one read aligned to it).
+
+
+\todo[inline]{Dec 5th introduction:
+The availability of genomic and epigenomic sequence data, including ChIP-seq and ATAC-seq, is rapidly increasing. A major confounding factor in genomic research is the noisy and often irreproducible measurements obtained using sequencing methods \cite{zhang2008model, xiang2020s3norm}. 
+For example, we recently showed that much of the irreproducibility in chromatin state assignments (derived from several ChIP-seq measurements) stems from poor data quality \cite{shahraki2024robust}. 
+
+A predominant approach for reducing noise in epigenomic data sets is to use imputation. 
+Imputed experiments have shown to be less noisy  \cite{ernst2015large}, using other experiments in different cell types and assays within the same cell type to impute an experiment of interest. 
+%As these methods aggregate signals across several experiments, they are expected to average out noise and to distill true signals in their imputations. 
+
+Several methods have been developed for imputing epigenetic data. ChromImpute \cite{ernst2015large} requires a separate model for each cell type-assay pair, limiting its ability to generalize patterns and consider neighboring genomic positions. Avocado \cite{schreiber2020avocado} and PREDICTD \cite{durham2018predictd} employ matrix factorization but suffer from being highly over-parameterized. Although eDICE \cite{hawkins2023getting} is more parameter-efficient, it also fails to account for neighboring positions. The International Human Epigenome Consortium (IHEC) uses ChromImpute to obtain denoised data in their pipeline \cite{bujold2016international}. To benchmark different methods, ENCODE Imputation Challenge (EIC) \cite{schreiber2023encode} used quantile normalization to adjust signal values, which did not fully address differences in data characteristics like single-end versus paired-end sequencing. The EIC findings suggest that future methods should utilize raw read counts and incorporate experimental covariates such as sequencing depth and sequencing type to improve imputation quality.
+
+Currently, the predominant approach for imputation-based denoising imagines that a target experiment was not performed and imputes that experiment using all other available experiments \cite{ernst2015large}. 
+However, this approach ignores the information gained from the target data set.
+Additionally, 
+%inefficiently discards the target dataset during the imputation process, leading to a wasteful use of potentially valuable data. Second, accurate imputation often requires numerous well-characterized experiments for the same cell type and assay. This dependency creates a significant performance gap between well-studied and poorly characterized cell types, as observed in EIC \cite{schreiber2023encode}. Consequently, fewer available experiments for a cell type can result in inaccurate and irreproducible imputations. Third, 
+no current methods explicitly model the uncertainty of their predictions, a critical oversight given the stochastic nature of biological data.
+
+Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a method for denoising imputation based on self-supervised learning (SSL). 
+SSL methods are trained by corrupting (e.g., masking) and reconstructing subsets of observed data. These methods leverage large amounts of unlabeled data by detecting structural and recurring patterns. Inspired by the success of SSL paradigms, we present a method specifically designed for denoising imputation of genomic data, enabling zero-shot use for new cell-types. The underlying idea is that epigenetic marks represent a molecular language regulating the genome consistently across different cell types. Our approach models experimental variables and metadata, using raw read counts to predict negative binomial distributions for each genomic position, thereby capturing prediction uncertainty and enhancing experimental data by simulating higher sequencing depth.
+}
+
+\subsection{Model Architecture}
+
+The model architecture comprises several components designed to process  genomic sequences and experimental covariates simultaneously. The metadata embedding module embeds four elements -- runtype (single-end or pair-end), read\_length, $\log_{2} (\text{sequencing depth})$, and genome coverage -- for all assays. These covariates are embedded separately for both input and output metadata, with input metadata reflecting the current state of the assays and output metadata serving as a "prompt" during inference. The prompt consists of the expected sequencing depth, runtype, genome coverage, and read length for the assays the model aims to simulate. During training, the output metadata corresponds to the original, non-downsampled assays, while the input metadata may represent various levels of downsampling, indicated by -1 for missing values and -2 for masked values. The availability tensor indicates whether each assay is available, missing, or masked, with corresponding values of 1, 0, and -2.
+
+The convolution tower utilizes depth-wise convolutions to learn different features (kernels) for each assay (experiment) separately. This approach is necessary because many features are marked as missing (-1), preventing the use of shared kernels across all experiments. The pooling layer, specifically MaxPooling, learns hierarchical features from the sequence and compresses the sequence, while residual connections allow gradient flow through shortcuts, aiding in training deeper networks. The compressed sequence output from the convolution tower is fed into several transformer blocks with multi-head self-attention. These blocks enable the model to capture long-range dependencies and contextual information across the sequence. 
+
+A single layer of depthwise convolution with a kernel size of 1 is used on the original, non-compressed sequence to transform it into the \(d_{model}\) space. This approach leverages the same depthwise convolution strategy as the main convolution tower but without pooling and with a minimal kernel size. Essentially, this layer functions like a set of linear projections, one per assay, to map each assay into a \(d_{model} / \text{num\_assays}\) space. The cross-attention transformer blocks then use the output of the self-attention transformer blocks as the key and value, while the output of the convolution layer forms the query. Cross-attention decompresses the sequence back to the original length, with the attention matrix now being of size \(L' \times L\), where \(L' = L / (\text{pool\_size} ^ \text{num\_conv\_blocks})\). This method is memory efficient for modeling long genomic sequences, reducing quadratic memory usage in the self-attention blocks.
+
+Self-attention mechanisms have memory usage that scales quadratically with the sequence length \(L\) because the attention matrix is of size \(L \times L\). This can be prohibitive when working with long sequences. We address this issue by first compressing the sequence length \(L\) to  \(L'\) where \(L' \ll L\) using a convolutional tower. This compressed sequence is then processed by transformer blocks with self-attention, which now have a smaller attention matrix size of \(L' \times L'\). Finally, to return to the original resolution, we use a cross-attention block with an attention matrix of size \(L \times L'\). This approach significantly reduces the memory footprint while still capturing long-range dependencies.
+
+The negative binomial distribution is often used to model count data and is characterized by two parameters: \(n\), the number of successes, and \(p\), the probability of success in each trial. In our model, the negative binomial layer is composed of two linear layers of size \texttt{(d\_model * num\_assays)}. One linear layer uses a softplus activation to ensure positive values, corresponding to parameter \(n\) of the negative binomial, while the other linear layer uses a sigmoid activation to ensure values between 0 and 1, corresponding to parameter \(p\) of the negative binomial distribution. The model also includes mask and missing prediction layers inspired by VIME \todo{cite VIME}. These consist of two linear layers of size \texttt{(d\_model * num\_assays)}, both wrapped with sigmoid activation. One layer predicts which entries in the input were masked, and the other predicts which entries in the input were missing.
+
+\subsection{Training Procedure}
+
+The training procedure begins with data preparation, excluding chromosome 21 from training and generating random loci from cCRE regions as they are known to have open chromatin in at least one cell type, ensuring the presence of informative and biologically relevant patterns for model learning. For each loci and biosample, all available data and metadata are loaded. The inputs to the model include the input sequence \texttt{(B, L, num\_assays)}, where \texttt{B} is the batch size, and \texttt{L} is the context length. Metadata inputs consist of input metadata \texttt{(B, 4, num\_assays)} for each assay in the input sequence, with missing values marked by -1 and masked values by -2. Output metadata \texttt{(B, 4, num\_assays)} contain information from the original assays during training or serve as a prompt for the assays to simulate during inference. Availability \texttt{(B, num\_assays)} indicates whether assays are available (1), missing (0), or masked (-2).
+
+A certain percentage of available features in the input are masked by replacing their values with -2 (mask token), while missing values are marked by -1. During inference, all missing entries are marked with the mask token (-2), which the model was trained to predict. The model outputs parameters of the negative binomial distribution, including \texttt{n} and \texttt{p} tensors of shape \texttt{(B, L, num\_assays)}, a missing tensor \texttt{(B, L, num\_assays)} predicting which entries were missing, and a mask tensor \texttt{(B, L, num\_assays)} predicting which entries were masked.
+
+The loss function is a weighted combination of several objectives: negative binomial negative log-likelihood for (1) observed and (2) masked values, and binary cross-entropy for (3) mask and (4) missing tensors. The model is trained to predict missing assays based on their target metadata and other available experiments, and to upsample assays provided in the input based on the target metadata . The Adamax optimizer is used to optimize the model parameters.
+
+\subsection{Evaluation metrics}
+
+We split the dataset into training (70\%), validation (15\%), and test (15\%) sets by randomly selecting biosamples. We excluded chromosome 21 from training and reserved it solely for evaluation. Using the trained model, we denoised chromosome 21 in the test biosamples. We then calculated metrics by comparing the denoised signals to the original experimental data.
+
+For genome-wide metrics, we calculated the Mean Squared Error (MSE-GW), which measures the average squared differences between observed and predicted values across the genome. We assessed the linear correlation between observed and predicted values using Pearson Correlation (Pearson-GW) and evaluated the monotonic relationship using Spearman Correlation (Spearman-GW). Additionally, we calculated the R-squared (R2-GW) to determine the proportion of variance in the observed data explained by the predicted values.
+
+For region-specific metrics, we focused on gene and promoter regions. In gene regions, we calculated MSE (MSE-Gene), Pearson Correlation (Pearson-Gene), Spearman Correlation (Spearman-Gene), and R-squared (R2-Gene). Similarly, for promoter regions (TSS), we calculated MSE (MSE-Prom), Pearson Correlation (Pearson-Prom), Spearman Correlation (Spearman-Prom), and R-squared (R2-Prom).
+
+We also evaluated the model's performance at high signal values by focusing on the top 1\% of genomic positions. For the top 1\% observed signals, we calculated MSE (MSE-1obs), Pearson Correlation (Pearson-1obs), Spearman Correlation (Spearman-1obs), and R-squared (R2-1obs). For the top 1\% predicted signals, we calculated MSE (MSE-1imp), Pearson Correlation (Pearson-1imp), Spearman Correlation (Spearman-1imp), and R-squared (R2-1imp).
+
+Lastly, we evaluated peak overlap between observed and predicted values at various thresholds (e.g., top 1\%, 5\%, and 10\% of signal values) to assess how well the model predicts the highest signal regions in the observed data.
+
+\section{Results and discussion}
+
+\section{Conclusion}
+
+\newpage
+\bibliographystyle{abbrv}
+\bibliography{sample}
+\end{document}
+
+
+

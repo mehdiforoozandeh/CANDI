@@ -1,0 +1,80 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{amsmath, amsfonts}
+% NOTE: switched biblatex[style=ieee] -> natbib + bibtex (ieeetr) so the paper
+% builds on Compute Canada (no biber / no biblatex core on the cvmfs TeX Live).
+% Same IEEE numeric style; \cite{} is unchanged. Revert for an Overleaf build.
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{todonotes}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+\renewcommand{\baselinestretch}{1}
+
+\title{CANDI:\\ Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
+
+\author[1]{\small Mehdi Foroozandeh}
+\author[1]{Abdul Rahman Diab}
+\author[1]{Maxwell Libbrecht}
+\affil[1]{School of Computing Science, Simon Fraser University, Burnaby, Canada}
+\date{}
+
+
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+Large-scale epigenomic datasets such as histone modifications and DNA accessibility have greatly advanced our understanding of genomic function.  However, these measurements often suffer from noise, batch effects and irreproducibility. Epigenome imputation has emerged as a promising solution to these challenges. These methods integrate patterns across experiments, cell types, and genomic loci to predict the results of experiments, yielding predictions that often surpass observed data in quality. Thus, researchers increasingly leverage imputation for denoising data prior to downstream analysis. 
+
+However, existing methods for imputation-based denoising have significant limitations. Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a self-supervised deep learning method for epigenome imputation and denoising. CANDI takes as input raw read counts, DNA sequence, and experiment-specific covariates (e.g., sequencing depth and real length), and outputs three complementary predictions as probability distributions: raw counts (negative binomial), processed signal values (Gaussian), and peak calls (Bernoulli). CANDI can optionally incorporate information from a low-quality existing experiment when predicting a target without retraining. By conditioning on experimental metadata rather than learned cell-type embeddings, CANDI enables zero-shot generalization to unseen cell types without retraining. We demonstrate that CANDI achieves state-of-the-art performance in recovering epigenomic signal structure while providing calibrated uncertainty estimates.
+
+
+% However, existing methods for imputation-based denoising have significant limitations. Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a method for epigenome imputation that (1) gets as input raw counts and experiment-specific covariates such as sequencing depth,
+% (2) can (optionally) incorporate information from a low-quality existing experiment when predicting a target without retraining, and (3) outputs a calibrated measure of uncertainty. This approach is enabled using self-supervised learning (SSL) training.
+
+
+\newpage
+\section{Introduction}
+    \input{introduction.tex}
+
+
+% \newpage
+\section{Results}
+    \input{results}
+
+% \section{Discussion}
+% Effective denoising imputation with CANDI promises to greatly improve all downstream applications of epigenomic data sets, including chromatin state annotation and predictive modeling. 
+% CANDI enables the creation of ``supertracks'' that simulate a complete data set with excellent experiment quality and uniform experimental parameters. 
+
+% \todo[inline]{
+% 
+% 
+% Future work: 
+% This can make supertracks; evaluating them is future work. 
+% Train/evaluate across replicates. 
+%Future work: evaluate latent representation. 
+% 
+%Maybe there is a better way of masking features? 
+% 
+% This confirms the hypothesis that it's possible to do imputation while being CT-agnostic and position-agnostic.
+% Epistemic vs aleatoric uncertainty. Epistemic uncertainty is reducible but aleotoric is not: even replicates of the same experiment are not exactly the same. 
+% }
+
+% \newpage
+\section{Methods}
+    \input{methods}
+
+\section*{Data and Code Availability}
+All codes, implementation details, and data collection procedures are available at \\ \url{https://github.com/mehdiforoozandeh/CANDI}.
+
+\newpage
+\bibliographystyle{ieeetr}
+\bibliography{main}
+\end{document}

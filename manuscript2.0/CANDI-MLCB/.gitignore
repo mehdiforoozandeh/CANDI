@@ -1,0 +1,14 @@
+# LaTeX build artifacts — rebuild with:
+#   latexmk -synctex=1 -interaction=nonstopmode -file-line-error -pdf -outdir=build main.tex
+build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.lof
+*.lot
