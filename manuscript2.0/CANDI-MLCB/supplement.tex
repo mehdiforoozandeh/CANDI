@@ -1,0 +1,153 @@
+% supplement.tex — Supplementary material for CANDI (MLCB submission)
+% The main paper is self-contained; this appendix provides extended methods and figures.
+
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\section{Supplementary Figures}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.42\textwidth}\centering\includegraphics[width=\linewidth]{unc_cv_dnase}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.42\textwidth}\centering\includegraphics[width=\linewidth]{unc_cv_h3k4me3}\caption{}\end{subfigure}
+    \caption{\textbf{Predicted coefficient of variation flags under-predicted signal.} Scatter density plots of predicted vs.\ observed signals (in $\text{arcsinh}$ space) colored by the predicted Coefficient of Variation (CV) for \textbf{(A)} DNase-seq and \textbf{(B)} H3K4me3. High CV values (yellow/orange) in regions where the model under-predicts signal magnitude indicate that CANDI correctly assigns high aleatoric uncertainty to these predictions.}
+    \label{fig:cv}
+\end{figure}
+
+\section{Supplementary Methods}
+
+\subsection{Cell Type Merging (Extended ENCODE Dataset)}
+
+To address the sparsity of the $3{,}064 \times 35$ experiment availability matrix while maintaining biological relevance, we implemented a cell type-based merging strategy. This merging strategy significantly improved data density, increasing the median number of available assays per sample from 1 (per biosample) to 6 (per merged cell type). Our merging strategy groups biosamples by their annotated cell type (biosample term name in ENCODE) and further organizes them based on isogenic replicate relationships. Within each cell type, we identify sets of biosamples that are isogenic replicates (derived from the same donor) and share at least three assays in common---these form replicate groups. Each replicate group is assigned a group identifier (grp), and individual biosamples within a group are labeled as replicates (rep). For example, \texttt{cardiac\_muscle\_cell\_grp1\_rep1} and \texttt{cardiac\_muscle\_cell\_grp1\_rep2} represent two isogenic replicates from the same cardiac muscle cell type that share a common set of experiments. Biosamples that lack isogenic replicate annotations or do not share sufficient experiments with other samples are aggregated into a single ``non-replicate'' sample (e.g., \texttt{right\_lobe\_of\_liver\_nonrep}), where experiments are selected to maximize consistency of donor, lab, and biosample accession. This strategy preserves biological relationships while maximizing the number of assays available per merged sample for training.
+
+\subsection{Control Integration and Downsampling}
+
+For each biosample containing ChIP-seq experiments, we obtained the corresponding ChIP-seq control (input) experiments. These control signals are provided as an additional always-available input channel to the model, forming an $(A+1)$-dimensional input where the $(A+1)$-th feature represents the control signal. Controls are never masked during training, serving as a stable reference for batch effect normalization. To simulate varying sequencing depths, we implemented read downsampling in BAM files. The Downsampling Factor (DSF) determines the fraction of reads retained: $\text{DSF} = 1$ retains all reads, $\text{DSF} = 2$ randomly samples 50\% of reads, and $\text{DSF} = 4$ randomly samples 25\% of reads. The default DSF list used during training is $\{1, 2, 4\}$.
+
+\subsection{Output Distributions}
+
+The choice of probability distributions is motivated by the statistical properties of each output type. For raw read counts, we use the negative binomial distribution, which is well-established for modeling sequencing count data due to its ability to capture overdispersion---a common characteristic of epigenomic experiments where variance exceeds the mean. The Poisson distribution is a special case of the negative binomial with fixed dispersion, but empirical studies have shown that epigenomic count data typically exhibit overdispersion, making the negative binomial more appropriate \cite{anders2010differential}.
+
+For processed signal values, we predict $\text{arcsinh}$-transformed $p$-values following previous methods for variance stabilization \cite{hoffman2012unsupervised}. We model these transformed values with a Gaussian distribution, predicting both the mean ($\mu$) and variance ($\sigma^2$). Unlike standard MSE optimization, which implicitly assumes constant variance across all predictions, our approach allows the model to express position-varying uncertainty. By jointly optimizing both parameters via Gaussian negative log-likelihood, the model learns to output higher variance in regions where predictions are inherently more uncertain---capturing aleatoric uncertainty that reflects irreducible noise in the data rather than model limitations.
+
+\subsection{Encoder $\mathcal{E}$}
+
+The encoder integrates epigenomic data $\mathbf{M}$, DNA sequence context $\mathbf{S}$, and experimental covariates $\mathbf{C}_{\text{in}}$ into a latent representation $\mathbf{Z} \in \mathbb{R}^{N \times L' \times d_{\text{model}}}$.
+
+\paragraph{1. Epigenetic Signal Convolution Tower:}
+Processes the epigenomic signals with $n_{\text{cnn}} = 3$ depth-wise separable convolution layers. Each layer applies convolution with kernel size $k = 3$, followed by normalization, GELU activation, and average pooling with $\text{pool\_size} = 2$. This progressively reduces the spatial dimension from $L = 1{,}200$ to $L' = 150$ while expanding the feature dimension:
+\begin{equation}
+    L' = \frac{L}{\text{pool\_size}^{n_{\text{cnn}}}} = \frac{1200}{2^3} = 150
+\end{equation}
+After each convolution layer, a MetadataCrossAttention module conditions the features on experimental covariates using FiLM (Feature-wise Linear Modulation) \cite{perez2018film}.
+
+\paragraph{2. DNA Sequence Convolution Tower:}
+Processes the one-hot encoded DNA sequence with $n_{\text{cnn}} + 2 = 5$ convolution layers. The first three layers use $\text{pool\_size} = 2$, and the final two layers use $\text{pool\_size} = 5$ to match the epigenomic resolution:
+\begin{equation}
+    L'_{\text{DNA}} = \frac{G}{\text{pool\_size}^{n_{\text{cnn}}} \times 5^2} = \frac{30000}{2^3 \times 25} = 150
+\end{equation}
+This produces DNA features $\mathbf{S}^{(\text{final})} \in \mathbb{R}^{N \times L' \times d_{\text{model}}}$.
+
+\paragraph{3. Metadata Cross-Attention:}
+At each convolutional layer, experimental covariates modulate the learned features through cross-attention. For each assay $a$, we embed the four covariates (depth, run\_type, read\_length, sequencing\_platform) into a query vector $\mathbf{q}_a$. This query attends to the spatial features of that assay, producing scale ($\boldsymbol{\gamma}_a$) and shift ($\boldsymbol{\beta}_a$) parameters for FiLM conditioning:
+\begin{equation}
+    \mathbf{h}'_a = \boldsymbol{\gamma}_a \odot \mathbf{h}_a + \boldsymbol{\beta}_a
+\end{equation}
+where $\odot$ denotes element-wise multiplication and $\mathbf{h}_a$ are the features for assay $a$.
+
+\paragraph{4. Fusion:}
+The epigenomic and DNA features are concatenated along the feature dimension and projected back to $d_{\text{model}}$ dimensions through a linear layer with layer normalization:
+\begin{equation}
+    \mathbf{H}^{(0)} = \text{LayerNorm}\left(\mathbf{W}_{\text{fusion}} \left[\mathbf{M}^{(\text{final})}; \mathbf{S}^{(\text{final})}\right] + \mathbf{b}_{\text{fusion}}\right)
+\end{equation}
+
+\paragraph{5. Transformer Encoder:}
+Applies $n_{\text{sab}} = 4$ transformer encoder layers with $n_{\text{head}} = 9$ attention heads. We use rotary positional embeddings (RoPE) for improved length generalization. Each layer consists of multi-head self-attention followed by a feed-forward network with GELU activation and dropout $= 0.1$:
+\begin{align}
+    \mathbf{H}^{(i+1)} &= \text{FFN}\left(\text{MultiHeadAttn}\left(\mathbf{H}^{(i)}\right)\right) \\
+    \mathbf{Z} &= \mathbf{H}^{(n_{\text{sab}})}
+\end{align}
+
+\subsection{Decoders $\mathcal{D}$}
+
+Given latent representation $\mathbf{Z}$ and output covariates $\mathbf{C}_{\text{out}}$, three separate decoders reconstruct the output distributions:
+
+\paragraph{1. Output Covariate Embedding:}
+Output covariates are embedded using the same MetadataCrossAttention mechanism as the encoder, providing the model with information about the desired output experimental conditions.
+
+\paragraph{2. Deconvolution Towers:}
+Each decoder employs $n_{\text{cnn}} = 3$ transposed convolution layers that invert the encoder's pooling and feature compression. After each deconvolution layer, MetadataCrossAttention conditions the features on output covariates, allowing the model to generate outputs appropriate for specific experimental conditions.
+
+\paragraph{3. Distribution Output Layers:}
+\begin{itemize}
+    \item \textbf{NegativeBinomialLayer:} Two linear projections produce $\hat{n}$ (via softplus for positivity) and $\hat{p}$ (via sigmoid for $[0,1]$ range):
+    \begin{align}
+        \hat{n} &= \text{softplus}(\mathbf{W}_n \mathbf{x} + \mathbf{b}_n) \\
+        \hat{p} &= \sigma(\mathbf{W}_p \mathbf{x} + \mathbf{b}_p)
+    \end{align}
+
+    \item \textbf{GaussianLayer:} Two linear projections produce $\hat{\mu}$ (via softplus) and $\hat{\sigma}^2$ (via softplus):
+    \begin{align}
+        \hat{\mu} &= \text{softplus}(\mathbf{W}_\mu \mathbf{x} + \mathbf{b}_\mu) \\
+        \hat{\sigma}^2 &= \text{softplus}(\mathbf{W}_\sigma \mathbf{x} + \mathbf{b}_\sigma)
+    \end{align}
+
+    \item \textbf{PeakLayer:} A linear projection followed by sigmoid produces peak probabilities in $[0,1]$:
+    \begin{equation}
+        \text{peak} = \sigma(\mathbf{W}_{\text{peak}} \mathbf{x} + \mathbf{b}_{\text{peak}})
+    \end{equation}
+\end{itemize}
+
+\subsection{Self-Supervised Corruption Strategies}
+
+\paragraph{Full Assay Masking.}
+We randomly mask $k$ complete assays for each cell type, where $k \sim \text{Uniform}(1, n_{\text{available}} - 1)$. Both the data AND metadata for selected assays are masked, simulating the imputation scenario where some experiments are entirely missing. At least one assay always remains available per cell type to provide context.
+
+\paragraph{Full Loci Masking.}
+We randomly select contiguous chunks of genomic positions (default $\text{chunk\_size} = 40$ positions, $\sim$1kb) and mask these positions across ALL available assays simultaneously. This objective most closely parallels BERT-style masked language modeling, where the model learns to predict masked tokens from surrounding context. Here, genomic positions serve as ``tokens,'' and the model must infer epigenomic signals at masked positions using flanking regions and DNA sequence.
+
+\paragraph{Denoising via Upsampling.}
+For assays that remain unmasked, the model is trained to reconstruct the original high-quality signal from potentially downsampled (noisy) observations. The observed regions provide the upsampling/denoising training signal.
+
+\paragraph{Data Augmentation.}
+We apply reverse complement augmentation with probability 0.5. When applied, both the DNA sequence and epigenomic signals are reversed along the genomic axis, and the DNA bases are complemented (A$\leftrightarrow$T, C$\leftrightarrow$G). This data augmentation helps the model learn strand-invariant representations.
+
+\subsection{Training Loci}
+
+We use multiple strategies for selecting training genomic loci:
+\begin{itemize}
+    \item \textbf{cCRE:} Focus on genomic regions containing candidate cis-regulatory elements, which are enriched with informative epigenomic signals \cite{encode2020expanded}
+    \item \textbf{random:} Randomly selected non-overlapping regions across the genome
+    \item \textbf{full\_chr:} Complete coverage of specified chromosomes
+    \item \textbf{gw (genome-wide):} Full coverage across all autosomes and sex chromosomes
+\end{itemize}
+
+For all strategies, we exclude ENCODE blacklist regions (known problematic regions with anomalous signal accumulation) to ensure training data quality. We trained CANDI on 5,000 selected, non-overlapping regions, each spanning 30kb. We excluded chromosome 21, reserving it exclusively for testing purposes. In total, CANDI was trained on 150 million base pairs of genomic sequence, representing approximately 5\% of the human genome.
+
+\subsection{Uncertainty Metrics}
+
+\paragraph{Confidence Calibration.}
+To evaluate the reliability of the model's uncertainty estimates, we assess its calibration for all three output types. For counts and signal values, we measure the fraction of observed values that fall within the model's predicted $C\%$ confidence interval for $C \in [0, 1]$. A perfectly calibrated model produces a diagonal line ($y = x$), indicating that $c\%$ of observations fall within the $c\%$ confidence interval.
+
+\paragraph{Concordance Index.}
+Beyond interval coverage, we evaluate whether the model's uncertainty estimates correctly rank predictions using the concordance index (C-index). For Gaussian predictions with mean $\mu$ and standard deviation $\sigma$, the C-index measures the probability that the model correctly ranks pairs of observations by their true values. Formally, for a pair of positions $(i, j)$, we compute the probability that observation $i$ exceeds observation $j$ under the model:
+\begin{equation}
+    P(Y_i > Y_j) = \Phi\left(\frac{\mu_i - \mu_j}{\sqrt{\sigma_i^2 + \sigma_j^2}}\right)
+\end{equation}
+where $\Phi$ is the standard normal CDF. The C-index is then the AUC-ROC score comparing these predicted probabilities against the true binary labels ($\mathbf{1}[y_i > y_j]$). A C-index of 0.5 indicates random ranking, while 1.0 indicates perfect discrimination. This metric assesses whether the model's distributional predictions meaningfully capture the relative ordering of true signal values.
+
+\subsection{RNA-seq Prediction Details}
+
+For each gene, we extract summary features from epigenomic signals around three key regions: the transcription start site (TSS), gene body, and transcription end site (TES). We use adaptive margins set to 10\% of gene length for TSS and TES regions. From each region, we compute summary statistics including the median, interquartile range, minimum, and maximum signal values. We extract features from four signal sources:
+\begin{enumerate}
+    \item Observed epigenomic signals from available assays only
+    \item Denoised signals for assays where observations were provided as input
+    \item Denoised+imputed signals across all 35 assays---combining denoised predictions for available assays with imputed predictions for missing assays
+    \item Latent representations $\mathbf{Z}$ extracted from CANDI's transformer encoder
+\end{enumerate}
+
+For the latent representations, we compute the same summary statistics across each latent dimension for all three gene regions. We employ nested cross-validation to rigorously evaluate predictive performance while avoiding overfitting. The outer loop uses 5-fold cross-validation to estimate generalization performance, while the inner loop performs hyperparameter selection via grid search with 4-fold cross-validation. Each fold trains a pipeline consisting of standardization, dimensionality reduction (PCA retaining 50--90\% variance), and a regression model. We evaluate ridge and lasso regression, reporting Pearson correlation, Spearman correlation, and $R^2$ between predicted and observed $\log$-transformed TPM values.
+
+\subsection{Chromatin State Annotation Details}
+
+Because CANDI's signal predictions are Gaussian distributions rather than point estimates, we annotate them with a soft-evidence HMM whose emission is the predicted distribution, $b_k(\hat{\mu}_t, \hat{\sigma}^2_t) = P(\hat{\mu}_t, \hat{\sigma}^2_t \mid q_t = k)$, so that predictive uncertainty propagates into the annotation; observed signals and latent embeddings are annotated with a standard Gaussian HMM. We quantify reproducibility with SAGAconf~\cite{shahraki2024robust}, which compares two replicate annotations of a biosample, assigns each genomic position a calibrated reproducibility score, and reports the \emph{robustness ratio}: the fraction of the genome that receives a confident, reproducible state assignment.

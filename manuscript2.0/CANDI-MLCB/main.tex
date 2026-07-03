@@ -1,4 +1,4 @@
-\documentclass[a4paper, 12pt]{article}
+\documentclass[a4paper, 11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{authblk}
 \usepackage{graphicx}
@@ -11,9 +11,16 @@
 \usepackage{float}
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
+\usepackage{subcaption}
+\graphicspath{{mlcbCANDI_figs_png/}{Figures/}{./}}
+\renewcommand{\thesubfigure}{\Alph{subfigure}}
+\captionsetup{font=small}
+\setlength{\textfloatsep}{3pt}\setlength{\abovecaptionskip}{3pt}
+\setlength{\intextsep}{3pt}
+\setlength{\floatsep}{3pt}
 
 \setlength{\parindent}{0em}
-\setlength{\parskip}{0.5em}
+\setlength{\parskip}{0.05em}
 \renewcommand{\baselinestretch}{1}
 
 \title{CANDI:\\ Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
@@ -40,13 +47,12 @@ However, existing methods for imputation-based denoising have significant limita
 % (2) can (optionally) incorporate information from a low-quality existing experiment when predicting a target without retraining, and (3) outputs a calibrated measure of uncertainty. This approach is enabled using self-supervised learning (SSL) training.
 
 
-\newpage
 \section{Introduction}
     \input{introduction.tex}
 
 
 % \newpage
-\section{Results}
+\section{Results}\label{results}
     \input{results}
 
 % \section{Discussion}
@@ -71,10 +77,12 @@ However, existing methods for imputation-based denoising have significant limita
 \section{Methods}
     \input{methods}
 
-\section*{Data and Code Availability}
-All codes, implementation details, and data collection procedures are available at \\ \url{https://github.com/mehdiforoozandeh/CANDI}.
+\noindent\textbf{Data and Code Availability.} All codes, implementation details, and data collection procedures are available at \url{https://github.com/mehdiforoozandeh/CANDI}.
 
-\newpage
 \bibliographystyle{ieeetr}
 \bibliography{main}
+
+\newpage
+\appendix
+\input{supplement}
 \end{document}
