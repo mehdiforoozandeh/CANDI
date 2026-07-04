@@ -31,7 +31,7 @@ CANDI consists of a neural network model that includes convolutional, self-atten
 
 \begin{figure}[tbp]
     \centering
-    \includegraphics[width=0.38\textwidth]{fig1_architecture}
+    \includegraphics[width=0.58\textwidth]{fig1_architecture}
     \caption{\textbf{CANDI architecture overview.} (A) Input data organization showing the three-dimensional structure of epigenomic data across assays, genomic positions, and cell types. (B) Model architecture consisting of encoder and decoder components. The encoder processes DNA sequence and epigenomic count data through parallel convolution towers with per-layer metadata cross-attention, integrates experimental covariate information, and generates a latent representation using a transformer encoder with rotary positional embeddings. Three separate decoders predict count data (negative binomial parameters), signal values (Gaussian parameters), and peak locations (binary classification) for each assay and position. (C) Detailed architecture of key model components including convolution and deconvolution towers, transformer encoder blocks, and the metadata embedding module.}
     \label{fig:architecture}
 \end{figure}
@@ -56,10 +56,10 @@ Beyond correlation, we assessed prediction quality using peak classification met
 
     \begin{subfigure}[b]{0.75\textwidth}\centering\includegraphics[width=\linewidth]{imp_pearson}\caption{}\end{subfigure}
 
-    \begin{subfigure}[b]{0.225\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_dnase}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.225\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_h3k4me3}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.225\textwidth}\centering\includegraphics[width=\linewidth]{imp_peak_auroc_gw}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.225\textwidth}\centering\includegraphics[width=\linewidth]{imp_peak_auroc_prom}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_dnase}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_h3k4me3}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.205\textwidth}\centering\includegraphics[width=\linewidth]{imp_peak_auroc_gw}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.205\textwidth}\centering\includegraphics[width=\linewidth]{imp_peak_auroc_prom}\caption{}\end{subfigure}
     \caption{\textbf{Evaluation of CANDI imputation performance.} \textbf{(A)} Box plots displaying the genome-wide Spearman correlation coefficients for CANDI (teal) compared to baseline and top-performing EIC methods across various epigenetic assays. CANDI demonstrates superior performance in recovering signal rank-ordering. \textbf{(B)} Genome-wide Pearson correlation coefficients across assays. CANDI generally exhibits lower Pearson correlations compared to competitors, reflecting an underestimation of absolute signal magnitudes. \textbf{(C, D)} Scatter density plots comparing observed versus CANDI-predicted signal values (transformed to arcsinh space) for \textbf{(C)} DNase-seq in B\_RWPE2 cells and \textbf{(D)} H3K4me3 in B\_MG63 cells. The red dashed line indicates $y=x$. While the predictions show strong monotonic trends, the dynamic range is compressed relative to observations. \textbf{(E, F)} Peak classification performance assessed by the Area Under the Receiver Operating Characteristic (AUROC) curve for \textbf{(E)} genome-wide (Peak\_AUCROC-GW) and \textbf{(F)} promoter regions (Peak\_AUCROC-prom). CANDI achieves high classification accuracy across most marks, particularly for H3K4me3.}
 \label{fig:imp}
 \end{figure}
@@ -84,8 +84,8 @@ Visualizing the predicted Coefficient of Variation ($\text{CV} = \sigma/\mu$) re
     \begin{subfigure}[b]{0.235\textwidth}\centering\includegraphics[width=\linewidth]{unc_calib_dnase}\caption{}\end{subfigure}\hfill
     \begin{subfigure}[b]{0.235\textwidth}\centering\includegraphics[width=\linewidth]{unc_calib_h3k4me3}\caption{}\end{subfigure}
 
-    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_dnase}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_h3k4me3}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_dnase}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_h3k4me3}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}
         \caption{\textbf{Evaluation of CANDI’s uncertainty estimation.}
         \textbf{(A, B)} Box plots showing the Concordance Index (C-index), a metric evaluating the quality of the predicted probability distributions, for \textbf{(A)} genome-wide regions and \textbf{(B)} promoter regions. While genome-wide scores vary, calibration improves significantly in signal-enriched promoter regions (e.g., H3K4me3).
         \textbf{(C, D)} Confidence calibration curves for \textbf{(C)} DNase-seq and \textbf{(D)} H3K4me3 across multiple cell lines. The plots compare the predicted confidence level ($c$) against the actual fraction of data falling within that interval. The dashed orange line represents perfect calibration; CANDI shows stronger calibration for accessibility assays compared to histone marks.
@@ -106,18 +106,18 @@ Furthermore, while the predictive power of observed and denoised signals depends
 
 A primary downstream use of epigenomic data is chromatin state annotation, yet these annotations are notoriously irreproducible when derived from noisy or sparse measurements~\cite{shahraki2024robust}. Because CANDI denoises and imputes epigenomic signal while explicitly modeling its uncertainty, we hypothesized that annotations built on CANDI's outputs would be more reproducible than those built on observed data. We annotated six held-out biosamples with an 18-state hidden Markov model using four input sources---observed signals, CANDI denoised signals, CANDI denoised+imputed signals, and CANDI latent embeddings---and measured reproducibility using SAGAconf's robustness ratio, the fraction of the genome assigned a confident, reproducible chromatin state (Methods).
 
-In every biosample, at least one CANDI-derived source yielded a more reproducible annotation than observed data, and the latent representation $\mathbf{Z}$ was the most consistently reproducible, achieving the highest robustness ratio in four of the six biosamples (Figure~\ref{fig:biol}: C). The improvement was often substantial: in neural progenitor cells, the latent-derived annotation confidently reproduced 87\% of the genome compared to 60\% for observed data. This parallels our gene-expression results---the same denoised, imputed, and latent representations that best predict transcription also produce the most reproducible chromatin state annotations---indicating that CANDI distills consistent biological structure from noisy measurements rather than merely smoothing the input signal.
+In every biosample, at least one CANDI-derived source yielded a more reproducible annotation than observed data, and the latent representation $\mathbf{Z}$ was the most consistently reproducible, achieving the highest robustness ratio in four of the six biosamples (Figure~\ref{fig:biol}C shows two representative biosamples; all six in Supplementary Figure~\ref{fig:saga_full}). The improvement was often substantial: in neural progenitor cells, the latent-derived annotation confidently reproduced 87\% of the genome compared to 60\% for observed data. This parallels our gene-expression results---the same denoised, imputed, and latent representations that best predict transcription also produce the most reproducible chromatin state annotations---indicating that CANDI distills consistent biological structure from noisy measurements rather than merely smoothing the input signal.
 
 \begin{figure}[tbp]
     \centering
-    \begin{subfigure}[b]{0.33\textwidth}\centering\includegraphics[width=\linewidth]{rna_scatter}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.44\textwidth}\centering\includegraphics[width=\linewidth]{rna_vs_ntracks}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.27\textwidth}\centering\includegraphics[width=\linewidth]{rna_scatter}\caption{}\end{subfigure}\hspace{0.03\textwidth}%
+    \begin{subfigure}[b]{0.42\textwidth}\centering\includegraphics[width=\linewidth]{rna_vs_ntracks}\caption{}\end{subfigure}
 
-    \begin{subfigure}[b]{0.46\textwidth}\centering\includegraphics[width=\linewidth]{saga_repro}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.78\textwidth}\centering\includegraphics[width=\linewidth]{saga_top2}\caption{}\end{subfigure}
     \caption{\textbf{CANDI-derived features support downstream biological analyses.}
     \textbf{(A)} Scatter plot comparing gene expression prediction performance (Pearson correlation) using features derived from observed data ($x$-axis) versus CANDI-derived features ($y$-axis). CANDI's Latent embeddings (red triangles) consistently yield the highest predictive accuracy, outperforming Denoised (blue circles) and Denoised+Imputed (green crosses) inputs.
     \textbf{(B)} Line plot showing gene expression prediction performance as a function of the number of available input tracks. The performance of Latent embeddings (red) and Imputed signals (green) is robust to data sparsity, whereas the predictive power of Observed (black) and Denoised (blue) features declines with fewer input tracks.
-    \textbf{(C)} Chromatin state reproducibility. Each panel corresponds to one held-out biosample. Chromatin state annotations were computed from four input sources---observed signals (\emph{obs}), CANDI denoised signals (\emph{den}), CANDI denoised+imputed signals (\emph{denimp}), and CANDI latent embeddings (\emph{latent})---and scored with SAGAconf. Bars show the robustness ratio: the fraction of the genome receiving a confident, reproducible state assignment (higher is more reproducible). In every biosample, at least one CANDI-derived source exceeds the observed-data annotation, with the latent representation most consistently best.}
+    \textbf{(C)} Chromatin state annotation reproducibility for two representative held-out biosamples. Bars show the SAGAconf robustness ratio (the fraction of the genome receiving a confident, reproducible state assignment; higher is more reproducible) for annotations built from four input sources---observed signals (\emph{obs}), CANDI denoised signals (\emph{den}), CANDI denoised+imputed signals (\emph{denimp}), and CANDI latent embeddings (\emph{latent}). All six biosamples are shown in Supplementary Figure~\ref{fig:saga_full}.}
     \label{fig:biol}
 \end{figure}
 
