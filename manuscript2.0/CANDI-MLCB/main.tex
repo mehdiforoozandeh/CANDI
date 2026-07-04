@@ -34,6 +34,11 @@
 \setlength{\parskip}{0em}
 \renewcommand{\baselinestretch}{1}
 
+% Supplement is a separate document (supplementary.tex). xr lets the main paper
+% resolve \ref{} to supplementary figures (S1, S2) by reading its .aux.
+\usepackage{xr}
+\externaldocument{build/supplementary}
+
 \title{CANDI:\\ Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
 
 \author[1]{\small Mehdi Foroozandeh}
@@ -93,7 +98,5 @@ However, existing methods for imputation-based denoising have significant limita
 \bibliographystyle{ieeetr}
 \bibliography{main}
 
-\newpage
-\appendix
-\input{supplement}
+% Supplementary material is compiled separately: supplementary.tex -> build/supplementary.pdf
 \end{document}

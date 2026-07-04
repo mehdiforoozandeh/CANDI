@@ -1,0 +1,47 @@
+% supplementary.tex — standalone Supplementary Material for the CANDI MLCB submission.
+% Shares content with the supplement.tex include used by the (now separate) main paper.
+% Build: latexmk -pdf -outdir=build supplementary.tex
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{amsmath, amsfonts}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{subcaption}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.1ex plus 0.3ex minus 0.2ex}{0.5ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{0.9ex plus 0.3ex minus 0.2ex}{0.3ex plus 0.1ex}
+\titleformat*{\section}{\large\bfseries}
+\titleformat*{\subsection}{\normalsize\bfseries}
+\graphicspath{{mlcbCANDI_figs_png/}{Figures/}{./}}
+\renewcommand{\thesubfigure}{\Alph{subfigure}}
+\captionsetup{font=footnotesize}
+\setlength{\textfloatsep}{3pt}\setlength{\abovecaptionskip}{3pt}
+\setlength{\intextsep}{3pt}
+\setlength{\floatsep}{3pt}
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.4em}
+
+% Resolve \ref{} to main-paper figures (e.g., Figure 4) by reading its .aux.
+\usepackage{xr}
+\externaldocument{build/main}
+
+\title{Supplementary Material for\\ CANDI: Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
+\author[1]{Mehdi Foroozandeh}
+\author[1]{Abdul Rahman Diab}
+\author[1]{Maxwell Libbrecht}
+\affil[1]{School of Computing Science, Simon Fraser University, Burnaby, Canada}
+\date{}
+
+\begin{document}
+\maketitle
+
+\appendix
+\input{supplement}
+
+\bibliographystyle{ieeetr}
+\bibliography{main}
+\end{document}

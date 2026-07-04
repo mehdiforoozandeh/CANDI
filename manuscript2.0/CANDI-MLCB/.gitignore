@@ -1,5 +1,6 @@
-# LaTeX build artifacts — rebuild with:
-#   latexmk -synctex=1 -interaction=nonstopmode -file-line-error -pdf -outdir=build main.tex
+# LaTeX build artifacts — rebuild both PDFs (main paper + supplement) with:
+#   make            (produces build/main.pdf and build/supplementary.pdf)
+# See the Makefile for the xr cross-reference build order.
 build/
 *.aux
 *.bbl
