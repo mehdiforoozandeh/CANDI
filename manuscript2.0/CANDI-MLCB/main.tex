@@ -12,15 +12,26 @@
 \usepackage{hyperref}
 \usepackage[margin=1in]{geometry}
 \usepackage{subcaption}
+\usepackage{titlesec}
+% compact section/subsection spacing (format-only; no wording change)
+\titlespacing*{\section}{0pt}{1.1ex plus 0.3ex minus 0.2ex}{0.5ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{0.9ex plus 0.3ex minus 0.2ex}{0.3ex plus 0.1ex}
+\titleformat*{\section}{\large\bfseries}
+\titleformat*{\subsection}{\normalsize\bfseries}
 \graphicspath{{mlcbCANDI_figs_png/}{Figures/}{./}}
 \renewcommand{\thesubfigure}{\Alph{subfigure}}
-\captionsetup{font=small}
+\captionsetup{font=footnotesize}
 \setlength{\textfloatsep}{3pt}\setlength{\abovecaptionskip}{3pt}
 \setlength{\intextsep}{3pt}
 \setlength{\floatsep}{3pt}
+% force large floats to SHARE a page with text (top/bottom) rather than
+% consuming a dedicated float page: high floatpagefraction makes sub-0.9
+% figures ineligible for their own page, high topfraction lets them ride at top.
+\renewcommand{\topfraction}{0.96}\renewcommand{\bottomfraction}{0.9}
+\renewcommand{\textfraction}{0.05}\renewcommand{\floatpagefraction}{0.9}
 
 \setlength{\parindent}{0em}
-\setlength{\parskip}{0.05em}
+\setlength{\parskip}{0em}
 \renewcommand{\baselinestretch}{1}
 
 \title{CANDI:\\ Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
