@@ -41,7 +41,7 @@
 
 \title{CANDI:\\ Self-Supervised and Confidence-Aware Denoising Imputation of Genomic Data}
 
-\author[1]{\small Mehdi Foroozandeh}
+\author[1]{Mehdi Foroozandeh}
 \author[1]{Abdul Rahman Diab}
 \author[1]{Maxwell Libbrecht}
 \affil[1]{School of Computing Science, Simon Fraser University, Burnaby, Canada}
@@ -56,7 +56,7 @@
 \section*{Abstract}
 Large-scale epigenomic datasets such as histone modifications and DNA accessibility have greatly advanced our understanding of genomic function.  However, these measurements often suffer from noise, batch effects and irreproducibility. Epigenome imputation has emerged as a promising solution to these challenges. These methods integrate patterns across experiments, cell types, and genomic loci to predict the results of experiments, yielding predictions that often surpass observed data in quality. Thus, researchers increasingly leverage imputation for denoising data prior to downstream analysis. 
 
-However, existing methods for imputation-based denoising have significant limitations. Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a self-supervised deep learning method for epigenome imputation and denoising. CANDI takes as input raw read counts, DNA sequence, and experiment-specific covariates (e.g., sequencing depth and real length), and outputs three complementary predictions as probability distributions: raw counts (negative binomial), processed signal values (Gaussian), and peak calls (Bernoulli). CANDI can optionally incorporate information from a low-quality existing experiment when predicting a target without retraining. By conditioning on experimental metadata rather than learned cell-type embeddings, CANDI enables zero-shot generalization to unseen cell types without retraining. We demonstrate that CANDI achieves state-of-the-art performance in recovering epigenomic signal structure while providing calibrated uncertainty estimates.
+However, existing methods for imputation-based denoising have significant limitations. Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a self-supervised deep learning method for epigenome imputation and denoising. CANDI takes as input raw read counts, DNA sequence, and experiment-specific covariates (e.g., sequencing depth and read length), and outputs three complementary predictions as probability distributions: raw counts (negative binomial), processed signal values (Gaussian), and peak calls (Bernoulli). CANDI can optionally incorporate information from a low-quality existing experiment when predicting a target without retraining. By conditioning on experimental metadata rather than learned cell-type embeddings, CANDI enables zero-shot generalization to unseen cell types without retraining. We demonstrate that CANDI achieves state-of-the-art performance in recovering epigenomic signal structure while providing calibrated uncertainty estimates.
 
 
 % However, existing methods for imputation-based denoising have significant limitations. Here, we propose CANDI (Confidence-Aware Neural Denoising Imputer), a method for epigenome imputation that (1) gets as input raw counts and experiment-specific covariates such as sequencing depth,

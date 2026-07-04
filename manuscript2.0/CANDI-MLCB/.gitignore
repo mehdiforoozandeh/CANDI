@@ -13,3 +13,6 @@ build/
 *.toc
 *.lof
 *.lot
+
+# internal-only notes (not part of the submission)
+REVIEW_mock_mlcb.md

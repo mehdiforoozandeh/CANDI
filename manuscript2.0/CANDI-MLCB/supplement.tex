@@ -113,8 +113,8 @@ We randomly mask $k$ complete assays for each cell type, where $k \sim \text{Uni
 \paragraph{Full Loci Masking.}
 We randomly select contiguous chunks of genomic positions (default $\text{chunk\_size} = 40$ positions, $\sim$1kb) and mask these positions across ALL available assays simultaneously. This objective most closely parallels BERT-style masked language modeling, where the model learns to predict masked tokens from surrounding context. Here, genomic positions serve as ``tokens,'' and the model must infer epigenomic signals at masked positions using flanking regions and DNA sequence.
 
-\paragraph{Denoising via Upsampling.}
-For assays that remain unmasked, the model is trained to reconstruct the original high-quality signal from potentially downsampled (noisy) observations. The observed regions provide the upsampling/denoising training signal.
+\paragraph{Denoising via Downsampling.}
+For assays that remain unmasked, the model is trained to reconstruct the original high-quality signal from potentially downsampled (noisy) observations. The observed regions provide the denoising training signal.
 
 \paragraph{Data Augmentation.}
 We apply reverse complement augmentation with probability 0.5. When applied, both the DNA sequence and epigenomic signals are reversed along the genomic axis, and the DNA bases are complemented (A$\leftrightarrow$T, C$\leftrightarrow$G). This data augmentation helps the model learn strand-invariant representations.

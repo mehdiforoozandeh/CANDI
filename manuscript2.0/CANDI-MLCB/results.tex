@@ -3,7 +3,7 @@
 
 We propose CANDI, a method for imputation of the epigenome.
 
-Briefly, CANDI works as follows (Section \ref{methods}) : For a given 30kb locus, CANDI takes as input:
+Briefly, CANDI works as follows (Section~\ref{methods}): For a given 30kb locus, CANDI takes as input:
 \begin{enumerate}
     \item Observed epigenomic data sets (read counts) for the locus in the target sample along with the ChIP-seq control signal
     \item Four experimental covariates for each observed assay (sequencing depth, read length, run type, sequencing platform)
@@ -67,7 +67,7 @@ Beyond correlation, we assessed prediction quality using peak classification met
 
 \subsection{CANDI provides calibrated aleatoric uncertainty estimates}
 
-A core innovation of CANDI is its ability to output probability distributions rather than point estimates, providing a measure of uncertainty. Specifically, it captures aleatoric uncertainty, the uncertainty caused by the inherent randomness in experimental data due to biological variation, technical noise, and experimental biases.  Standard evaluation metrics like MSE or correlation collapse these distributions into their means, discarding valuable information about what the model ``knows it doesn't know.'' For each prediction, CANDI allows generating confidence intervals around the predicted distribution's mean enabling soft prediction of observed signals i.e. even if the observed value does not exactly match the mean of the predicted distribution, it falls within a predicted confidence interval.
+A core innovation of CANDI is its ability to output probability distributions rather than point estimates, providing a measure of uncertainty. Specifically, it captures aleatoric uncertainty, the uncertainty caused by the inherent randomness in experimental data due to biological variation, technical noise, and experimental biases.  Standard evaluation metrics like MSE or correlation collapse these distributions into their means, discarding valuable information about what the model ``knows it doesn't know.'' For each prediction, CANDI allows generating confidence intervals around the predicted distribution's mean, enabling soft prediction of observed signals: even if the observed value does not exactly match the mean of the predicted distribution, it falls within a predicted confidence interval.
 
 We evaluated the fidelity of these uncertainty estimates using confidence calibration curves. A perfectly calibrated model would show a 1:1 relationship between the predicted confidence interval (e.g., 95\%) and the empirical coverage (the fraction of observed data points falling within that interval). We observed that calibration varies by assay type; chromatin accessibility assays (like DNase-seq) generally show better calibration than histone modifications (Figure \ref{fig:conf}: C, D). Typically, the model tends to be overconfident at lower confidence intervals ($c<0.5$) but becomes more calibrated and reliable at practically relevant intervals (0.9--0.95).
 
