@@ -36,6 +36,7 @@ sandbox/candi_v3/_test_archive/
 sandbox/diagnostics/covariate_probes/results/
 sandbox/autoresearch/menu/_ceiling/*.out
 sandbox/autoresearch/menu/_ceiling/*.jobid
+sandbox/autoresearch/menu/_ceiling/candi_model
 
 sandbox/autoresearch/menu/_adapter/*.out
 sandbox/autoresearch/menu/_adapter/*.jobid
