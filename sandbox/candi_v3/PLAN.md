@@ -99,9 +99,47 @@ The v3 harness reuses v2's train/eval data semantics exactly (`sandbox/data.py`,
 
 ---
 
+## 2.6 Harness ↔ candidate contract (FROZEN)
+
+The frozen harness trains the candidate (fixed budget) and scores it. The candidate's
+`model.py` must expose a model whose forward returns a dict the harness reads — minimal and
+**likelihood-agnostic** (this is the critique §9 design encoded as a contract):
+
+```python
+forward(x_data, x_dna, x_meta, y_meta, query_mask, query_mask_signal) -> {
+    "count_dist":  torch.distributions.Distribution,  # over raw counts, broadcastable [B,L,F]
+    "signal_pred": Tensor[B,L,F],                      # enrichment prediction (imputation Spearman)
+    "peak_prob":   Optional[Tensor[B,L,F]],           # optional; enables peak AUROC
+}
+```
+- `count_dist` is **the one learned likelihood** (NB/Poisson/…); ERA picks it. Harness derives:
+  count mean (DCR + count Pearson/Spearman/R²), and coverage of held-out counts → **ECE
+  (calibration computed on the count distribution)**.
+- `signal_pred` feeds the **headline** imputation metric (`imp_pval_spearman_gw` = Spearman vs
+  `y_pval_imp` on `imp_eval_map`). ERA freely chooses whether `signal_pred` is a deterministic
+  readout of `count_dist` (critique §9.1) or a separate head (v2-style) — the search decides.
+- `objective.py` owns the loss + corruption; the harness only requires the forward dict above.
+- **DCR** = harness re-runs forward with `y_meta` depth shifted +2 log2 and takes the
+  `count_dist.mean` ratio (the v2 `prompt_sensitivity_depth_count_ratio` probe).
+
+**Naive imputation baseline (S_A zero-point):** per-position **average-reference track** —
+predict a held-out V_/B_ assay as the per-position mean of that assay over the training (T_)
+biosamples that have it (classic ChromImpute/Avocado baseline; honest position-aware floor).
+Frozen into `constants_frozen.yaml`.
+
+---
+
 ## 3. Stages, gates, deliverables
 
-### Stage 0 — Frozen harness + baseline + selftest  *(GATE before any search)*
+### Stage 0 — Frozen harness + baseline + selftest  *(GATE before any search)* — ✅ DONE (2026-06-18)
+**Built & validated:** `data_v3.py`/`eval_v3.py`/`score.py`/`harness.py`/`contract.py` (frozen harness),
+`baselines/marginal.py` (imp Spearman 0.4652), `constants_frozen.yaml`, `notebook.py`
+(RESULTS.tsv/tree.mmd/NOTE.md), `problem.py`/`config.yaml`/`run.py`/`generate.py`/`execute.py`/`futs.py`
+(ERA driver, flat in `candi_v3/`). **selftest.py ALL PASS**: baseline S_A=0; score monotone in
+skill + DCR band; collapse & non-finite gates fire; neutral seed trains end-to-end → finite score
+(DCR 3.97 in-band). FUTS mock + generate/execute selftests green. **GATE 0→1 cleared.**
+
+<details><summary>original Stage 0 spec</summary>
 - Build `data.py` (reuse v2 loader), `eval.py` (computes A/B/C aspects), `score.py`
   (the objective above), `constants_frozen.yaml`, `harness.py`, SLURM wrapper; vendor the
   ERA `scaffold/` (`futs.py` frozen).
@@ -112,6 +150,7 @@ The v3 harness reuses v2's train/eval data semantics exactly (`sandbox/data.py`,
   mean-matching collapse) → caught by the degeneracy gate.
 - **GATE 0→1:** all selftest assertions green; baseline scores reproducibly; constants
   frozen and committed. **Deliverable:** working frozen harness + `constants_frozen.yaml`.
+</details>
 
 ### Stage 1 — Seed timing + budget lock
 - Run the cold-start stub + one minimal hand-seed end-to-end once on the MIG slice; measure

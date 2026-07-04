@@ -1,86 +1,64 @@
-# CANDI v3 — ERA objective (dialectic-derived, FROZEN)
+# CANDI v3 — ERA_SCORE (comprehensive, FROZEN)
 
-*Resolved by a Hegelian dialectic (2026-06-17). Thesis proposed a multiplicative hybrid
-(skill × validity factors); Antithesis showed the multiplicative form annihilates the best
-imputer lineages over cheaply-fixable defects, becomes the gamed metric itself, and amplifies
-single-eval noise near zero factors; Synthesis converged on an **additive-hinge ε-Pareto**
-objective.*
+*Designed collaboratively 2026-06-18 (supersedes the single-Spearman v1). One clear main term
+(imputation), everything else a do-no-harm floor/gate. All terms on the chr21 eval set; train =
+chr19, so no leakage. Frozen for a search round.*
 
 ---
 
-## The formula
+## Reconstruction composites (uniform mean of 4 correlations, all ∈ [−1,1])
 
 ```
+Q_imp = mean(imp_pval_spearman, imp_pval_pearson, imp_count_spearman, imp_count_pearson)
+Q_den = mean(den_pval_spearman, den_pval_pearson, den_count_spearman, den_count_pearson)
+```
+- **Imputation** (`Q_imp`): predicted vs GT on the reserved **V/B held-out assays** (chr21).
+- **Denoising** (`Q_den`): low-depth (dsf8) T_ input → predict high-depth (dsf1) target, on the
+  **observed T_ assays** (chr21). Easier task → healthy models have `Q_den > Q_imp`.
+- MSE and NB-NLL deliberately excluded (scale issues / NLL is the training loss → circular,
+  mean-match-gameable, distribution-type-dependent).
+
+## The score
+
+```
+S_A = Q_imp − Q_imp_baseline                              # PRIMARY: imputation skill (single maximand)
+
 ERA_SCORE = S_A
-          + w_cal · min(0, τ_cal − ECE)                            # calibration floor (one-sided)
-          + w_dcr · ( min(0, DCR − DCR_lo) + min(0, DCR_hi − DCR) ) # DCR BAND (two-sided)
-          + (−∞ if structurally degenerate)   # hard gate (structure, not performance)
+          − w_den  · max(0, Q_imp − Q_den)                # denoising ≥ imputation gate
+          + w_cal  · min(0, τ_cal − ECE)                  # calibration floor (ECE of count dist)
+          + w_cidx · min(0, c_index − cidx_baseline)      # uncertainty-discrimination floor (C-index)
+          + w_peak · min(0, peak_auroc − auroc_baseline)  # peak-prediction floor (held-out V/B peaks)
+          + w_dcr  · (min(0,DCR−3) + min(0,5−DCR))        # depth-calibration band [3,5]
+          + (−1e9 if structurally degenerate)
 ```
 
-One clear main term (`S_A`), discounted only when a candidate drops **below baseline** on a
-validity axis. ERA-compliant ("clear main term"), frozen for the whole search.
+- **Denoising gate** (the subtle one): RAW comparison, `max(0, Q_imp − Q_den)`. Zero when
+  denoising ≥ imputation; penalty when denoising falls below; **capped at 0** so a perfect /
+  identity denoiser earns no bonus. Encodes "denoising must be at least as good as imputation,
+  but isn't the goal." (Identity also can't help imputation, so the copy shortcut earns nothing.)
+- **Calibration** = ECE floor + C-index (distributional ranking, sample-based). **No naked
+  sharpness** — rewarding it incentivises overconfidence (the ECE≈0.5 failure seen in testing).
+- **Peaks**: floor at the baseline AUROC; a candidate that omits `peak_prob` is scored at chance
+  (0.5) → penalised below baseline, so peaks are incentivised though optional in the contract.
+- **DCR**: physics-absolute band [3,5] (~4.0 = +2 log2 ⇒ 4× depth), two-sided.
 
-### Main term — `S_A` (imputation skill)
-- **Real zero-shot imputation** on the reserved **V_/B_ assays** (never seen in training for
-  that biosample), scored on `imp_eval_map` per the v2 protocol (`eval.py`, PLAN §2.5). NOT a
-  synthetic leave-k-out.
-- Raw, UNCLAMPED units vs the marginal/mean baseline:
-  `S_A = (imp_metric_candidate − imp_metric_baseline) / scale_A`.
-- Headline metric = **`imp_pval_spearman_gw`** (rank-based, gaming-resistant), optionally
-  blended with `imp_count_spearman_gw` / `imp_peak_auroc_gw` — **never NB-NLL alone** (NB-NLL
-  is minimized by mean-matching while getting noise structure wrong). Final blend fixed in
-  Stage 0 against the gaming probes.
-- Unclamped so a genuine outlier improvement (e.g. 1.3·scale_A) is ranked as such under
-  single-eval noise, not censored to 1.0. Background-everywhere scores ≈0 (loses to the
-  marginal baseline on every nonzero region).
+## Constants (FROZEN — `freeze_constants.py`, from the marginal average-reference baseline)
 
-### Feasibility hinges — calibration & DCR
-- **Calibration (one-sided floor):** `min(0, τ_cal − ECE)`: zero when `ECE ≤ τ_cal`, linearly
-  negative above. ECE = mean |nominal − empirical coverage| across CI levels. Forces
-  calibration to be a *live, climbable* dimension without rewarding overshoot.
-- **DCR (two-sided band):** `min(0, DCR − DCR_lo) + min(0, DCR_hi − DCR)`: zero inside
-  `[DCR_lo, DCR_hi]` (~[3,5], centred on the physics target 4.0 = +2 log2 ⇒ 4× depth), linear
-  outside on **either** side. Both DCR→1.0 (depth-blind collapse) and DCR≫4 (unstable depth
-  head) are failures, so feasibility is a **band**, not a one-sided floor. The band is
-  physics-absolute — NOT anchored to the marginal baseline (which is depth-blind, DCR≈1.0).
-  This is the Pareto/denoising guard: you cannot buy imputation skill by collapsing depth
-  calibration, but anywhere inside the band is free.
-- **Additive, not multiplicative** — a high-skill lineage with a cheaply-fixable defect pays a
-  *bounded* penalty and keeps its credit, so the bandit keeps selecting and improving it.
+| const | value | meaning |
+|---|---|---|
+| `Q_imp_baseline` | 0.4857 | S_A zero-point (mean of 4 imp correlations) |
+| `τ_cal` | 0.0734 | calibration floor (baseline ECE) |
+| `cidx_baseline` | 0.4985 | C-index floor (baseline ≈ chance — gentle) |
+| `auroc_baseline` | 0.7161 | peak-AUROC floor (baseline avg-peak track) |
+| `dcr_lo, dcr_hi` | 3.0, 5.0 | physics-absolute DCR band |
+| `w_den, w_cal, w_cidx, w_peak, w_dcr` | 0.5, 0.4, 0.4, 0.4, 0.02 | interpretable Spearman-equivalence weights |
 
-### Hard degeneracy gate — `−∞` (sentinel below any feasible score)
-Reserved for **structural collapse only**, never soft shortfalls: constant/near-constant
-output, NaN/Inf, mask leakage, posterior collapse (predicted variance below a floor / σ pinned
-at a boundary), peak-rate outside biological range, or a hard-constraint violation
-(forbidden import, memory ceiling, control required). Structure-based → a single noisy eval
-cannot turn a degenerate program into a winner.
+**Baseline ERA_SCORE = −0.04** (every term at baseline → 0, except the depth-blind marginal
+predictor failing the DCR band). A real candidate beats it by raising `Q_imp` while keeping
+denoising ≥ imputation and the calibration / C-index / peak / DCR floors satisfied.
 
----
-
-## Constants (FROZEN before search → `constants_frozen.yaml`)
-
-- `scale_A` = MAD of the held-out **imputation** metric (`imp_pval_spearman_gw`) across a
-  marginal-baseline bootstrap → one unit of `S_A` ≈ one noise-σ of real improvement
-  (self-calibrating to eval noise).
-- `τ_cal` = marginal-baseline ECE ("do no harm vs the trivial predictor").
-- `[DCR_lo, DCR_hi]` = **physics-absolute band** (~[3,5], centred on 4.0), NOT baseline-derived
-  — the marginal predictor is depth-blind (DCR≈1.0), so it cannot anchor this floor.
-- `w_cal = scale_A/scale_cal`, `w_dcr = scale_A/scale_dcr` (MADs of ECE, DCR under the
-  baseline bootstrap) → one noise-σ of violation costs ≈ one noise-σ of skill. No hand-tuning.
-
-> Note: baseline = marginal/mean predictor (architecture-agnostic). This is a *weak* floor
-> ("beat trivial + do no harm"); the production-promotion bar in `PLAN.md` Stage 3 is the
-> stronger "beat the best known model" test, run separately and not inside the per-candidate
-> score.
-
----
-
-## Why not the alternatives
-- **Pure weighted-sum:** no clear main term (ERA anti-pattern); lets a dead imputer buy back
-  score with cheap calibration points.
-- **Pure multiplicative hybrid:** annihilates best-imputer lineages over fixable defects;
-  the product becomes the gamed target; amplifies single-eval noise near zero.
-- **Pure hard-gating on A/B/C:** brittle under single noisy eval; discards the gradient the
-  bandit needs.
-- **Additive hinge (chosen):** one maximand, credit preserved, calibration forced live,
-  denoising guarded, noise stays additive, degeneracy handled structurally.
+## Properties
+- One clear main term (imputation) → ERA-compliant; can't win by maxing a secondary or
+  sacrificing imputation.
+- Denoising: penalised if worse than imputation, no reward if better (no identity cheat).
+- All metrics on chr21 eval, never training data.
