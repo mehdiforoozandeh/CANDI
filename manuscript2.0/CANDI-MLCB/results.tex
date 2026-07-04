@@ -31,7 +31,7 @@ CANDI consists of a neural network model that includes convolutional, self-atten
 
 \begin{figure}[tbp]
     \centering
-    \includegraphics[width=0.58\textwidth]{fig1_architecture}
+    \includegraphics[width=0.66\textwidth]{fig1_architecture}
     \caption{\textbf{CANDI architecture overview.} (A) Input data organization showing the three-dimensional structure of epigenomic data across assays, genomic positions, and cell types. (B) Model architecture consisting of encoder and decoder components. The encoder processes DNA sequence and epigenomic count data through parallel convolution towers with per-layer metadata cross-attention, integrates experimental covariate information, and generates a latent representation using a transformer encoder with rotary positional embeddings. Three separate decoders predict count data (negative binomial parameters), signal values (Gaussian parameters), and peak locations (binary classification) for each assay and position. (C) Detailed architecture of key model components including convolution and deconvolution towers, transformer encoder blocks, and the metadata embedding module.}
     \label{fig:architecture}
 \end{figure}
@@ -52,9 +52,9 @@ Beyond correlation, we assessed prediction quality using peak classification met
 
 \begin{figure}[tbp]
     \centering
-    \begin{subfigure}[b]{0.75\textwidth}\centering\includegraphics[width=\linewidth]{imp_spearman}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.70\textwidth}\centering\includegraphics[width=\linewidth]{imp_spearman}\caption{}\end{subfigure}
 
-    \begin{subfigure}[b]{0.75\textwidth}\centering\includegraphics[width=\linewidth]{imp_pearson}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.70\textwidth}\centering\includegraphics[width=\linewidth]{imp_pearson}\caption{}\end{subfigure}
 
     \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_dnase}\caption{}\end{subfigure}\hfill
     \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{imp_scatter_h3k4me3}\caption{}\end{subfigure}\hfill
@@ -84,8 +84,8 @@ Visualizing the predicted Coefficient of Variation ($\text{CV} = \sigma/\mu$) re
     \begin{subfigure}[b]{0.235\textwidth}\centering\includegraphics[width=\linewidth]{unc_calib_dnase}\caption{}\end{subfigure}\hfill
     \begin{subfigure}[b]{0.235\textwidth}\centering\includegraphics[width=\linewidth]{unc_calib_h3k4me3}\caption{}\end{subfigure}
 
-    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_dnase}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}\hfill
-    \begin{subfigure}[b]{0.32\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_h3k4me3}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}
+    \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_dnase}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}\hfill
+    \begin{subfigure}[b]{0.28\textwidth}\centering\includegraphics[width=\linewidth]{unc_track_h3k4me3}\\ {\scriptsize Genomic position}\caption{}\end{subfigure}
         \caption{\textbf{Evaluation of CANDI’s uncertainty estimation.}
         \textbf{(A, B)} Box plots showing the Concordance Index (C-index), a metric evaluating the quality of the predicted probability distributions, for \textbf{(A)} genome-wide regions and \textbf{(B)} promoter regions. While genome-wide scores vary, calibration improves significantly in signal-enriched promoter regions (e.g., H3K4me3).
         \textbf{(C, D)} Confidence calibration curves for \textbf{(C)} DNase-seq and \textbf{(D)} H3K4me3 across multiple cell lines. The plots compare the predicted confidence level ($c$) against the actual fraction of data falling within that interval. The dashed orange line represents perfect calibration; CANDI shows stronger calibration for accessibility assays compared to histone marks.
