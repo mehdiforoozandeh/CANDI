@@ -1,0 +1,195 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{authblk}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage[style=ieee]{biblatex}
+\addbibresource{main.bib} 
+\usepackage{todonotes}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage[margin=0.5in]{geometry}
+
+\setlength{\parindent}{0em}
+\setlength{\parskip}{0.5em}
+\renewcommand{\baselinestretch}{1}
+
+\title{\textbf{Supplementary: \\}Self-supervised confidence-aware denoising imputation of genomic data}
+
+\author[1]{\small Mehdi Foroozandeh}
+\author[1]{Abdul Rahman Diab}
+\author[1]{Maxwell Libbrecht}
+\affil[1]{School of Computing Science, Simon Fraser University, Burnaby, Canada}
+\date{}
+
+\begin{document}
+\maketitle
+\section{Data Collection and Processing Protocol}
+
+\subsection{Data Collection}
+We collected data from the ENCODE database using their REST API. For each experiment, we downloaded BAM files containing aligned sequencing reads and BigWig files containing signal p-values. We also collected comprehensive experimental metadata, including sequencing depth, coverage, read length, run type (single-end or paired-end), file status and quality metrics, biological replicate numbers, and biosample accession IDs.
+
+\subsection{Cell Type Merging Protocol}
+Our cell type merging protocol consisted of several steps designed to maximize data availability while maintaining biological validity. The protocol began with initial grouping, where biosamples were first grouped by their annotated cell type name from ENCODE metadata. For each cell type group, we created a matrix of experiment availability. We also collected comprehensive donor information, including donor age, life stage, sex, organism, and health status.
+
+For replicate identification, we established strict criteria to ensure biological validity. Biosamples were considered isogenic replicates only if they shared identical term names and donor accession IDs. Additionally, we required a minimum of three common experiments to be available across replicates, and the two isogenic replicates needed to have identical sets of available assays.
+
+The merging of non-replicate biosamples within the same cell type followed specific criteria. Biosamples were merged only if they shared the same term name, had complementary experiment availability (different assays available), and their source and preparation protocols were compatible.
+
+\subsection{Signal Processing}
+Our signal processing pipeline focused on generating consistent and comparable data across experiments. BAM files were processed to generate binned read counts at 25bp resolution. To assess the impact of sequencing depth, we processed the signal at three different downsampling factors (DSF): no downsampling (DSF=1), 50\% random downsampling (DSF=2), and 25\% random downsampling (DSF=4).
+
+\subsection{Experimental Covariates}
+We processed four key experimental covariates for each experiment. The sequencing depth, representing the total number of reads, was log2-transformed. Coverage was calculated as the fraction of genomic bins with at least one aligned read. Read length was maintained as its original value, and run type was encoded as a binary variable, with 0 representing single-end and 1 representing paired-end sequencing.
+
+\subsection{Train-Validation-Test Split}
+We implemented a careful splitting strategy for our dataset. Cell types with RNA-seq data were automatically assigned to the test set. The remaining cell types were randomly split, with 70\% assigned to training, 15\% to validation, and 15\% to testing. Importantly, we maintained the integrity of isogenic replicates by ensuring they were kept together in the same split.
+
+\subsection{Final Dataset Statistics}
+The final processed dataset represents a comprehensive resource for chromatin profiling analysis. It comprises N merged cell types, of which M cell types have isogenic replicates. Across the dataset, we observe an average of X experiments per merged cell type, with Y total experiments across all cell types.
+\newpage
+\section{CANDI architecture}
+Let $A=35$ be the number of assays and $L=1200$ be the number of genomic positions considered in a 30 kb window at 25 bp resolution. Each sample (i.e., one data instance in a batch) corresponds to epigenomic data from a single cell type, forming a matrix $\mathbf{M}$ of shape $(A \times L)$ for that cell type. We process multiple samples in a batch of size $N$, where each sample has its own $\mathbf{M}$, $\mathbf{S}$, and covariates.
+
+The model receives:
+\[
+\mathbf{M} \in \mathbb{R}^{N \times A \times L}, \quad \mathbf{S} \in \{0,1\}^{N \times 4 \times 30000}, \quad \mathbf{C}_{in} \in \mathbb{R}^{N \times A \times 4}, \quad \mathbf{C}_{out} \in \mathbb{R}^{N \times A \times 4}.
+\]
+Here, $N$ is the batch size (default $N=50$), $A=35$ is the number of assays, and $L=1200$ is the number of positions.
+
+\paragraph{Hyperparameters.} The model includes several hyperparameters that govern its architecture:
+\begin{itemize}
+    \item \textbf{Dropout} $=0.1$
+    \item \textbf{Number of CNN layers} $n_{cnn}=3$
+    \item \textbf{Convolution kernel size} $=3$
+    \item \textbf{Pooling size} $=2$
+    \item \textbf{Expansion factor} $=3$
+    \item \textbf{Number of attention heads} $n_{head}=9$
+    \item \textbf{Number of self-attention blocks (SAB layers)} $n_{sab}=4$
+    \item \textbf{Positional encoding} $=\text{relative}$
+    \item \textbf{Context length} $=L=1200$ bins with resolution $25$bp
+    \item \textbf{Batch size} $N=50$
+\end{itemize}
+
+\paragraph{Inputs.}
+\begin{itemize}
+    \item \textbf{Epigenomic Reads} $\mathbf{M}$: Each $M_{a,l}$ is the read count for assay $a$ at position $l$.
+    \item \textbf{DNA Sequence} $\mathbf{S}$: One-hot encoded nucleotides across the 30 kb region. We consider a window of length $L=1200$ at 25 bp resolution, thus $L \times 25 = 30000$ base pairs.
+    \item \textbf{Input Covariates} $\mathbf{C}_{in}$: Four values per assay $(\log(\text{depth}), \text{type}, \text{read\_length}, \text{coverage})$.
+\end{itemize}
+
+\paragraph{Outputs.} For each assay $a$ at each position $l$, the model predicts parameters of probability distributions:
+\[
+(n,p) \in \mathbb{R}^{N \times A \times L}, \quad (\mu,\sigma) \in \mathbb{R}^{N \times A \times L},
+\]
+where $(n,p)$ parameterize a Negative Binomial distribution for raw counts and $(\mu,\sigma)$ parameterize a Gaussian distribution for processed signals.
+
+\paragraph{Model Overview.} The model consists of an encoder $\mathcal{E}$ and a decoder $\mathcal{D}$:
+\[
+ \mathcal{E}(\mathbf{M}, \mathbf{S}, \mathbf{C}_{in}) \to \mathbf{Z}
+\]
+\[
+\mathcal{D}(\mathbf{Z}, \mathbf{C}_{out}) \to (n,p,\mu,\sigma)
+\]
+
+\paragraph{Encoder $\mathcal{E}$.}
+The encoder integrates epigenomic data $\mathbf{M}$, DNA sequence context $\mathbf{S}$, and experimental covariates $\mathbf{C}_{in}$ into a latent representation $\mathbf{Z}$. 
+
+\begin{enumerate}
+    \item \textbf{Epigenetic Signal Convolution Tower}:
+    \[
+    \mathbf{M}^{(final)} = \text{ConvTower}(\mathbf{M}),
+    \]
+    resulting in a transformed epigenomic representation $\mathbf{M}^{(final)} \in \mathbb{R}^{N \times L' \times f_2}$, where $L' = \frac{L}{(pool\_size)^{n_{cnn}}} = \frac{1200}{2^3} = 150$ and 
+    \[
+    f_2 = A \times (expansion\_factor)^{n_{cnn}} = 35 \times 3^3 = 945.
+    \]
+    Here, $A=35$ is the number of assays. This tower processes the epigenomic signals with $n_{cnn} = 3$ convolution layers, each with $pool\_size=2$, progressively reducing the spatial dimension from $L=1200$ to $L'=150$ and expanding the feature dimension. The expansion factor $3$ scales feature dimensions through the convolution towers.
+
+\item \textbf{DNA Sequence Convolution Tower}:
+    \[
+    \mathbf{S}^{(final)} = \text{ConvTower}_{DNA}(\mathbf{S}),
+    \]
+    producing $\mathbf{S}^{(final)} \in \mathbb{R}^{N \times L' \times f_2}$, where 
+    \[
+    L' = \frac{L \times 25}{(pool\_size)^{n_{cnn}} \times 5^2} = \frac{1200 \times 25}{2^3 \times 5^2} = 150.
+    \]
+    In addition to the $n_{cnn}$ convolutional layers with $pool\_size=2$, the DNA sequence convolution tower includes two additional layers at the end, each with $pool\_size=5$. These final layers compensate for the difference in resolution between the epigenomic signals (25 bp resolution) and the DNA sequence (1 bp resolution), ensuring both modalities align at the same final context length $L'$. 
+
+    \item \textbf{Input Covariate Embedding}:
+        \[
+        \mathbf{E}_{in} = \text{EmbedMetadata}(\mathbf{C}_{in}) \in \mathbb{R}^{N \times d_{emb}},
+        \]
+        Here, $d_{emb}=A$, and $\mathbf{C}_{in}$ consists of four covariates per assay: one categorical (sequencing type i.e. single or pair end) and three continuous ($\log(\text{sequencing\_depth})$, read length, and coverage). Each continuous covariate is linearly transformed into an embedding, and the categorical covariate is mapped via a learned embedding. These four embeddings per assay are concatenated, normalized, and projected into a final $A$-dimensional vector per sample.
+    
+    \item \textbf{Fusion with Epigenetic Signals}:
+    Concatenate $\mathbf{E}_{in}$ with $\mathbf{M}^{(final)}$ along the feature dimension and map back to $f_2$:
+    \[
+    \tilde{\mathbf{M}} = \text{Fusion}([\mathbf{M}^{(final)};\mathbf{E}_{in}]) \in \mathbb{R}^{N \times L' \times f_2}.
+    \]
+
+\item \textbf{Fusion with DNA Features}:
+    Concatenate $\tilde{\mathbf{M}}$ and $\mathbf{S}^{(final)}$:
+    \[
+    \mathbf{H}^{(0)} = [\tilde{\mathbf{M}}; \mathbf{S}^{(final)}] \in \mathbb{R}^{N \times L' \times 2f_2},
+    \]
+    and transform to:
+    \[
+    \mathbf{H}^{(1)} = \text{Fusion}(\mathbf{H}^{(0)}) \in \mathbb{R}^{N \times L' \times f_2}.
+    \]
+
+\item \textbf{Transformer Encoder (Relative Positional Encoding)}:
+    Apply $n_{sab}=4$ transformer encoder layers with $n_{head}=9$ attention heads and a relative positional encoding scheme:
+    \[
+    \mathbf{Z} = \text{TransformerEncoder}(\mathbf{H}^{(1)}),
+    \]
+    resulting in the latent representation $\mathbf{Z} \in \mathbb{R}^{N \times L' \times f_2}$.
+\end{enumerate}
+
+\paragraph{Decoder $\mathcal{D}$.}
+Given $\mathbf{Z}$ and $\mathbf{C}_{out}$, the decoder reconstructs the signal distributions:
+\begin{enumerate}
+    \item \textbf{Output Covariate Embedding}:
+    \[
+    \mathbf{E}_{out} = \text{EmbedMetadata}(\mathbf{C}_{out}) \in \mathbb{R}^{N \times d_{emb}}.
+    \]
+
+    \item \textbf{Fusion with Latent Representation}:
+    \[
+    \hat{\mathbf{Z}} = \text{Fusion}([\mathbf{Z}; \mathbf{E}_{out}]) \in \mathbb{R}^{N \times L' \times f_2}.
+    \]
+
+    \item \textbf{Deconvolution Towers}:
+        The latent representation \(\hat{\mathbf{Z}} \in \mathbb{R}^{N \times L' \times f_2}\) is passed to two separate decoder modules: one dedicated to reconstructing read counts, and another dedicated to predicting processed signal values. Each decoder employs a sequence of "DeconvTower" layers that invert the encoder’s pooling and feature expansion steps. Formally:
+        \[
+        \mathbf{X}^{(rec)} = \text{DeconvTower}(\hat{\mathbf{Z}}) \in \mathbb{R}^{N \times L \times A},
+        \]
+        yielding a restored resolution along the genomic positions $L$ and assays $A$.
+    
+    \item \textbf{Distribution Layers}:
+
+        Each decoder’s reconstructed output is then passed through a corresponding distribution layer:
+        \[
+        (n,p) = \text{NegativeBinomialLayer}(\mathbf{X}^{(rec)}_{\text{NB}}), \quad (\mu,\sigma^2) = \text{GaussianLayer}(\mathbf{X}^{(rec)}_{\text{G}}),
+        \]
+        where \(\mathbf{X}^{(rec)}_{\text{NB}}\) and \(\mathbf{X}^{(rec)}_{\text{G}}\) are the feature maps from the count and signal decoders, respectively.
+    
+        In the \textbf{NegativeBinomialLayer}, the input \(\mathbf{X}^{(rec)}_{\text{NB}} \in \mathbb{R}^{N \times L \times A}\) is passed through two separate linear transforms and layer normalizations. For each assay-position pair:
+        \[
+        p = \text{Sigmoid}(\text{LayerNorm}(\mathbf{W}_p \mathbf{X}^{(rec)}_{\text{NB}} + \mathbf{b}_p)), \quad n = \text{Softplus}(\text{LayerNorm}(\mathbf{W}_n \mathbf{X}^{(rec)}_{\text{NB}} + \mathbf{b}_n)),
+        \]
+        ensuring $p \in (0,1)$ and $n>0$. Thus, $(n,p)$ parameterize a negative binomial distribution for raw counts.
+    
+        In the \textbf{GaussianLayer}, the input \(\mathbf{X}^{(rec)}_{\text{G}} \in \mathbb{R}^{N \times L \times A}\) is likewise passed through linear and normalization layers:
+        \[
+        \mu = \text{Softplus}(\text{LayerNorm}(\mathbf{W}_\mu \mathbf{X}^{(rec)}_{\text{G}} + \mathbf{b}_\mu)), \quad \sigma^2 = \text{Softplus}(\text{LayerNorm}(\mathbf{W}_\sigma \mathbf{X}^{(rec)}_{\text{G}} + \mathbf{b}_\sigma)),
+        \]
+        ensuring $\mu>0$ and $\sigma^2>0$. Thus, $(\mu,\sigma^2)$ define a Gaussian distribution over processed signal values.
+    
+        By producing $(n,p)$ and $(\mu,\sigma^2)$ in this manner, CANDI outputs full probability distributions—rather than single-point estimates—allowing it to capture aleotoric uncertainty inherent in epigenomic signals.
+        
+\end{enumerate}
+
+\newpage
+\printbibliography
+\end{document}
