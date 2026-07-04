@@ -1,0 +1,20 @@
+[resume] loaded 101 nodes from tree.json; continuing for 100 MORE (new candidates start at cand0102)
+[generate] attempt 1/5 (claude): smoke FAIL -> feeding error back
+[generate] attempt 2/5 (claude): smoke PASS (repaired)
+[generate] attempt 1/5 (claude): empty/invalid output
+[generate] attempt 2/5 (claude): empty/invalid output
+[generate] attempt 3/5 (claude): smoke PASS (repaired)
+[generate] attempt 1/5 (claude): empty/invalid output
+[generate] attempt 2/5 (claude): empty/invalid output
+[generate] attempt 3/5 (claude): empty/invalid output
+[generate] attempt 4/5 (cursor): smoke PASS (repaired)
+
+BEST score = -0.003620
+
+Top-5 portfolio:
+  node 161  score=-0.003620  runs/cand0162/program.py
+  node 126  score=-0.005128  runs/cand0127/program.py
+  node 130  score=-0.010912  runs/cand0131/program.py
+  node 153  score=-0.011628  runs/cand0154/program.py
+  node 140  score=-0.015389  runs/cand0141/program.py
+[run.py EXITED]

@@ -1,0 +1,12 @@
+# FROZEN pre-search — comprehensive metric (METRIC.md / freeze_constants.py)
+Q_imp_baseline: 0.485732
+auroc_baseline: 0.716064
+cidx_baseline: 0.498544
+dcr_hi: 5.0
+dcr_lo: 3.0
+tau_cal: 0.073369
+w_cal: 0.4
+w_cidx: 0.4
+w_dcr: 0.02
+w_den: 0.5
+w_peak: 0.4

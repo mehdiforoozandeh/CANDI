@@ -1,0 +1,15 @@
+[keeper] START Tue Jun 23 15:42:16 PDT 2026 target=281
+[keeper] launch 1 Tue Jun 23 15:42:16 PDT 2026: tree=186, adding 95 (target 281)
+[resume] loaded 186 nodes from tree.json; continuing for 95 MORE (new candidates start at cand0187)
+
+BEST score = 0.018329
+
+Top-5 portfolio:
+  node 267  score=0.018329  runs/cand0268/program.py
+  node 259  score=0.017933  runs/cand0260/program.py
+  node 264  score=0.010890  runs/cand0265/program.py
+  node 256  score=0.009589  runs/cand0257/program.py
+  node 254  score=0.003503  runs/cand0255/program.py
+[keeper] run.py exited (launch 1) Wed Jun 24 04:47:08 PDT 2026: tree now 281
+[keeper] tree=281 >= 281 -> DONE
+[keeper] FINISHED Wed Jun 24 04:47:29 PDT 2026 tree=281

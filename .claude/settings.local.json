@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find ~ -maxdepth 5 -name \".cursorrules\" -o -name \"*.mdc\" 2>/dev/null | head -30)",
+      "Read(//home/mforooz/**)",
+      "Bash(find ~ -maxdepth 5 -type d -name \".cursor\" 2>/dev/null)",
+      "Bash(git -C /project/6014832/mforooz/EpiDenoise log --oneline autoresearch/may28)",
+      "Bash(ssh fc11007 *)",
+      "Bash(echo \"PID=$!\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)"
+    ]
+  }
+}

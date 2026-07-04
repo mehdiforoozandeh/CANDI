@@ -1,0 +1,37 @@
+# CANDI v3 ERA search config. Budget knobs (num_iterations, train_steps via TRAIN_STEPS in
+# the seed, time_limit) are finalised in Stage 1 from seed timing. SLURM/env per
+# sandbox/notes/era_candi_driver.md. gres is the MANDATORY exact MIG spec (CLAUDE.md).
+problem_module: problem
+
+# --- generator (subscription-billed CLI) ---
+backend: claude               # claude (opus) PRIMARY; cursor-agent (composer) failover after claude_attempts
+claude_model: opus
+claude_effort: medium          # opus thinking budget (low|medium|high); medium ~248s/candidate
+cursor_model: composer-2.5-fast   # failover (--model, not -m); ~60s/candidate
+generate_timeout_s: 900         # 15-min ceiling per `claude -p` call; raised from 420 to leave room for WebFetch of the §3.6 repo links (fetch+read adds latency); on timeout the whole tree is SIGKILLed and Cursor is tried
+fallback: true
+# --- pre-flight smoke test + repair (catch crashes on CPU before spending a GPU job) ---
+claude_attempts: 3              # Claude tries per candidate: 1 generate + 2 repairs (error fed back each retry), then Cursor
+cursor_attempts: 2             # Cursor repair tries after Claude is exhausted
+smoke_timeout_s: 120           # CPU smoke subprocess cap; a timeout is an inconclusive PASS (never blocks a slow-but-valid candidate)
+
+# --- execution: one SLURM job per candidate ---
+exec_mode: sbatch_per_run
+python: /project/6014832/mforooz/EpiDenoise/candi_venv/bin/python
+account: def-maxwl_gpu
+gres: gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
+cpus: 2
+mem: 12G
+time_limit: "0:40:00"          # covers min(5ep,1800s) train + load + eval
+setup_cmds:
+  - "source /project/6014832/mforooz/EpiDenoise/candi_venv/bin/activate 2>/dev/null"
+  - "module load samtools 2>/dev/null"
+  - "cd /project/6014832/mforooz/EpiDenoise"
+  - "export PYTHONPATH=/project/6014832/mforooz/EpiDenoise"
+
+# --- FUTS search ---
+num_iterations: 95
+batch_size: 5                  # 5 concurrent GPU jobs per round (20 rounds)
+gen_workers: 2                 # concurrent LLM generations/round (lowered 3->2 for extra headroom under the login-node 512-pids cap; < batch_size=5). 5 GPU jobs/round unchanged.
+c_puct: 1.2                    # slightly > 1.0: whole-program candidates are high-variance
+portfolio_k: 5

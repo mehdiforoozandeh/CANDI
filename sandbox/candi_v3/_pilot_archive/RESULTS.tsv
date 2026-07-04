@@ -1,0 +1,2 @@
+iter	node_index	parent_index	status	ERA_SCORE	S_A	imp_spearman_gw	ece	dcr	cal_pen	dcr_pen	n_imp	selected_as_parent_at
+0	0		ok	-0.417555	-0.395974245657531	0.069224754342469	0.12732052570662766	3.86592180214201	-0.021580610282651066	0.0	1000000	-

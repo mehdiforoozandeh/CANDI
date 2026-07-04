@@ -1,0 +1,33 @@
+# CANDI v3 ERA search config. Budget knobs (num_iterations, train_steps via TRAIN_STEPS in
+# the seed, time_limit) are finalised in Stage 1 from seed timing. SLURM/env per
+# sandbox/notes/era_candi_driver.md. gres is the MANDATORY exact MIG spec (CLAUDE.md).
+problem_module: problem
+
+# --- generator (subscription-billed CLI) ---
+backend: claude
+claude_model: opus
+claude_effort: medium          # opus thinking budget (low|medium|high); medium ~248s/candidate
+cursor_model: composer-2.5-fast   # failover (--model, not -m); ~60s/candidate
+generate_timeout_s: 900
+fallback: true
+
+# --- execution: one SLURM job per candidate ---
+exec_mode: sbatch_per_run
+python: /project/6014832/mforooz/EpiDenoise/candi_venv/bin/python
+account: def-maxwl_gpu
+gres: gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
+cpus: 2
+mem: 12G
+time_limit: "0:20:00"          # covers min(5ep,600s) train + load + eval
+setup_cmds:
+  - "source /project/6014832/mforooz/EpiDenoise/candi_venv/bin/activate 2>/dev/null"
+  - "module load samtools 2>/dev/null"
+  - "cd /project/6014832/mforooz/EpiDenoise"
+  - "export PYTHONPATH=/project/6014832/mforooz/EpiDenoise"
+
+# --- FUTS search ---
+num_iterations: 4            # END-TO-END TEST (1 round)
+batch_size: 4                  # concurrent SLURM jobs per round
+gen_workers: 0                 # concurrent LLM generations/round (0 = batch_size). Lower to throttle rate limits.
+c_puct: 1.2                    # slightly > 1.0: whole-program candidates are high-variance
+portfolio_k: 5

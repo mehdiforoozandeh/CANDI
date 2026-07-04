@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "dialectic": {
+      "source": "mehdiforoozandeh/skills",
+      "sourceType": "github",
+      "skillPath": "skills/dialectic/SKILL.md",
+      "computedHash": "0f4a151e78684e917e8ee3fc413ee50916ce4cfcf4910c5348f268ca9be605c4"
+    },
+    "hier": {
+      "source": "mehdiforoozandeh/skills",
+      "sourceType": "github",
+      "skillPath": "skills/hier/SKILL.md",
+      "computedHash": "8c8c8e43e3262d5de3fae87a4d516f7e538744974141aafef5693fc8a98c2a7a"
+    },
+    "pingpong": {
+      "source": "mehdiforoozandeh/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pingpong/SKILL.md",
+      "computedHash": "b60f78bd4642d4280b162b327a408505cad826f2dbe84572516abe759e6e06da"
+    }
+  }
+}

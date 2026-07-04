@@ -1,0 +1,12 @@
+Anchoring root: executing baseline once ...
+baseline score = -0.393075
+
+BEST score = -0.031521
+
+Top-5 portfolio:
+  node  70  score=-0.031521  runs/cand0071/program.py
+  node  79  score=-0.048302  runs/cand0080/program.py
+  node  63  score=-0.049934  runs/cand0064/program.py
+  node  85  score=-0.050114  runs/cand0086/program.py
+  node  99  score=-0.050687  runs/cand0100/program.py
+[run.py EXITED]
