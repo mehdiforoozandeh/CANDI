@@ -1,0 +1,11 @@
+# The packages Fir's CVMFS wheelhouse does NOT carry. Install AFTER requirements-fir.txt:
+#
+#   pip install -r requirements-pypi.txt
+#
+# This needs internet. Login nodes have it; compute nodes generally do not, so install before
+# submitting a job. Kept separate from requirements-fir.txt because that file is installed with
+# --no-index, under which these are unresolvable and would abort the entire install.
+
+# Pinned exactly. The version is load-bearing: it fixes both the encoder's state_dict key names and
+# the module init order, so a different build changes the parameter hash and breaks `candi_kit.compat`.
+x-transformers==2.11.23

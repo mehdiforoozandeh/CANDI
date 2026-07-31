@@ -1,0 +1,17 @@
+{
+  "_comment": "Smallest panel verified to TRAIN WELL and exercise the kit's metrics, on DATA_CANDI_EIC. 3 well-behaved marks x 6 biosamples, chr19 train / chr21 eval. Two properties matter and are easy to lose when you edit this: (1) each T_ biosample carries >=2 panel assays, or whole-assay cloze is skipped and the imputation loss is identically 0; (2) the held-out targets span MORE THAN ONE assay (DNase-seq and H3K4me1 here) -- with a single held-out assay the M2 cross-target assay ablation has nothing to swap and returns nan. Keys starting with _ are ignored, so annotate your own panels freely.",
+  "assays": ["DNase-seq", "H3K27ac", "H3K4me1"],
+  "biosamples": [
+    "T_OCI-LY7",
+    "T_adrenal_gland_embryonic",
+    "T_neural_stem_progenitor_cell",
+    "V_OCI-LY7",
+    "V_adrenal_gland_embryonic",
+    "V_neural_stem_progenitor_cell"
+  ],
+  "dsf_list": [1, 2, 4],
+  "resolution": 25,
+  "context_bins": 768,
+  "train_chroms": ["chr19"],
+  "eval_chroms": ["chr21"]
+}

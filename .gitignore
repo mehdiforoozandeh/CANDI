@@ -42,3 +42,9 @@ sandbox/autoresearch/menu/_adapter/*.out
 sandbox/autoresearch/menu/_adapter/*.jobid
 
 slurm_logs/*
+# model weights and large binary fixtures — these stay on the cluster
+*.ckpt
+*.h5
+
+# stale lock from the orphaned cruxvault sync script
+.cruxvault-sync.lock

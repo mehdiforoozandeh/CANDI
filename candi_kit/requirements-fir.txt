@@ -1,0 +1,40 @@
+# Exact rebuild on Fir (Alliance Canada) — the CVMFS-wheelhouse half of the environment.
+#
+# EVERY line in this file resolves under `pip install --no-index`. Packages that are NOT in the
+# wheelhouse live in requirements-pypi.txt and are installed in a second, separate command — pip
+# resolves a requirements file atomically, so one unresolvable line installs NOTHING.
+#
+# Full recipe, copy-paste:
+#
+#   module load python/3.10.13
+#   virtualenv --no-download myvenv && source myvenv/bin/activate
+#   pip install --no-index -r requirements-fir.txt     # CVMFS wheelhouse
+#   pip install -r requirements-pypi.txt               # PyPI; needs internet (login nodes have it)
+#   pip install --no-deps /path/to/candi_kit           # the kit itself
+#
+# Use `--no-deps` and a NON-editable install: `pip install -e` writes an .egg-info into the source
+# tree, which fails on a shared read-only copy of the kit. See README §4.1.
+#
+# No cuda/cudnn module is needed: the +computecanada torch wheel bundles its own CUDA runtime.
+
+# --- hard (train from a baked h5) ---
+torch==2.6.0+computecanada
+numpy==1.26.4+computecanada
+h5py==3.12.0+computecanada
+scipy==1.15.1+computecanada
+einops==0.8.1+computecanada
+einx==0.3.0+computecanada
+loguru==0.7.3+computecanada
+sympy==1.13.1+computecanada
+
+# --- [prepare] : ENCODE-dir -> HDF5 bake ---
+pysam==0.22.1+computecanada
+intervaltree==3.1.0+computecanada
+pandas==2.2.3+computecanada
+
+# --- [report] ---
+matplotlib==3.10.0+computecanada
+
+# --- [test] ---
+# The wheelhouse tops out at 9.0.2; pyproject.toml's portable pin is looser on purpose.
+pytest==9.0.2+computecanada

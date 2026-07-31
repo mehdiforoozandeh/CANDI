@@ -32,6 +32,12 @@ INVERTIBLE = {"identity", "mult", "add", "power"}
 NONINVERTIBLE = {"thin", "cap", "clog"}
 STOCHASTIC = {"thin"}
 
+# Staged expansion (plan_v2 §Transforms, Q4 decision: invertible-first).
+#   2a trains ONLY the invertible/mean-based half; 2c adds the reshaping families
+#   *only if 2a shows steering*. identity is the M1/M3 reference and always present.
+FAMILIES_2A = ["identity", "mult", "add", "power"]
+FAMILIES_2C = ["identity", "mult", "add", "power", "thin", "cap", "clog"]
+
 
 def _fname(family) -> str:
     return family if isinstance(family, str) else FAM_NAMES[int(family)]

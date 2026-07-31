@@ -1,0 +1,9 @@
+{
+  "assays": ["DNase-seq", "H3K4me3", "H3K27ac", "H3K27me3", "H3K36me3"],
+  "biosamples": ["T_DND-41", "T_H1-hESC", "T_H9", "V_DND-41", "V_H1-hESC"],
+  "dsf_list": [1, 2, 4],
+  "resolution": 25,
+  "context_bins": 512,
+  "train_chroms": ["chr19"],
+  "eval_chroms": ["chr21"]
+}

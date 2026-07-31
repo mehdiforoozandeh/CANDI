@@ -1,7 +1,7 @@
 title: CANDI
 slug: candi
 root_id: root
-engine_version: 1.0
-counter_q: 15
-counter_h: 33
+engine_version: 1.2
+counter_q: 20
+counter_h: 58
 counter_s: 0

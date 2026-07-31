@@ -1,0 +1,29 @@
+{
+  "assays": [
+    "ATAC-seq",
+    "DNase-seq",
+    "H3K4me3",
+    "H3K4me1",
+    "H3K27ac",
+    "H3K27me3",
+    "H3K36me3",
+    "H3K9me3"
+  ],
+  "biosamples": [
+    "T_DND-41",
+    "T_H1-hESC",
+    "T_H9",
+    "T_RWPE2",
+    "T_heart_left_ventricle",
+    "V_DND-41",
+    "V_H1-hESC",
+    "V_heart_left_ventricle",
+    "B_DND-41",
+    "B_RWPE2"
+  ],
+  "dsf_list": [1, 2, 4, 8],
+  "resolution": 25,
+  "context_bins": 768,
+  "train_chroms": ["chr19"],
+  "eval_chroms": ["chr21"]
+}

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "candi-kit"
+description = "CANDI q19 dual-conditioning recipe: ENCODE-style counts -> HDF5 -> NB counts model."
+requires-python = ">=3.10,<3.11"
+dynamic = ["version"]
+
+# Import-time HARD deps: everything needed to TRAIN from an already-baked h5.
+# scipy is NOT optional in practice — metrics.py needs scipy.stats.nbinom/rankdata and
+# scipy.special.hyp2f1, and train.py calls evaluate() at the end of every run.
+# PEP 440: a plain `==2.6.0` also matches Fir's `2.6.0+computecanada` local version, so these pins
+# resolve both on the cluster and on a vanilla PyPI machine. Never write `+computecanada` here.
+# x-transformers is PINNED EXACTLY: its internals fix the encoder.transformer_blocks.* state_dict
+# key names and the per-module init order, so a minor bump breaks checkpoint loading AND --compat-q19.
+dependencies = [
+    "torch==2.6.0",
+    "numpy==1.26.4",
+    "h5py==3.12.0",
+    "x-transformers==2.11.23",
+    "einops==0.8.1",
+    "einx==0.3.0",
+    "loguru==0.7.3",
+    "sympy==1.13.1",
+    "scipy==1.15.1",
+]
+
+[project.optional-dependencies]
+# ENCODE-dir -> HDF5 bake only (candi_kit.prep.*). Not needed to train from an existing h5.
+prepare = ["pysam==0.22.1", "intervaltree==3.1.0", "pandas==2.2.3"]
+# candi_kit.report — requires MPLBACKEND=Agg.
+report = ["matplotlib==3.10.0", "pandas==2.2.3"]
+test = ["pytest==9.0.3"]
+
+[tool.setuptools.dynamic]
+version = { attr = "candi_kit.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Gate A's forward-output anchors. Without this they are dropped from a non-editable install and
+# `python -m candi_kit.compat` silently RE-WRITES them from the kit itself — turning the external
+# copy-proof into self-certification.
+[tool.setuptools.package-data]
+candi_kit = ["goldens/*.pt"]

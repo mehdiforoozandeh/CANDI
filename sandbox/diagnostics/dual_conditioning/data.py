@@ -1,21 +1,25 @@
-"""Data layer for the dual-conditioning testbed (crux q15).
+"""Data layer for the dual-conditioning testbed v2 (crux q15 / q16).
 
 Reads base counts / DNA / control from `sandbox/data/sandbox.h5` (DSF1 only, denoising-only),
-applies per-assay input/output transforms f_x / f_y, and assembles CANDIv2-ready tensors with the
-2-row (aug_family, aug_param) metadata. chr19 -> train, chr21 -> test.
+applies per-assay input/output transforms f_x / f_y, and assembles model-ready tensors with the
+**3-row** metadata (aug_family, aug_param, log2_depth). chr19 -> train, chr21 -> test.
 
-Design choices (see plan.md):
-- x_data carries RAW transformed counts x' (>=0 int, as float); missing assays -> MISSING(-1).
-  The encoder's own signal_transform="arcsinh" handles compression and preserves the -1 sentinel.
-- Metadata stores the RAW positive param; normalization (h33: none/zscore/log) happens INSIDE the
-  model embedder, so a normalized param can never collide with the -1/-2 availability sentinels.
-- `thin` targets are deterministically seeded by (biosample, assay, window_start, family, param, side)
-  so they are bit-identical across epochs.
+v2 changes from v1 (see plan_v2.md):
+- **3-row metadata** `[B, 3, F]`: row0 aug_family (steering), row1 aug_param (steering, raw),
+  row2 log2_depth (= meta_dsf1[0, a], the OBSERVED base library size; NON-steerable, h_y-independent,
+  transform-independent). FiLM reads rows 0-1; the count-head offset reads row 2.
+- **NO winsorize** — v1's CLIP=128 is removed. Raw transformed counts pass straight through; the heavy
+  tail is handled by the encoder's arcsinh + the log-link offset head + power<=1.5, not by clipping.
+- **Per-assay conditions** (default): each available assay draws (f_x,h_x),(f_y,h_y) independently
+  (now possible because v2 conditions per assay). **uniform-per-batch** mode reproduces the v1 regime
+  (one matrix cell per batch) as the baseline arm. **forced-identity-x** forces f_x=identity (h35).
+- `thin` targets deterministically seeded by (biosample, assay, window_start, family, param, side).
 """
 from __future__ import annotations
 
 import io
 import json
+import zlib
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -30,21 +34,27 @@ A = len(SANDBOX_ASSAYS)       # 8 signal assays
 L = 768                       # context bins
 G = L * 25                    # 19200 DNA bp
 MISSING = -1.0
-# Winsorize base counts: the raw distribution is heavy-tailed (mean ~3, but max ~10k), and transforms
-# like power blow that tail up to astronomically large NB targets that diverge NBNLL. Clip at p99.9-ish
-# so the transform algebra is learnable while keeping >99.8% of positions exact.
-CLIP = 128
+N_META_ROWS = 3               # aug_family, aug_param, log2_depth
+# Neutral (non-sentinel) placeholder depth for the control column when control signal IS present.
+# Control has no meta_dsf1 depth and never enters the count-head offset (decoder emits signal assays
+# only), so its exact depth is inert beyond the depth-aware encoder; the dataset-mean depth keeps the
+# metadata availability consistent with the (present) control signal (encoder asserts they agree).
+CONTROL_DEPTH = 25.1
 _SEED_SALT = 0x9E3779B1
 
 
 def _seed(bio: str, assay: int, win_start: int, fam: int, par: float, side: int) -> int:
-    """Stable 32-bit seed for deterministic binomial thinning."""
-    h = hash((bio, int(assay), int(win_start), int(fam), round(float(par), 6), int(side))) & 0xFFFFFFFF
-    return (h ^ _SEED_SALT) & 0xFFFFFFFF
+    """Stable 32-bit seed for deterministic binomial thinning.
+
+    Uses zlib.crc32 (NOT builtin hash()): Python str hashing is per-process salted (PYTHONHASHSEED
+    unset), so a hash()-based seed would make thin targets differ across separate runs/processes.
+    crc32 of the encoded key is bit-identical across processes (review: data.py:47)."""
+    key = f"{bio}|{int(assay)}|{int(win_start)}|{int(fam)}|{round(float(par), 6)}|{int(side)}".encode()
+    return (zlib.crc32(key) ^ _SEED_SALT) & 0xFFFFFFFF
 
 
 class DualCondData:
-    """H5-backed base-count provider + transform/tensor assembler."""
+    """H5-backed base-count provider + transform/tensor assembler (v2, 3-row metadata)."""
 
     def __init__(self, h5_path: str = H5_DEFAULT, *, ram_cache: bool = True):
         self.h5_path = Path(h5_path)
@@ -61,11 +71,13 @@ class DualCondData:
             self.win_start = np.array(h5["windows/start"][:], np.int64)
             self.idx_chr19 = np.where(chrom == "chr19")[0]
             self.idx_chr21 = np.where(chrom == "chr21")[0]
-            # availability census: meta_dsf1[0, a] != -1 -> assay a present in this biosample
+            # availability census + per-assay base log2_depth (meta_dsf1[0]).
             self.avail: Dict[str, np.ndarray] = {}
+            self.depth: Dict[str, np.ndarray] = {}
             for b in self.bios_order:
                 m = np.array(h5["biosamples"][b.replace("/", "_")]["meta_dsf1"])  # [4, A]
                 self.avail[b] = (m[0] != -1).astype(np.float32)
+                self.depth[b] = m[0].astype(np.float32)                            # [A]; -1 where missing
         # biosamples with >=1 available assay, and the (bio, assay) instance list
         self.biosamples = [b for b in self.bios_order if self.avail[b].sum() > 0]
         self.instances = [(b, a) for b in self.biosamples
@@ -109,6 +121,7 @@ class DualCondData:
         The transform APPLIED to the data uses (fam_x,par_x)/(fam_y,par_y); the metadata COVARIATE the
         model reads defaults to the same but can be overridden via fam_xm/par_xm / fam_ym/par_ym. The
         override decouples covariate from target -> used by the shuffle leakage controls (wrong covariate).
+        Row 2 (log2_depth) is ALWAYS the true base library size (never shuffled) — it is non-steerable.
         """
         fam_xm = fam_x if fam_xm is None else fam_xm; par_xm = par_x if par_xm is None else par_xm
         fam_ym = fam_y if fam_ym is None else fam_ym; par_ym = par_y if par_ym is None else par_ym
@@ -116,32 +129,33 @@ class DualCondData:
             wsorted, counts, dna, control = self._read(h5, bio, wi)
         B = counts.shape[0]
         av = self.avail[bio]                                   # [A]
+        dep = self.depth[bio]                                  # [A]
 
         x_sig = np.full((B, L, A), MISSING, np.float32)
         y_tgt = np.zeros((B, L, A), np.float32)
-        x_meta = np.full((B, 2, A + 1), MISSING, np.float32)
-        y_meta = np.full((B, 2, A), MISSING, np.float32)
+        x_meta = np.full((B, N_META_ROWS, A + 1), MISSING, np.float32)
+        y_meta = np.full((B, N_META_ROWS, A), MISSING, np.float32)
         avail = np.zeros((B, A), np.float32)
 
         for a in range(A):
             if av[a] <= 0:
                 continue
-            base_col = np.clip(counts[:, :, a], 0, CLIP)       # [B, L], winsorize heavy tail
+            base_col = counts[:, :, a]                          # [B, L], RAW (no winsorize)
             xp = self._apply_side(base_col, int(fam_x[a]), float(par_x[a]), bio, a, wsorted, side=0)
             yp = self._apply_side(base_col, int(fam_y[a]), float(par_y[a]), bio, a, wsorted, side=1)
             x_sig[:, :, a] = xp.astype(np.float32)
             y_tgt[:, :, a] = yp.astype(np.float32)
-            x_meta[:, 0, a] = float(fam_xm[a]); x_meta[:, 1, a] = float(par_xm[a])
-            y_meta[:, 0, a] = float(fam_ym[a]); y_meta[:, 1, a] = float(par_ym[a])
+            x_meta[:, 0, a] = float(fam_xm[a]); x_meta[:, 1, a] = float(par_xm[a]); x_meta[:, 2, a] = dep[a]
+            y_meta[:, 0, a] = float(fam_ym[a]); y_meta[:, 1, a] = float(par_ym[a]); y_meta[:, 2, a] = dep[a]
             avail[:, a] = 1.0
 
-        # control channel (index A): inert identity metadata where present; the h5 stores -1 for
-        # absent control, so mark those samples missing to keep signal/meta availability consistent
-        # (candi_v2 mask_token asserts they agree).
+        # control channel (index A): the h5 stores -1 for absent control across this dataset, so mark
+        # those samples missing to keep signal/meta availability consistent (encoder asserts they agree).
         x_data = np.concatenate([x_sig, control], axis=2)      # [B, L, A+1]
         ctrl_missing = (control[:, :, 0] == MISSING).any(axis=1)     # [B]
         x_meta[:, 0, A] = float(T.FAM["identity"]); x_meta[:, 1, A] = 1.0
-        x_meta[ctrl_missing, :, A] = MISSING
+        x_meta[:, 2, A] = CONTROL_DEPTH                              # neutral, non-sentinel (see const)
+        x_meta[ctrl_missing, :, A] = MISSING                        # control absent -> all rows sentinel
 
         return dict(
             x_data=torch.from_numpy(x_data).to(device),
@@ -154,33 +168,94 @@ class DualCondData:
 
     # ---- condition sampling ----
     def sample_conditions(self, bio: str, rng: np.random.Generator,
-                          conditions: Sequence[Tuple[int, float]],
-                          allowed_cell=None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Draw ONE cell (cx, cy) and broadcast to all available assays (uniform per batch).
+                          conditions: Sequence[Tuple[int, float]], *,
+                          mode: str = "per_assay", allowed_cell=None,
+                          force_x_identity: bool = False,
+                          ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Draw per-assay (or uniform-per-batch) input/output conditions for one biosample.
 
-        Uniform (not per-assay) because the fixed v2 decoder pools y_meta across assays into a single
-        global FiLM (meta_embed.mean(dim=1)) — per-assay-independent y_meta would average out and the
-        decoder could not steer. So one matrix cell per batch. `allowed_cell(fx,fy)->bool` filters
-        family cells (h31 holdout); None = all allowed.
+        mode="per_assay"  : each available assay draws (cx, cy) INDEPENDENTLY (the v2 default; the
+                            off-diagonal per-assay cells are the real steering test).
+        mode="uniform"    : one (cx, cy) drawn and broadcast to all assays (the v1 baseline arm).
+        force_x_identity  : override f_x=identity for every assay (h35 forced-identity positive control).
+        `allowed_cell(fx,fy)->bool` filters family cells (h31 holdout); None = all allowed.
+        Unavailable assays carry an identity placeholder (masked out downstream).
         """
-        while True:
-            cx = conditions[rng.integers(len(conditions))]
-            cy = conditions[rng.integers(len(conditions))]
-            if allowed_cell is None or allowed_cell(cx[0], cy[0]):
-                break
-        fam_x = np.full(A, cx[0], np.int64); par_x = np.full(A, cx[1], np.float32)
-        fam_y = np.full(A, cy[0], np.int64); par_y = np.full(A, cy[1], np.float32)
+        idc = T.FAM["identity"]
+
+        def _draw():
+            while True:
+                cx = conditions[rng.integers(len(conditions))]
+                cy = conditions[rng.integers(len(conditions))]
+                if force_x_identity:
+                    cx = (idc, 1.0)
+                if allowed_cell is None or allowed_cell(cx[0], cy[0]):
+                    return cx, cy
+
+        fam_x = np.full(A, idc, np.int64); par_x = np.ones(A, np.float32)
+        fam_y = np.full(A, idc, np.int64); par_y = np.ones(A, np.float32)
+        if mode == "uniform":
+            cx, cy = _draw()
+            fam_x[:] = cx[0]; par_x[:] = cx[1]; fam_y[:] = cy[0]; par_y[:] = cy[1]
+        elif mode == "per_assay":
+            for a in range(A):
+                if self.avail[bio][a] <= 0:
+                    continue
+                cx, cy = _draw()
+                fam_x[a] = cx[0]; par_x[a] = cx[1]; fam_y[a] = cy[0]; par_y[a] = cy[1]
+        else:
+            raise ValueError(f"unknown sampling mode {mode!r}")
         return fam_x, par_x, fam_y, par_y
 
     def iter_train(self, batch_size: int, n_batches: int, rng: np.random.Generator,
-                   conditions: Sequence[Tuple[int, float]], device, allowed_cell=None):
-        """Yield training batches: random biosample + windows + per-assay conditions (chr19)."""
+                   conditions: Sequence[Tuple[int, float]], device, *,
+                   mode: str = "per_assay", allowed_cell=None, force_x_identity: bool = False,
+                   cell_counts=None):
+        """Yield training batches: random biosample + windows + conditions (chr19).
+
+        If `cell_counts` (a dict/Counter) is given, increment it per drawn (f_x_family, f_y_family) cell
+        over the available assays -- the 2c/h31 per-cell coverage log that separates a genuinely HARD
+        family from an UNDERTRAINED one (and confirms the holdout mask actually withholds its cells).
+        """
         pool = self.idx_chr19
         for _ in range(n_batches):
             bio = self.biosamples[rng.integers(len(self.biosamples))]
             wi = rng.choice(pool, size=batch_size, replace=False)
-            fx, px, fy, py = self.sample_conditions(bio, rng, conditions, allowed_cell)
+            fx, px, fy, py = self.sample_conditions(
+                bio, rng, conditions, mode=mode, allowed_cell=allowed_cell,
+                force_x_identity=force_x_identity)
+            if cell_counts is not None:
+                av = self.avail[bio]
+                for a in range(A):
+                    if av[a] > 0:
+                        cell_counts[(int(fx[a]), int(fy[a]))] = cell_counts.get((int(fx[a]), int(fy[a])), 0) + 1
             yield self.make_batch(bio, wi, fx, px, fy, py, device)
 
     def eval_windows(self, chrom: str = "chr21") -> np.ndarray:
         return self.idx_chr21 if chrom == "chr21" else self.idx_chr19
+
+
+def stratified_holdout(families: Sequence[str], rho: float, seed: int) -> set:
+    """h31 holdout mask: a set of held-out (f_x_family, f_y_family) id pairs.
+
+    Eligible = OFF-diagonal, NON-identity cells (identity row/col + the diagonal are always trained, so
+    every transform is seen and only specific PAIRINGS are withheld). ~rho of the eligible cells are held
+    out, stratified by a per-family cap so each family keeps >=1 cell as f_x AND >=1 as f_y -> every
+    transform still appears on BOTH sides in training (the h31 precondition). Deterministic in `seed`.
+    """
+    idc = T.FAM["identity"]
+    fam_ids = [T.FAM[f] for f in families if T.FAM[f] != idc]
+    eligible = [(fx, fy) for fx in fam_ids for fy in fam_ids if fx != fy]
+    if not eligible or rho <= 0:
+        return set()
+    k = int(round(float(rho) * len(eligible)))
+    cap = len(fam_ids) - 2          # each family has (len-1) cells per side; hold out at most (len-2) -> keep >=1
+    order = np.random.default_rng(seed).permutation(len(eligible))
+    out, used_x, used_y = set(), {f: 0 for f in fam_ids}, {f: 0 for f in fam_ids}
+    for idx in order:
+        if len(out) >= k:
+            break
+        fx, fy = eligible[int(idx)]
+        if used_x[fx] < cap and used_y[fy] < cap:
+            out.add((fx, fy)); used_x[fx] += 1; used_y[fy] += 1
+    return out

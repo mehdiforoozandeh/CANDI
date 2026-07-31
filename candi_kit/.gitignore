@@ -1,0 +1,13 @@
+# build artifacts — `build/lib/` in particular is a stale DUPLICATE of every source file and
+# will silently diverge from src/ after any edit.
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# SLURM job logs from validation runs. Note: this directory is `slurm/logs/`, NOT `logs/` —
+# the parent repo's .gitignore:14-16 has unanchored `logs/`, `jobs/` and `models/` rules that
+# would swallow it from above. Same reason the scripts live in slurm/ and not jobs/.
+slurm/logs/

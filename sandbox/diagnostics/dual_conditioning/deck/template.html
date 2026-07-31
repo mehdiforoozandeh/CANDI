@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dual conditioning — was the steering failure real?</title>
+<style>
+  :root{
+    --red:#CC0633; --darkred:#A6192E; --grey:#54585A; --midgrey:#8A8D8F;
+    --ink:#2A2D2E; --panel:#F2F2F2; --light:#D9D9D9; --paper:#FFFFFF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#E7E8E9;overflow:hidden;
+    font-family:Arial,"Liberation Sans",Helvetica,sans-serif;color:var(--ink)}
+  #stage{position:absolute;top:50%;left:50%;width:1280px;height:720px;
+    transform:translate(-50%,-50%);transform-origin:center center;
+    background:var(--paper);box-shadow:0 8px 40px rgba(0,0,0,.28);overflow:hidden}
+  .slide{position:absolute;inset:0;padding:54px 72px 60px;display:none;
+    flex-direction:column;opacity:0;transition:opacity .28s ease}
+  .slide.active{display:flex;opacity:1}
+  /* ---- header ---- */
+  .kicker{font-size:15px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--red);margin-bottom:8px}
+  h1{font-size:40px;line-height:1.08;font-weight:800;color:var(--darkred);letter-spacing:-.01em}
+  h1 .thin{color:var(--ink);font-weight:800}
+  .rule{width:78px;height:5px;background:var(--red);margin:16px 0 22px;border-radius:3px}
+  .body{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+  /* ---- footer ---- */
+  #chrome{position:absolute;left:72px;right:72px;bottom:22px;display:flex;
+    align-items:center;justify-content:space-between;pointer-events:none;z-index:5}
+  #chrome img{height:20px;opacity:.9}
+  #pageno{font-size:13px;font-weight:700;color:var(--grey);letter-spacing:.05em}
+  #chrome.hide{display:none}
+  /* ---- columns ---- */
+  .cols{display:grid;grid-template-columns:1.02fr .98fr;gap:46px;align-items:center;flex:1;min-height:0}
+  .cols.rev{grid-template-columns:.98fr 1.02fr}
+  .fig{display:flex;align-items:center;justify-content:center;height:100%}
+  .fig img{max-width:100%;max-height:472px;object-fit:contain}
+  .figwrap{display:flex;flex-direction:column;align-items:center}
+  .figwrap img{max-width:100%;max-height:418px}
+  .disclose{font-size:13px;color:var(--midgrey);font-style:italic;text-align:center;
+    margin-top:10px;max-width:460px}
+  .disclose b{color:var(--grey);font-style:normal}
+  /* ---- text bits ---- */
+  p.lead{font-size:23px;line-height:1.5;color:var(--ink)}
+  ul.pts{list-style:none;font-size:22px;line-height:1.45}
+  ul.pts li{position:relative;padding-left:30px;margin:15px 0}
+  ul.pts li::before{content:"";position:absolute;left:0;top:11px;width:12px;height:12px;
+    border-radius:50%;background:var(--red)}
+  .em{color:var(--red);font-weight:700}
+  .emd{color:var(--darkred);font-weight:700}
+  /* ---- metric card ---- */
+  .card{background:var(--panel);border-left:6px solid var(--red);border-radius:8px;
+    padding:22px 26px}
+  .card h3{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);
+    font-weight:700;margin-bottom:14px}
+  .card .math{display:block;margin:6px 0}
+  .card .math img{max-width:100%;height:auto}
+  .card .math.rho img{max-height:70px}
+  .card .math.small img{max-height:40px;opacity:.92}
+  .card .math.s img{max-height:70px}
+  .card .explain{font-size:18px;line-height:1.45;color:var(--ink);margin-top:14px}
+  .card .verdict{font-size:22px;font-weight:800;margin-top:14px}
+  .verdict .good{color:var(--red)} .verdict .bad{color:var(--grey)}
+  /* ---- big stat callout ---- */
+  .stat{font-size:58px;font-weight:800;color:var(--red);line-height:1;letter-spacing:-.02em}
+  .stat .arrow{color:var(--midgrey);font-weight:700}
+  .statlabel{font-size:18px;color:var(--grey);margin-top:10px}
+  .callout{background:var(--panel);border-radius:10px;padding:26px 30px;text-align:center}
+  /* pooling schematic text (slide 8) */
+  .poolcols{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:16px}
+  .poolcols p{font-size:19px;line-height:1.45}
+  /* ---- title slide ---- */
+  .title-slide{justify-content:center}
+  .title-slide .qtag{font-size:16px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--red);margin-bottom:18px}
+  .title-slide h1.big{font-size:62px;line-height:1.04;color:var(--darkred);max-width:1000px}
+  .title-slide .sub{font-size:26px;line-height:1.4;color:var(--ink);margin-top:26px;max-width:900px}
+  .title-slide .rule{width:120px;margin:34px 0}
+  .title-slide .who{font-size:18px;color:var(--grey);margin-top:22px}
+  .title-slide .who b{color:var(--ink)}
+  /* ---- setup skeleton + job rows (slide 3) ---- */
+  .diagram{display:flex;align-items:center;justify-content:center}
+  .diagram img{max-width:100%;max-height:300px}
+  .jobrows{display:flex;flex-direction:column;gap:14px;margin-top:22px}
+  .jobrow{display:flex;align-items:center;gap:18px}
+  .jpill{flex:0 0 auto;background:var(--red);color:#fff;font-weight:800;font-size:16px;
+    padding:9px 17px;border-radius:999px;white-space:nowrap}
+  .jpill.dk{background:var(--darkred)}
+  .jdesc{font-size:18px;line-height:1.4;color:var(--ink)}
+  .jdesc b{color:var(--darkred)}
+  /* suspects */
+  .suspects{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;flex:1;align-items:stretch}
+  .suspect{border:2px solid var(--light);border-radius:12px;padding:22px 20px;display:flex;
+    flex-direction:column}
+  .suspect .n{font-size:15px;font-weight:800;color:var(--midgrey);letter-spacing:.1em}
+  .suspect h4{font-size:23px;color:var(--darkred);margin:8px 0 10px}
+  .suspect p{font-size:17px;line-height:1.35;color:var(--ink)}
+  .suspect.win{border-color:var(--red);background:var(--panel)}
+  .suspect.win .n{color:var(--red)}
+  .suspect .tag{margin-top:auto;padding-top:12px;font-size:15px;font-weight:800;letter-spacing:.06em}
+  .suspect .tag.culprit{color:var(--red)} .suspect .tag.clear{color:var(--midgrey)}
+  /* cleared list */
+  .cleared{display:flex;flex-direction:column;gap:20px}
+  .cleared .row{display:flex;gap:18px;align-items:flex-start}
+  .cleared .row .h{font-size:21px;font-weight:800;color:var(--darkred);min-width:190px}
+  .cleared .row p{font-size:20px;line-height:1.4}
+  /* takeaways */
+  ol.take{list-style:none;counter-reset:t;font-size:25px;line-height:1.4}
+  ol.take li{position:relative;padding-left:56px;margin:22px 0}
+  ol.take li::before{counter-increment:t;content:counter(t);position:absolute;left:0;top:-2px;
+    width:38px;height:38px;background:var(--red);color:#fff;border-radius:50%;font-size:20px;
+    font-weight:800;display:flex;align-items:center;justify-content:center}
+  .next{margin-top:26px;font-size:21px;color:var(--grey)}
+  .next b{color:var(--darkred)}
+  /* progress bar */
+  #prog{position:absolute;left:0;bottom:0;height:4px;background:var(--red);width:0;transition:width .28s}
+  .caveat{font-size:16px;color:var(--midgrey);font-style:italic;margin-top:16px;line-height:1.4}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1 · TITLE -->
+  <section class="slide title-slide active">
+    <div class="qtag">CANDI · dual metadata conditioning</div>
+    <h1 class="big">Was the steering failure&nbsp;real?</h1>
+    <div class="sub">A controlled test of whether the model can follow two instructions at once —
+      and the one bug that faked a failure.</div>
+    <div class="rule"></div>
+    <div class="who"><b>Mehdi Foroozandeh</b> · Simon Fraser University · July 2026</div>
+  </section>
+
+  <!-- 2 · ORIENTER -->
+  <section class="slide">
+    <div class="kicker">The worry</div>
+    <h1>Does the model actually <span class="thin">use its metadata?</span></h1>
+    <div class="rule"></div>
+    <div class="body">
+      <ul class="pts">
+        <li>CANDI is <em>supposed</em> to read its metadata — sequencing depth, assay type — and
+          adjust its output accordingly.</li>
+        <li>The failure we keep running into: the model quietly <em>ignores</em> that metadata.
+          We call it <span class="emd">collapse</span>.</li>
+        <li>Today: a clean, controlled test of whether the model can use metadata to steer its
+          output <em>at all</em>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3 · SETUP -->
+  <section class="slide">
+    <div class="kicker">The setup</div>
+    <h1>Two jobs, on purpose <span class="thin">— in a testbed where we know the right answer</span></h1>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="diagram"><img src="assets/skeleton.svg" alt="testbed skeleton: Input to f_x to CANDI to Output, and Input to f_y to Target, must match"></div>
+      <div class="jobrows">
+        <div class="jobrow">
+          <span class="jpill">Job 1 · read the input</span>
+          <span class="jdesc">corrupt the input (<b>f<sub>x</sub></b> on) and ask for it back untouched
+            (<b>f<sub>y</sub></b> = none) → <span class="em">recover the clean signal</span></span>
+        </div>
+        <div class="jobrow">
+          <span class="jpill dk">Job 2 · steer the output</span>
+          <span class="jdesc">leave the input clean (<b>f<sub>x</sub></b> = none) and demand a transformed output
+            (<b>f<sub>y</sub></b> on) → <span class="em">produce the reshaped answer on command</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · JOB 1 WORKS -->
+  <section class="slide">
+    <div class="kicker">The symptom · part 1</div>
+    <h1>Job 1 works <span class="thin">— the model sees past the corruption</span></h1>
+    <div class="rule"></div>
+    <div class="cols">
+      <div class="fig">
+        <div class="figwrap">
+          <img src="assets/job1_cluster.svg" alt="clustering (schematic)">
+          <div class="disclose">Schematic — the layout illustrates the idea; <b>ρ is the measured value</b>.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>How we measure it</h3>
+        <span class="math rho"><img src="assets/math_rho.svg" alt="rho formula"></span>
+        <span class="math small"><img src="assets/math_dcos.svg" alt="cosine distance"></span>
+        <div class="explain">Average distance among <em>corrupted copies of the same signal</em>, divided by the
+          distance between <em>different signals</em>.</div>
+        <div class="verdict"><span class="good">ρ ≈ 0.10</span></div>
+        <div class="explain" style="margin-top:8px">Same-signal copies sit <b>~10× closer</b> than different
+          signals (0.075 vs 0.785) → corruption barely moves the model's internal picture.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · JOB 2 FAILS -->
+  <section class="slide">
+    <div class="kicker">The symptom · part 2</div>
+    <h1>Job 2 fails <span class="thin">— the output ignores the instruction</span></h1>
+    <div class="rule"></div>
+    <div class="cols">
+      <div class="fig">
+        <div class="figwrap">
+          <img src="assets/steer_broken.svg" alt="flat steering curve (real data)">
+          <div class="disclose"><b>Real data.</b> X-axis = how many instruction-levels off the truth we told it.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>The steering score S</h3>
+        <span class="math s"><img src="assets/math_S.svg" alt="S formula"></span>
+        <div class="explain"><b>S</b> = how much the <em>right</em> instruction lowers error (0 = nothing, 1 = nails it) ·
+          <b>P</b> = number of instruction levels · <b>C<sub>ij</sub></b> = error when the true answer is <em>i</em>
+          but we told it <em>j</em>.</div>
+        <span class="math small"><img src="assets/math_crps.svg" alt="CRPS"></span>
+        <div class="explain"><b>CRPS</b> = how far the predicted <em>distribution</em> sits from the true count
+          (a distributional error, in count units). Unlike <b>NLL</b>, it stays finite and robust when the model
+          is surprised.</div>
+        <div class="verdict"><span class="bad">S ≈ 0.02</span> &nbsp;→&nbsp; a dead knob.</div>
+      </div>
+    </div>
+    <p class="lead" style="text-align:center;margin-top:12px">Same model: it understands the input, but the
+      output knob does nothing. <span class="emd">This looked exactly like collapse.</span></p>
+  </section>
+
+  <!-- 6 · FOUR SUSPECTS -->
+  <section class="slide">
+    <div class="kicker">The investigation</div>
+    <h1>Four suspects <span class="thin">— what could be faking the failure?</span></h1>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="suspects">
+        <div class="suspect win"><div class="n">01</div><h4>Pooling</h4>
+          <p>the decoder averages every assay’s instruction into one blur.</p>
+          <div class="tag culprit">▶ the culprit</div></div>
+        <div class="suspect"><div class="n">02</div><h4>Shortcut</h4>
+          <p>the model peeks at the input instead of reading the instruction.</p>
+          <div class="tag clear">cleared</div></div>
+        <div class="suspect"><div class="n">03</div><h4>Output anchor</h4>
+          <p>maybe steering needs the depth-anchor machinery.</p>
+          <div class="tag clear">cleared</div></div>
+        <div class="suspect"><div class="n">04</div><h4>Background</h4>
+          <p>the signal hides in sparse peaks, drowned by empty genome.</p>
+          <div class="tag clear">cleared</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · CULPRIT: POOLING -->
+  <section class="slide">
+    <div class="kicker">Suspect 1 · the culprit</div>
+    <h1>Pooling <span class="thin">— the instructions were blurred together</span></h1>
+    <div class="rule"></div>
+    <div class="cols rev">
+      <div>
+        <p class="lead">The broken version mixed <em>all</em> the assays’ instructions into a single
+          average before the decoder used it. Any one assay’s instruction got smeared out and lost.</p>
+        <p class="lead" style="margin-top:18px">Keep each assay’s instruction <span class="emd">separate</span>
+          — and the knob comes alive.</p>
+        <div class="callout" style="margin-top:26px">
+          <div class="stat">0.02 <span class="arrow">→</span> 0.53</div>
+          <div class="statlabel">steering score · a <b>~24×</b> jump. Never dead — just blurred.</div>
+        </div>
+      </div>
+      <div class="fig"><img src="assets/bar_pooling.svg" alt="pooling bar chart"></div>
+    </div>
+  </section>
+
+  <!-- 8 · POOLING, UP CLOSE (schematic) -->
+  <section class="slide">
+    <div class="kicker">The culprit, up close</div>
+    <h1>What “pooling” actually does <span class="thin">— to the wiring</span></h1>
+    <div class="rule"></div>
+    <div class="body">
+      <div class="diagram"><img src="assets/pooling.svg" alt="pooling vs kept separate" style="max-height:334px"></div>
+      <div class="poolcols">
+        <p><span class="emd">Pooling (v1):</span> the decoder averaged every assay’s instruction into one
+          blur, then fed that same blur to every assay — so assay 1’s own instruction was gone.</p>
+        <p><span class="em">The fix:</span> route each assay’s instruction straight to its own output.
+          Nothing is averaged — every assay is steered by its own metadata.</p>
+      </div>
+      <div class="caveat" style="text-align:center;margin-top:10px">This is the metadata-conditioning (FiLM) step:
+        each assay’s metadata sets how its own features are scaled and shifted.</div>
+    </div>
+  </section>
+
+  <!-- 10 · PAYOFF -->
+  <section class="slide">
+    <div class="kicker">The payoff</div>
+    <h1>So: the model <span class="thin">can</span> steer</h1>
+    <div class="rule"></div>
+    <div class="cols rev">
+      <div>
+        <p class="lead">The failure wasn’t a wall — it was <span class="emd">one fixable wiring mistake</span>.</p>
+        <p class="lead" style="margin-top:16px">Keep each assay’s instruction separate, and the model follows
+          <em>two independent commands at once</em>: clean the input <em>and</em> reshape the output on demand —
+          by genuinely reading the instruction, not cheating.</p>
+        <div class="caveat">Caveat: this is a small, chr19-trained testbed. Whether it holds up when we combine
+          transforms it never saw is exactly what we test next.</div>
+      </div>
+      <div class="fig"><img src="assets/steer_fixed.svg" alt="steering curve dips at the truth"></div>
+    </div>
+  </section>
+
+  <!-- 10b · h32 — UNDOING vs REDOING -->
+  <section class="slide">
+    <div class="kicker">A twist</div>
+    <h1>Undoing is harder <span class="thin">than redoing</span></h1>
+    <div class="rule"></div>
+    <div class="cols">
+      <div>
+        <p class="lead">Asking the model to <em>add</em> a distortion to its output is basically
+          <span class="emd">free</span>. The real work is <span class="emd">cleaning up</span> a distortion
+          on the way <em>in</em>.</p>
+        <p class="lead" style="margin-top:16px">And the surprise: the distortion that trips it up isn’t the
+          information-destroying ones (blurring, capping) — the model handles those fine. It’s a plain
+          <em>shift in the background level</em>.</p>
+      </div>
+      <div class="fig"><img src="assets/h32_asymmetry.svg" alt="undoing the input costs error, redoing the output is free"></div>
+    </div>
+  </section>
+
+  <!-- 10c · h31 — COMPOSITION -->
+  <section class="slide">
+    <div class="kicker">The real test</div>
+    <h1>Combinations it <span class="thin">never saw</span></h1>
+    <div class="rule"></div>
+    <div class="cols rev">
+      <div>
+        <p class="lead">We <span class="emd">hid</span> some input→output pairings from training entirely —
+          then asked for them anyway.</p>
+        <p class="lead" style="margin-top:16px">The model still gets them right: it <em>reads the instruction
+          and composes</em>, rather than memorising pairs. Hiding almost <b>half</b> of the combinations
+          barely changes anything.</p>
+      </div>
+      <div class="fig"><img src="assets/h31_composition.svg" alt="extra error on unseen combinations stays near zero"></div>
+    </div>
+  </section>
+
+  <!-- 11 · TAKEAWAYS -->
+  <section class="slide">
+    <div class="kicker">Takeaways</div>
+    <h1>What we learned</h1>
+    <div class="rule"></div>
+    <div class="body">
+      <ol class="take">
+        <li>The model <span class="em">can</span> do dual conditioning — read the input and steer the output
+          at the same time.</li>
+        <li>The earlier failure was <span class="em">one bug</span>: pooling instructions across assays.
+          Fixed → the knob works (<b>~24×</b>).</li>
+        <li>It <span class="em">genuinely reads the instruction</span> — and <span class="em">composes</span>:
+          combinations it never trained on still work, almost for free.</li>
+        <li>The hard part is <span class="em">undoing the input</span>, not producing the output — and the
+          trouble spot is a shift in <em>background level</em>, not information loss.</li>
+      </ol>
+      <div class="next"><b>Next:</b> does this hold in the real production model, with real experiments and
+        real metadata?</div>
+    </div>
+  </section>
+
+  <footer id="chrome">
+    <img src="assets/sfu_wordmark.png" alt="Simon Fraser University">
+    <span id="pageno"></span>
+  </footer>
+  <div id="prog"></div>
+
+</div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage');
+  var slides=Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var i=0, N=slides.length;
+  function fit(){var k=Math.min(window.innerWidth/1280, window.innerHeight/720);
+    stage.style.transform='translate(-50%,-50%) scale('+k+')';}
+  function show(n){
+    i=Math.max(0,Math.min(N-1,n));
+    slides.forEach(function(s,j){s.classList.toggle('active',j===i);});
+    document.getElementById('pageno').textContent=String(i+1).padStart(2,'0')+' / '+N;
+    document.getElementById('chrome').classList.toggle('hide', i===0);
+    document.getElementById('prog').style.width=((i)/(N-1)*100)+'%';
+  }
+  function next(){show(i+1);} function prev(){show(i-1);}
+  window.addEventListener('resize',fit);
+  document.addEventListener('keydown',function(e){
+    if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].indexOf(e.key)>=0){e.preventDefault();next();}
+    else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].indexOf(e.key)>=0){e.preventDefault();prev();}
+    else if(e.key==='Home'){show(0);} else if(e.key==='End'){show(N-1);}
+    else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement){document.documentElement.requestFullscreen();}else{document.exitFullscreen();}}
+  });
+  stage.addEventListener('click',function(e){
+    var r=stage.getBoundingClientRect();
+    if((e.clientX-r.left)/r.width < 0.28){prev();}else{next();}
+  });
+  fit(); show(0);
+})();
+</script>
+</body>
+</html>
