@@ -3,9 +3,9 @@ type: wiki
 title: Chromatin state annotation (SAGA)
 summary: ChromHMM and Segway summarise multi-assay epigenomic data into labelled genome segmentations; their annotations are a primary downstream consumer of imputed tracks, and are irreproducible more often than their posteriors suggest.
 category: method
-sources: raw/ernst-2012-chromhmm.xml, raw/hoffman-2012-segway.xml, raw/shahraki-2024-robust-chromatin-state-annotation.xml, raw/boix-2021-regulatory-genomic-circuitry.xml, raw/ernst-2015-chromimpute.xml
+sources: raw/ernst-2012-chromhmm.xml, raw/hoffman-2012-segway.xml, raw/shahraki-2024-robust-chromatin-state-annotation.xml, raw/boix-2021-regulatory-genomic-circuitry.xml, raw/ernst-2015-chromimpute.xml, raw/lin-2025-epiverse.xml
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Chromatin state annotation (SAGA)
@@ -27,6 +27,12 @@ The design contrast is instructive: ChromHMM binarises and gains speed and inter
 
 - `raw/ernst-2015-chromimpute.xml` used imputed data to delineate chromatin states across all 127 reference epigenomes — the point of imputing in the first place was to make a uniform segmentation possible where observed data were missing. See [[chromimpute]].
 - `raw/boix-2021-regulatory-genomic-circuitry.xml` (EpiMap) built chromatin states from observed **and** imputed tracks across 833 biosamples, then derived 2.1 million high-resolution enhancer annotations, 300 enhancer modules, and trait-relevant tissue predictions for 20,000 GWAS loci. It reports that imputed datasets clustered more cleanly and were less affected by technical covariates than observed ones — the strongest published argument that imputation improves downstream annotation rather than merely substituting for missing data.
+
+## Imputed tracks as an input layer
+
+`raw/lin-2025-epiverse.xml` (EpiVerse) is a concrete demonstration of imputation as infrastructure. Its pipeline **begins with Avocado**, uses the imputed epigenomic signals as input, and predicts cross-cell-type **Hi-C contact maps** — with chromatin-state prediction folded in as a second task in a multitask framework. It reports that building on imputed rather than observed inputs improves cross-cell-type Hi-C accuracy, because the imputed tracks are available for all cell types and marks rather than only where experiments exist.
+
+This makes the quality argument concrete in a way a correlation metric does not: errors in an imputed track propagate into 3-D genome predictions and chromatin-state calls downstream, so imputation accuracy has consequences beyond the track itself.
 
 ## See also
 

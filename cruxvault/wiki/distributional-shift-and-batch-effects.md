@@ -3,9 +3,9 @@ type: wiki
 title: Distributional shift and batch effects
 summary: Processing and protocol differences across a compendium shift the signal distribution site-specifically; the ENCODE challenge's deduplication artefact is the canonical worked example.
 category: concept
-sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/teng-2021-chip-seq-batch-effects.xml, raw/bonhoure-2014-chip-seq-spiking.xml, raw/reske-2020-atac-seq-normalization.xml, raw/mckenna-2010-gatk.pdf
+sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/teng-2021-chip-seq-batch-effects.xml, raw/bonhoure-2014-chip-seq-spiking.xml, raw/reske-2020-atac-seq-normalization.xml, raw/mckenna-2010-gatk.pdf, raw/leek-2010-leek-batch.xml, raw/zhang-2025-mpra-eval.xml
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Distributional shift and batch effects
@@ -29,6 +29,23 @@ The authors' initial hypothesis — that paired-end data is simply higher qualit
 `raw/bonhoure-2014-chip-seq-spiking.xml` argues the problem is unfixable post hoc in one important case. Normalisation methods that include a quantile step behave well when occupancy changes at a *subset* of sites, but **miss uniform genome-wide increases or decreases**, since a uniform shift is indistinguishable from a scaling artefact once the data are on the analyst's desk. Their spike adjustment procedure (SAP) therefore intervenes **experimentally**: a constant, low amount of chromatin from a foreign genome (human into mouse) is added before immunoprecipitation and serves as an internal reference. The spike also doubles as a QC signal, since its quality reflects technical rather than biological variation.
 
 The general lesson for modelling: if the covariates that generate the shift (depth, read length, run type, platform, lab, pipeline version) are recorded, they can be conditioned on; if they are not, the shift is confounded with biology. See [[signal-normalization-in-epigenomics]].
+
+## When a covariate is confounded with the biology
+
+`raw/leek-2010-leek-batch.xml` is the canonical statement of the problem and it makes one point that no algorithm can work around: when a batch variable is **correlated with the outcome of interest**, it leads to incorrect conclusions, and no computational correction can separate the two because the information required to do so is not in the data. Batch effects arise from laboratory conditions, reagent lots and personnel differences, and the paper documents their prevalence across nine published datasets.
+
+Two further points carry directly:
+
+- **Processing group and date are surrogates, not the effect itself.** Samples processed under the same protocol form a group; the recorded batch label stands in for an unmeasured set of physical differences, so conditioning on the label is not the same as conditioning on the cause.
+- **Consequences scale with confounding.** In the benign case, batch effects only inflate variance and reduce power. When confounded with the outcome, they produce false conclusions.
+
+The practical corollary is that the fix is **experimental design** — ensuring the covariate varies independently of the biology — not a better correction algorithm. A model conditioned on a covariate that is deterministic given the biology has nothing to learn from that covariate.
+
+## External evidence: processing dominates biology
+
+`raw/zhang-2025-mpra-eval.xml` supplies a striking independent measurement. Six MPRA and STARR-seq datasets, all generated in the **same cell line (K562)** by labs within the same consortium, show substantial inconsistency in which enhancers they call — and the inconsistency is **primarily due to technical variation in data processing and experimental workflow**, not biology. Imposing a **uniform enhancer-call pipeline** significantly improves cross-assay agreement.
+
+This is the same finding as the ENCODE challenge's deduplication artefact, reached independently in a different assay family: when the same biological question is measured by different pipelines, the pipeline explains more of the disagreement than the biology does. It is also a caution for any external validation set — disagreement with an orthogonal assay may be a processing difference rather than a model error.
 
 ## See also
 

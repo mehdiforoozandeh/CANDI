@@ -3,9 +3,9 @@ type: wiki
 title: Sequence-conditioned epigenome models
 summary: Models that predict epigenomic and transcriptomic signal from DNA sequence (± chromatin accessibility) — Enformer, BPNet, EPCOT, dHICA, TFImpute, DNABERT — and how they differ from tensor-based imputation.
 category: comparison
-sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf
+sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/avsec-2026-alphagenome.xml, raw/aksu-2026-corgi.pdf, raw/linder-2025-borzoi.xml, raw/kelley-2018-basenji.xml, raw/fu-2025-get.xml, raw/javed-2025-epibert.xml, raw/sun-2026-succeed.pdf, raw/hingerl-2025-scooby.xml, raw/gao-2024-epigept.xml, raw/murphy-2024-enformer-celltyping.xml, raw/chen-2022-sei.xml, raw/lal-2025-grelu.xml
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Sequence-conditioned epigenome models
@@ -29,6 +29,36 @@ The [[epigenome-imputation]] lineage ([[chromimpute]], [[predictd]], [[avocado]]
 
 The two conditioning sources are complementary rather than competing: sequence supplies position-specific priors that transfer to unseen cell types, while observed assays supply the cell-type identity that sequence cannot.
 
+## The lineage in order
+
+**Basenji** (`raw/kelley-2018-basenji.xml`) is the origin: dilated convolutions predicting cell-type-specific epigenetic and transcriptional profiles in 128 bp bins from DNA alone, extending the peak-classification approach of Basset to quantitative coverage. Enformer replaced its dilated stack with transformer blocks; **Borzoi** (`raw/linder-2025-borzoi.xml`) extended the targets to **RNA-seq coverage** at base-ish resolution, so that transcription, splicing and polyadenylation effects can all be read off one predicted track. **Sei** (`raw/chen-2022-sei.xml`) took the breadth route instead — 21,907 chromatin profiles across >1,300 cell lines and tissues, distilled into a vocabulary of "sequence classes."
+
+**AlphaGenome** (`raw/avsec-2026-alphagenome.xml`) is the current ceiling: **1 Mb of input** predicting **5,930 human tracks across 11 modalities** — gene expression, transcription initiation, chromatin accessibility, histone modifications, TF binding, contact maps, splice sites/usage/junctions — up to **single-base-pair resolution**, dissolving the length-versus-resolution trade-off that constrained everything before it. It matches or exceeds the strongest external model in 25 of 26 variant-effect evaluations.
+
+**NTv3** and **Evo 2** push further on context and self-supervision — see [[genomic-language-models]].
+
+## Breaking sequence's cell-type invariance
+
+The models that generalise to **unseen cell types** all add a non-sequence input:
+
+- **EPCOT** and **dHICA** (above) take chromatin accessibility.
+- **GET** (`raw/fu-2025-get.xml`) uses accessibility plus motif content over ~2 Mb across 213 fetal and adult cell types, reaching experimental-level expression accuracy in unseen cell types, and R² 0.53 on adult cell types when trained only on fetal data.
+- **EpiBERT** (`raw/javed-2025-epibert.xml`) is the closest analogue to masked-assay self-supervision: **masked-accessibility pretraining** over sequence + cell-type ATAC, then fine-tuning for expression. It imputes masked ATAC signal for **17 held-out cell types** never seen in training — i.e. it is doing cross-cell-type imputation with a masked objective.
+- **Enformer Celltyping** (`raw/murphy-2024-enformer-celltyping.xml`) transfers Enformer to unseen cell types using DNA + accessibility, beating Epitome, and proposes an rQTL-based evaluation. It also reports the sharp caveat that genome-wide performance can look strong simply because the average signal is a good genome-wide predictor — the [[average-activity-baseline]] problem in this literature.
+- **EpiGePT** (`raw/gao-2024-epigept.xml`) conditions on **transcription-factor activity** plus 3D interactions to steer prediction into a new cellular context.
+- **Corgi** (`raw/aksu-2026-corgi.pdf`) conditions on **trans-regulator expression** (TFs, histone modifiers, coactivators, RBPs), and claims a new state of the art for joint cross-sequence and cross-cell-type epigenetic track prediction, approaching experimental accuracy for expression in unseen cell types.
+- **SUCCEED** (`raw/sun-2026-succeed.pdf`) takes the supervised-pretraining route: conv + transformer pretrained on **6,389 ENCODE functional tracks**, then transferred to predict cell-type-specific epigenomic profiles, **denoise sparse accessibility signal**, and predict 3-D contacts — evidence that supervised functional pretraining transfers where sequence-only pretraining does not (see [[sequence-model-critiques]]).
+
+## Conditioned decoders
+
+**scooby** (`raw/hingerl-2025-scooby.xml`) is the most architecturally relevant: it takes pretrained Borzoi and equips it with a **cell-specific decoder** whose weights are produced from a single-cell embedding — a hypernetwork, the weight-generating cousin of FiLM (see [[query-decoders-and-conditional-computation]]) — and trains on **raw coverage with Poisson and multinomial losses**. Because cells are represented by an embedding rather than as separate output tasks, it extends to cells not seen in training.
+
+**gReLU** (`raw/lal-2025-grelu.xml`) is the practical entry point to this whole family: a framework with a pretrained model zoo covering preprocessing, training, evaluation, interpretation and variant-effect prediction, and the shortest route to running Enformer- and Borzoi-class baselines without reimplementing them.
+
+## The honest caveat
+
+Every model in this section is evaluated primarily on held-out **genomic regions**. That is a different task from prediction across individuals or across poorly characterised cell types, and the models perform very differently on them — see [[sequence-model-critiques]].
+
 ## See also
 
-Related:: [[epigenome-imputation]], [[transformers-and-positional-encoding]], [[count-distributions-for-sequencing-data]], [[peak-calling-and-signal-tracks]], [[masked-self-supervised-learning]]
+Related:: [[epigenome-imputation]], [[transformers-and-positional-encoding]], [[count-distributions-for-sequencing-data]], [[peak-calling-and-signal-tracks]], [[masked-self-supervised-learning]], [[sequence-model-critiques]], [[genomic-language-models]], [[query-decoders-and-conditional-computation]]

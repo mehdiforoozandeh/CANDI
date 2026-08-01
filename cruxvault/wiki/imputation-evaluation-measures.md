@@ -3,9 +3,9 @@ type: wiki
 title: Imputation evaluation measures
 summary: Why MSE and global correlation are assay-dependent and mutually redundant, and the challenge's replacement measures partitioned by signal strength, cell-type specificity, promoters, and peaks.
 category: concept
-sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/harrow-2012-gencode.xml, raw/zhang-2008-macs.xml
+sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/harrow-2012-gencode.xml, raw/zhang-2008-macs.xml, raw/neufeld-2023-thinning.pdf, raw/cameron-2008-cgm-bootstrap.pdf, raw/toneyan-2022.xml, raw/rafi-2024-dream.xml
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Imputation evaluation measures
@@ -30,6 +30,30 @@ All are computed by **partitioning the genome and then applying standard metrics
 ## Beyond the challenge
 
 `raw/schreiber-2023-encode-imputation-challenge.pdf` does not evaluate distributional or uncertainty-aware outputs — every submission produced point estimates, so calibration and ranking quality were outside its scope. Methods that emit predictive distributions need the additional measures described in [[uncertainty-calibration]].
+
+## Splitting counts instead of samples
+
+`raw/neufeld-2023-thinning.pdf` (data thinning) solves a problem that sample-splitting cannot. It splits a **single observation** into two or more independent parts that sum to the original and follow the same distribution up to a known scaling of a parameter. This works for any **convolution-closed** distribution — Gaussian, Poisson, **negative binomial**, gamma, binomial.
+
+For count data this is the principled way to obtain independent train and test copies of the *same* experiment: thin a count track into two independent tracks, fit on one, evaluate on the other. It is the correct instrument whenever evaluation would otherwise reuse the same counts for input and target, and it is also how one estimates an irreducible noise floor — thin an experiment and measure how well one half predicts the other, which bounds what any model can achieve.
+
+The direction is worth noting: thinning splits a count **downward**. It can simulate a shallower experiment from a deeper one, but not the reverse, so it supplies supervision for lower-depth targets only.
+
+## Inference with few clusters
+
+`raw/cameron-2008-cgm-bootstrap.pdf` addresses a regime that genomics evaluations routinely occupy without acknowledging it. Cluster-robust standard errors — the standard fix for within-group dependence, e.g. positions within a chromosome or experiments within a biosample — **assume the number of clusters is large**. With few clusters (the paper's stated range is **5–30**), standard asymptotic tests over-reject substantially: nominal 5% tests reject at around 10%.
+
+The remedy is a **cluster bootstrap-t** with asymptotic refinement (the wild cluster bootstrap), which the paper shows restores the nominal rate. Any comparison resting on a handful of biosamples or target experiments is in this regime, and a plain cluster bootstrap is not sufficient.
+
+## Evaluation frameworks for epigenomic profile prediction
+
+`raw/toneyan-2022.xml` builds a unified evaluation framework (GOPHER) and uses it to compare binary and quantitative models of chromatin accessibility. Its findings are methodological warnings that apply directly to any track-prediction comparison:
+
+- Models using **different target resolutions cannot be compared directly**, because larger bins smooth high-frequency noise and mechanically inflate correlation-based metrics. A resolution difference alone can look like a performance difference.
+- **Dataset selection** — coverage thresholds, peak-centred versus whole-chromosome test sets — changes the apparent generalisability substantially.
+- Robustness to input perturbation is a distinct axis that identifies fragile models which score well on correlation.
+
+`raw/rafi-2024-dream.xml` (the Random Promoter DREAM Challenge) is the community critical assessment for sequence-to-expression models, and contributes the **Prix Fixe** framework: decompose competing models into modular building blocks — architecture, training strategy, data processing — and test all combinations, so that a performance difference can be attributed to a specific component rather than to the model as a whole. It also builds a benchmark suite of multiple **sequence-type subsets** rather than one aggregate score, and reports that subset-level analysis exposes disparities that a single number hides — the same argument for partitioned measures made above.
 
 ## See also
 

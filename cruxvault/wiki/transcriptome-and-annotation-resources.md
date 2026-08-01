@@ -3,9 +3,9 @@ type: wiki
 title: Transcriptome and annotation resources
 summary: GENCODE, GTEx, FANTOM5 and FANTOM6 — the gene models, expression references and promoter atlases used to define features and to validate epigenomic predictions biologically.
 category: dataset
-sources: raw/harrow-2012-gencode.xml, raw/gtex-2017-genetic-effects-gene-expression.xml, raw/fantom5-2014-promoter-level-expression-atlas.html, raw/ramilowski-2020-lncrna-functional-annotation.xml, raw/lindeboom-2021-human-cell-atlas.pdf, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/xiang-2020-s3norm.xml
+sources: raw/harrow-2012-gencode.xml, raw/gtex-2017-genetic-effects-gene-expression.xml, raw/fantom5-2014-promoter-level-expression-atlas.html, raw/ramilowski-2020-lncrna-functional-annotation.xml, raw/lindeboom-2021-human-cell-atlas.pdf, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/xiang-2020-s3norm.xml, raw/lal-2026-decima.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Transcriptome and annotation resources
@@ -26,6 +26,12 @@ These resources supply the coordinates and the ground truth for any claim that a
 ## Why this belongs in an imputation wiki
 
 Predicting expression from epigenomic features is the standard external validation: it tests whether a predicted track carries the biological information the assay is supposed to measure, using data the model never saw. `raw/xiang-2020-s3norm.xml` and [[avocado]] both use gene-expression prediction as the downstream check, and `raw/gtex-2017-genetic-effects-gene-expression.xml` supplies the cross-tissue expression reference such a check needs.
+
+## Single-cell-resolution expression prediction
+
+`raw/lal-2026-decima.pdf` (Decima) addresses the limitation that sequence-to-expression models are trained largely on **bulk** profiles from healthy tissues and cell lines, and therefore cannot make predictions at the resolution of specific cell types and disease states. Trained on large-scale single-cell transcriptomic data, Decima predicts **cell-type- and condition-specific** expression, including for genes not seen in training.
+
+Its relevance here is as a comparator for expression-prediction validation: if a latent representation or an imputed assay panel is evaluated by how well it predicts expression, Decima defines what a purpose-built sequence model achieves on the same target — and it does so at cell-type rather than tissue resolution, which is the resolution such a validation actually needs.
 
 ## See also
 

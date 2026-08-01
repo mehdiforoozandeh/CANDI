@@ -3,9 +3,9 @@ type: wiki
 title: Peak calling and signal tracks
 summary: MACS/MACS2 and the local-Poisson model behind the −log10 p-value tracks that essentially all epigenome imputation methods consume as their target.
 category: method
-sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml
+sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml, raw/li-2011-idr.pdf, raw/pampari-2024-chrombpnet.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T21:26:00
+updated: 2026-07-31T23:27:28
 ---
 
 # Peak calling and signal tracks
@@ -37,6 +37,18 @@ The paper is explicit about the choice: read counts and fold change were both av
 For evaluation, `raw/schreiber-2023-encode-imputation-challenge.pdf` binarises imputations at `Y ≥ 2` (p = 0.01) and uses **MACS2 peak calls** as the binarised experimental truth; its peak-correlation measure restricts DNase correlation to peak regions precisely because peaks — unlike promoters — are cell-type-specific. See [[imputation-evaluation-measures]].
 
 `raw/landt-2012-chip-seq-guidelines.xml` notes several peak callers were used across ENCODE (SPP, PeakSeq, MACS), so "the peak set" is itself pipeline-dependent.
+
+## Reproducibility as the peak-calling criterion
+
+`raw/li-2011-idr.pdf` (IDR — irreproducible discovery rate) supplies the statistical basis for how ENCODE actually decides which peaks are real. Rather than thresholding one replicate's significance, it measures the **reproducibility of ranked findings across replicate experiments**. Its central object is not a scalar but a **curve** — the correspondence-at-the-top curve — which plots how the overlap between two replicates' top-ranked findings evolves as one descends the ranking, and so quantitatively identifies the point at which findings stop being consistent across replicates.
+
+Two uses follow. As a **peak-calling criterion**, IDR selects the threshold where reproducibility degrades, which is how ENCODE's conservative and optimistic IDR peak sets are produced — meaning narrowPeak labels are reproducibility-derived, not significance-derived. As an **evaluation instrument**, the correspondence curve compares any two rankings of the same loci, including a predicted ranking against an observed one.
+
+## Modelling the assay's own bias
+
+`raw/pampari-2024-chrombpnet.pdf` (ChromBPNet) treats the enzyme's sequence preference as a component to be **modelled and factored out** rather than normalised away. Tn5 (ATAC) and DNase have intrinsic sequence biases that appear in base-resolution accessibility profiles; ChromBPNet learns a bias model and deconvolves it from the regulatory sequence determinants, recovering compact TF motif lexicons and precision footprints that are otherwise contaminated. The paper reports pervasive Tn5 bias motifs in **profile** contribution scores but not in **count** contribution scores — i.e. the bias distorts the shape of the signal more than its total.
+
+Two transferable points: the assay's technical signature is **structured and learnable**, not noise; and ChromBPNet's models hold **across sequencing depths**, so a bias model fitted once transfers between experiments of different depth.
 
 ## See also
 
