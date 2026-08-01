@@ -48,3 +48,8 @@ slurm_logs/*
 
 # stale lock from the orphaned cruxvault sync script
 .cruxvault-sync.lock
+
+# literature wiki sources: published papers, mixed licences, 74MB — kept local + on Fir.
+# rebuild with: python3 cruxvault/tools/fetch_raw.py
+cruxvault/raw/
+cruxvault/tools/fetch_report.json
