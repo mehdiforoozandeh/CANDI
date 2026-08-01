@@ -26,9 +26,6 @@ Not fetchable programmatically (publisher paywall / bot protection); add by hand
   - Czado C, Gneiting T, Held L (2009) "Predictive model assessment for count data",
     Biometrics 65(4):1254, doi:10.1111/j.1541-0420.2009.01191.x
     -> raw/czado-2009-czado-pit.pdf
-  - Barbadilla-Martinez L et al (2025) "Predicting gene expression from DNA sequence
-    using deep learning models", Nat Rev Genet 26:666, doi:10.1038/s41576-025-00841-2
-    -> raw/barbadilla-martinez-2025.pdf
 """
 
 ENTRIES = [

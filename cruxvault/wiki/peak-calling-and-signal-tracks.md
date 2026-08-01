@@ -3,9 +3,9 @@ type: wiki
 title: Peak calling and signal tracks
 summary: MACS/MACS2 and the local-Poisson model behind the −log10 p-value tracks that essentially all epigenome imputation methods consume as their target.
 category: method
-sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml, raw/li-2011-idr.pdf, raw/pampari-2024-chrombpnet.pdf
+sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml, raw/li-2011-idr.pdf, raw/pampari-2024-chrombpnet.pdf, raw/barbadilla-martinez-2025.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T00:51:15
 ---
 
 # Peak calling and signal tracks
@@ -49,6 +49,31 @@ Two uses follow. As a **peak-calling criterion**, IDR selects the threshold wher
 `raw/pampari-2024-chrombpnet.pdf` (ChromBPNet) treats the enzyme's sequence preference as a component to be **modelled and factored out** rather than normalised away. Tn5 (ATAC) and DNase have intrinsic sequence biases that appear in base-resolution accessibility profiles; ChromBPNet learns a bias model and deconvolves it from the regulatory sequence determinants, recovering compact TF motif lexicons and precision footprints that are otherwise contaminated. The paper reports pervasive Tn5 bias motifs in **profile** contribution scores but not in **count** contribution scores — i.e. the bias distorts the shape of the signal more than its total.
 
 Two transferable points: the assay's technical signature is **structured and learnable**, not noise; and ChromBPNet's models hold **across sequencing depths**, so a bias model fitted once transfers between experiments of different depth.
+
+## What a peak call is evidence of
+
+`raw/barbadilla-martinez-2025.pdf` is worth reading against the pipeline described above,
+because it questions what the output actually measures. Maps of open chromatin and histone
+modifications are **intrinsically correlative** and "do not offer direct measurements of
+causal regulatory activity." Three specific cautions follow:
+
+- The genome is partitioned into **large domains of autocorrelated histone modifications**,
+  so a peak's boundaries do not cleanly localise the causally relevant sequence.
+- **~15–50% of regions marked by open chromatin are not detectably active as enhancers** in
+  reporter assays — accessibility is a necessary-ish but far from sufficient signal.
+- Curated lists of regulatory elements derived from these features are used extensively as
+  training and evaluation targets, yet the vast majority have **never been experimentally
+  validated**, and it is likely only a subset has a regulatory role.
+
+There is also a causal-direction problem that no peak caller resolves: sequence and
+accessibility dictate TF binding, some TFs open chromatin or recruit histone-modifying
+enzymes, and transcription is controlled by these features but **also alters chromatin state
+in return**. The features a peak call summarises are mutually causal, so a peak is a marker
+of a regulatory process rather than a measurement of one.
+
+None of this argues against using peak calls as targets — it argues for treating agreement
+with a narrowPeak set as agreement with a **noisy, partly unvalidated proxy**, and for
+pairing it with an orthogonal functional readout where one exists.
 
 ## See also
 

@@ -257,3 +257,5 @@ _Append-only. `grep '^## \[' log.md` for the timeline._
 ## [2026-07-31] ingest | Comprehensive evaluation of diverse massively parallel reporter assays to functionally characterize human enhancers genome-wide — Junke Zhang, Alden King-Yung Leung, Yutong Zhu, Li Yao, Avery Willis, Xiuqi Pan, Abdullah Ozer, Zhou Zhou, Keith Siklenka, Alejandro Barrera, Jin Liang, Nathaniel D. Tippens, et al (2025)
 
 ## [2026-07-31] ingest | Uncertainty-aware genomic deep learning with knowledge distillation — Jessica Zhou, Kaeli Rizzo, Trevor Christensen, Ziqi Tang, Peter K. Koo (2026)
+
+## [2026-08-01] ingest | Predicting gene expression from DNA sequence using deep learning models — Lucia Barbadilla-Martinez, Noud Klaassen, Bas van Steensel, Jeroen de Ridder (2025)

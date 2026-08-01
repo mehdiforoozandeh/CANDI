@@ -3,9 +3,9 @@ type: wiki
 title: Sequence-conditioned epigenome models
 summary: Models that predict epigenomic and transcriptomic signal from DNA sequence (± chromatin accessibility) — Enformer, BPNet, EPCOT, dHICA, TFImpute, DNABERT — and how they differ from tensor-based imputation.
 category: comparison
-sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/avsec-2026-alphagenome.xml, raw/aksu-2026-corgi.pdf, raw/linder-2025-borzoi.xml, raw/kelley-2018-basenji.xml, raw/fu-2025-get.xml, raw/javed-2025-epibert.xml, raw/sun-2026-succeed.pdf, raw/hingerl-2025-scooby.xml, raw/gao-2024-epigept.xml, raw/murphy-2024-enformer-celltyping.xml, raw/chen-2022-sei.xml, raw/lal-2025-grelu.xml
+sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/avsec-2026-alphagenome.xml, raw/aksu-2026-corgi.pdf, raw/linder-2025-borzoi.xml, raw/kelley-2018-basenji.xml, raw/fu-2025-get.xml, raw/javed-2025-epibert.xml, raw/sun-2026-succeed.pdf, raw/hingerl-2025-scooby.xml, raw/gao-2024-epigept.xml, raw/murphy-2024-enformer-celltyping.xml, raw/chen-2022-sei.xml, raw/lal-2025-grelu.xml, raw/barbadilla-martinez-2025.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T00:51:15
 ---
 
 # Sequence-conditioned epigenome models
@@ -54,6 +54,44 @@ The models that generalise to **unseen cell types** all add a non-sequence input
 **scooby** (`raw/hingerl-2025-scooby.xml`) is the most architecturally relevant: it takes pretrained Borzoi and equips it with a **cell-specific decoder** whose weights are produced from a single-cell embedding — a hypernetwork, the weight-generating cousin of FiLM (see [[query-decoders-and-conditional-computation]]) — and trains on **raw coverage with Poisson and multinomial losses**. Because cells are represented by an embedding rather than as separate output tasks, it extends to cells not seen in training.
 
 **gReLU** (`raw/lal-2025-grelu.xml`) is the practical entry point to this whole family: a framework with a pretrained model zoo covering preprocessing, training, evaluation, interpretation and variant-effect prediction, and the shortest route to running Enformer- and Borzoi-class baselines without reimplementing them.
+
+## What the field calls itself, and what it argues about
+
+`raw/barbadilla-martinez-2025.pdf` is the current review of this area and supplies both the
+field's own terminology and its live disagreements. These models are **S2E** —
+sequence-to-expression — and the review is explicit about their defining limitation:
+there is currently no reason to think they make reliable predictions **beyond the cell
+types and conditions represented in their training data**. Its example is concrete: they
+cannot predict expression in a cell type treated with a hormone unless training data were
+generated from that cell type under that treatment. Generalisation to a new *sequence* and
+generalisation to a new *context* are different problems, and only the first is solved.
+
+**Multitask learning is contested, not settled.** The usual justification for many output
+heads is knowledge transfer between related tasks, and the review reports the opposite
+finding: multitask models such as Enformer and Sei **underperformed single-task models on
+cell-type-specific accessibility data**, and Enformer additionally captured distal
+regulatory elements poorly and erred on sequence-variant effects. The diagnosis offered is
+that **cell-type-specific features are under-represented** when many tasks share a trunk —
+the model's capacity flows to what is common across tasks, which is precisely the
+[[average-activity-baseline]] component. Two remedies are proposed in the literature: weight
+loci by importance, and account for expression variation across cell types at each locus.
+The review's overall verdict is that smaller single-task models "may result in equal or
+better performance, faster training, quicker predictions and facilitate interpretability,
+provided that high-quality training data are available."
+
+**Bigger is not automatically better.** Transformers carry quadratic compute and memory
+cost, and the review notes that where training uses large numbers of short sequences (MPRA
+settings), **CNN models can outperform transformer-based ones** — and that recent published
+and preprint studies working from genome-wide measurements "still prefer simpler models such
+as CNNs." Receptive field growth has also bought less than advertised: for Enformer, most
+predictive signal derives from **proximal regions and promoters rather than distal
+enhancers**, with the proposed explanation that long-range regulatory interactions are
+comparatively rare and so supply few training examples. See [[sequence-model-critiques]].
+
+For orientation on scale: Basset operated on ≤1 kb, Basenji extended to 131 kb with dilated
+convolutions, Enformer to ~196 kb with transformers, and Borzoi to 524 kb while modelling
+RNA-seq coverage — with the review attributing Borzoi's gains as much to modelling multiple
+regulatory layers as to receptive field alone.
 
 ## The honest caveat
 
