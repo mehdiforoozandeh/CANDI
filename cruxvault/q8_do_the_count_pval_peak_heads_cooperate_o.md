@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q8 — Do the count / pval / peak heads cooperate or interfere during multi-head training?
 
 Parent:: [[candi]]
+Literature:: [[wiki/multi-task-optimization]], [[wiki/uncertainty-calibration]]
 
 ## Question
 

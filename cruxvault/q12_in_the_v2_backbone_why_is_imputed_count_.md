@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q12 — In the v2 backbone, why is imputed-count R2 ~ 0 despite Pearson ~ 0.5 (rank vs magnitude)?
 
 Parent:: [[candi]]
+Literature:: [[wiki/imputation-evaluation-measures]], [[wiki/average-activity-baseline]]
 
 ## Question
 

@@ -1,7 +1,7 @@
 ---
 type: wiki
 title: ENCODE Imputation Challenge (EIC)
-summary: The 2019–2023 prospective benchmark of 23 imputation methods: its two-stage design, the 35-assay × 51-biosample panel, and its finding that a naive baseline beat almost every entrant.
+summary: The 2019 prospective benchmark of 23 imputation methods (retrospective analysis published 2023): its two-stage design, the 35-assay × 51-biosample panel, and its finding that a naive baseline beat almost every entrant.
 category: dataset
 sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/encode-2020-expanded-encyclopedias.xml, raw/amemiya-2019-encode-blacklist.xml, raw/zhang-2008-macs.xml
 created: 2026-07-31T21:26:00
@@ -14,9 +14,14 @@ The challenge's lasting contribution is negative: it is the field's clearest dem
 
 ## Design
 
-Two stages (`raw/schreiber-2023-encode-imputation-challenge.pdf`). Stage 1 ranked participants on a validation set of experiments drawn at random from within the data matrix. Stage 2 — the primary phase — used a **prospectively collected** blind test set: the test experiments were performed *during* the challenge, so no participant could have seen them. Test data came almost exclusively from **poorly characterised cell types** (only 3 of the 12 test cell types had more than two training experiments), deliberately targeting the regime where imputation matters.
+The challenge ran from **20 February to 14 August 2019**; the retrospective assessment was published in 2023. Two stages (`raw/schreiber-2023-encode-imputation-challenge.pdf`). Stage 1 ranked participants on a validation set of experiments drawn at random from within the data matrix. Stage 2 — the primary phase — used a **prospectively collected** blind test set: the test experiments were performed *during* the challenge, so no participant could have seen them. Test data came almost exclusively from **poorly characterised cell types** (only 3 of the 12 test cell types had more than two training experiments), deliberately targeting the regime where imputation matters.
 
-23 models were submitted (up to three per team). Signal was provided as genome-wide **−log10 p-value tracks at 25 bp resolution**, computed with MACSv2 (`raw/zhang-2008-macs.xml`) against a local Poisson background, with ENCODE Exclusion-list regions removed (`raw/amemiya-2019-encode-blacklist.xml`). Data came from the ENCODE portal (`raw/encode-2020-expanded-encyclopedias.xml`).
+23 models were submitted (up to three per team). Signal was provided as genome-wide **−log10 p-value tracks at basepair resolution**, computed with MACSv2 (`raw/zhang-2008-macs.xml`) against a local Poisson background. Data came from the ENCODE portal (`raw/encode-2020-expanded-encyclopedias.xml`).
+
+Two details of that sentence are routinely misremembered, and both matter to anyone reconstructing the panel:
+
+- **25 bp is an evaluation convention, not a data format.** "Although we provided the signal at basepair resolution, these measures were calculated at 25bp resolution." The nine pre-registered measures bin to 25 bp; the distributed tracks do not. CANDI's own 25 bp binning inherits the *measurement* convention, not the source data's resolution.
+- **The Exclusion list was applied to the peak calls, not the signal.** "We filtered out all peaks that overlapped with the ENCODE Exclusion list" (`raw/amemiya-2019-encode-blacklist.xml`), while the signal tracks stayed genome-wide "at each basepair in the genome". Blacklist handling on the signal side is a separate operation the challenge did not perform.
 
 ## The method space
 

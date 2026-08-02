@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q3 — Do CANDI's imputed signals and latent Z encode biology (predict RNA-seq it never saw)?
 
 Parent:: [[candi]]
+Literature:: [[wiki/transcriptome-and-annotation-resources]], [[wiki/avocado]]
 
 ## Question
 

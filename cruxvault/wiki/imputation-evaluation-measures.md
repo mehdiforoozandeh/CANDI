@@ -3,9 +3,9 @@ type: wiki
 title: Imputation evaluation measures
 summary: Why MSE and global correlation are assay-dependent and mutually redundant, and the challenge's replacement measures partitioned by signal strength, cell-type specificity, promoters, and peaks.
 category: concept
-sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/harrow-2012-gencode.xml, raw/zhang-2008-macs.xml, raw/neufeld-2023-thinning.pdf, raw/cameron-2008-cgm-bootstrap.pdf, raw/toneyan-2022.xml, raw/rafi-2024-dream.xml
+sources: raw/schreiber-2023-encode-imputation-challenge.pdf, raw/harrow-2012-gencode.xml, raw/zhang-2008-macs.xml, raw/neufeld-2023-thinning.pdf, raw/cameron-2008-cgm-bootstrap.pdf, raw/toneyan-2022.xml, raw/rafi-2024-dream.xml, raw/zhou-2026-degu.xml, raw/saito-2015-precision-recall-plot.xml
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T18:14:33
 ---
 
 # Imputation evaluation measures
@@ -55,6 +55,37 @@ The remedy is a **cluster bootstrap-t** with asymptotic refinement (the wild clu
 
 `raw/rafi-2024-dream.xml` (the Random Promoter DREAM Challenge) is the community critical assessment for sequence-to-expression models, and contributes the **Prix Fixe** framework: decompose competing models into modular building blocks — architecture, training strategy, data processing — and test all combinations, so that a performance difference can be attributed to a specific component rather than to the model as a whole. It also builds a benchmark suite of multiple **sequence-type subsets** rather than one aggregate score, and reports that subset-level analysis exposes disparities that a single number hides — the same argument for partitioned measures made above.
 
+## Rare positives break AUROC
+
+The challenge's binarised measures above are precision- and recall-based for a reason worth
+stating, and `raw/saito-2015-precision-recall-plot.xml` is the source that states it: the
+precision–recall plot is more informative than the ROC plot when evaluating binary classifiers on
+**imbalanced** datasets. Peak labels are
+**heavily imbalanced** — positives are a small minority of loci — and ROC-AUC's false-positive
+rate has the (large) negative count in its denominator, so a model can improve its FPR from
+0.02 to 0.01 and move AUROC visibly while still returning mostly false positives among its
+predicted peaks. Average precision / the precision–recall curve conditions on the predicted
+positives instead, so it moves only when the positives get better. Report both, or report AUPRC
+alone; AUROC on rare positives flatters every model and compresses the differences between them.
+The challenge's own instrument — precision and recall **per cell-type-specificity group** — is
+the stratified version of the same correction.
+
+## Coverage guarantees and evaluation under shift
+
+`raw/zhou-2026-degu.xml` (DEGU) supplies the evaluation counterpart to [[uncertainty-calibration]]'s
+modelling story. Two contributions bear on measurement rather than on architecture:
+
+- **Conformal prediction** gives interval coverage guarantees "under minimal assumptions" — a
+  distribution-free wrapper that converts any point predictor into one with a calibrated
+  interval, evaluated against a nominal target. This is the honest fallback when a parametric
+  head's own calibration is in doubt.
+- It names the assumption that in-distribution held-out evaluation quietly makes: held-out
+  sequences "come from different genomic regions" but are otherwise typical of the training
+  experiment, so they do not test **covariate shift**. DEGU reports its distilled uncertainty
+  improves generalisation precisely in the shifted regime. This is the measurement-side statement
+  of [[cross-cell-type-generalization-pitfall]] — a held-out chromosome is not a held-out
+  condition.
+
 ## See also
 
-Related:: [[encode-imputation-challenge]], [[average-activity-baseline]], [[peak-calling-and-signal-tracks]], [[uncertainty-calibration]], [[cross-cell-type-generalization-pitfall]]
+Related:: [[encode-imputation-challenge]], [[average-activity-baseline]], [[peak-calling-and-signal-tracks]], [[uncertainty-calibration]], [[cross-cell-type-generalization-pitfall]], [[imbalance-aware-objectives]]

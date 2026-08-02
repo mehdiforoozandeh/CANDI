@@ -6,12 +6,13 @@ parent: q15
 status: resolved
 stale: false
 created: "2026-07-08T12:36:20"
-updated: "2026-07-09T00:54:14"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q16 — Was the v1 output-steering null an artifact of the testbed confounds, and what makes steering emerge?
 
 Parent:: [[q15_can_candi_learn_dual_metadata_conditioni]]
+Literature:: [[wiki/covariate-conditioning-and-counterfactuals]], [[wiki/film-conditioning]]
 
 ## Question
 

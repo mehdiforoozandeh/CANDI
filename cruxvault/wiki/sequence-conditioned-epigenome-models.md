@@ -3,9 +3,9 @@ type: wiki
 title: Sequence-conditioned epigenome models
 summary: Models that predict epigenomic and transcriptomic signal from DNA sequence (± chromatin accessibility) — Enformer, BPNet, EPCOT, dHICA, TFImpute, DNABERT — and how they differ from tensor-based imputation.
 category: comparison
-sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/avsec-2026-alphagenome.xml, raw/aksu-2026-corgi.pdf, raw/linder-2025-borzoi.xml, raw/kelley-2018-basenji.xml, raw/fu-2025-get.xml, raw/javed-2025-epibert.xml, raw/sun-2026-succeed.pdf, raw/hingerl-2025-scooby.xml, raw/gao-2024-epigept.xml, raw/murphy-2024-enformer-celltyping.xml, raw/chen-2022-sei.xml, raw/lal-2025-grelu.xml, raw/barbadilla-martinez-2025.pdf
+sources: raw/avsec-2021-enformer.xml, raw/avsec-2021-bpnet.html, raw/zhang-2023-epcot.xml, raw/wen-2024-discriminative-histone-imputation.pdf, raw/qin-2017-tf-binding-deep-learning-imputation.xml, raw/ji-2021-dnabert.html, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/avsec-2026-alphagenome.xml, raw/aksu-2026-corgi.pdf, raw/linder-2025-borzoi.xml, raw/kelley-2018-basenji.xml, raw/fu-2025-get.xml, raw/javed-2025-epibert.xml, raw/sun-2026-succeed.pdf, raw/hingerl-2025-scooby.xml, raw/gao-2024-epigept.xml, raw/murphy-2024-enformer-celltyping.xml, raw/chen-2022-sei.xml, raw/lal-2025-grelu.xml, raw/barbadilla-martinez-2025.pdf, raw/vafa-2025-steerability.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-08-01T00:51:15
+updated: 2026-08-01T18:05:24
 ---
 
 # Sequence-conditioned epigenome models
@@ -16,7 +16,9 @@ These models share an input DNA sequence and differ mainly in what breaks the se
 
 DNA sequence is identical across cell types in one individual, so a purely sequence-based model cannot by itself explain cell-type-specific signal. Each method resolves this differently:
 
-- **Enformer** (`raw/avsec-2021-enformer.xml`) — one shared trunk, 5,313 human output tracks (one per experiment), each its own head. Architecture: 7 conv blocks with pooling, then **11 transformer blocks**, then cropping and pointwise convolutions into organism-specific heads. Input 196,608 bp → 896 bins of 128 bp. Receptive field up to ~100 kb, trained with a **Poisson negative log-likelihood** loss inherited from Basenji2. Cell-type-specific correlation rose from 0.81 to 0.85 against an experimental ceiling of 0.94.
+- **Enformer** (`raw/avsec-2021-enformer.xml`) — one shared trunk, 5,313 human output tracks (one per experiment), each its own head. Architecture: 7 conv blocks with pooling, then **11 transformer blocks**, then cropping and pointwise convolutions into organism-specific heads. Input 196,608 bp → 896 bins of 128 bp (114,688 bp of output after cropping), trained with a **Poisson negative log-likelihood** loss inherited from Basenji2. Cell-type-specific correlation rose from 0.81 to 0.85 against an experimental ceiling of 0.94.
+
+  > **Two receptive-field numbers, both correct.** **196,608 bp** is the *input span* the network consumes. **~100 kb** is the paper's own claim about *reach* — "reaching distal regulatory elements up to 100 kb away", a one-sided distance from the TSS, roughly the input half-width, against Basenji2's and ExPecto's 20 kb. Quote the span when comparing architectures; quote the reach when discussing how far regulatory influence is integrated. [[transformers-and-positional-encoding]] uses the reach figure and [[sequence-model-critiques]] the span, both deliberately.
 - **BPNet** (`raw/avsec-2021-bpnet.html`) — base-resolution prediction of ChIP-nexus profiles for pluripotency TFs, plus interpretation tooling that extracts motifs and "soft syntax" rules (e.g. Nanog's helical-periodicity preference). The lineage that establishes base-resolution profile prediction and model interpretation as a goal in itself.
 - **EPCOT** (`raw/zhang-2023-epcot.xml`) — pre-training/fine-tuning: a cell-type-specific pre-training model supervised by epigenomic features takes **sequence + chromatin accessibility**, and downstream heads predict gene expression, Hi-C/Micro-C contact maps, ChIA-PET, and enhancer activity for **new cell types** from accessibility alone. Its explicit motivation is that prior models' representations do not generalise across tasks or cell types.
 - **dHICA** (`raw/wen-2024-discriminative-histone-imputation.pdf`) — Transformer plus **dilated convolutions** over sequence + chromatin accessibility to predict multiple histone-mark tracks at once; reports better performance at cell-specific loci and gene elements, with downstream use in chromatin-state segmentation and SNP interpretation.
@@ -73,8 +75,12 @@ cell-type-specific accessibility data**, and Enformer additionally captured dist
 regulatory elements poorly and erred on sequence-variant effects. The diagnosis offered is
 that **cell-type-specific features are under-represented** when many tasks share a trunk —
 the model's capacity flows to what is common across tasks, which is precisely the
-[[average-activity-baseline]] component. Two remedies are proposed in the literature: weight
-loci by importance, and account for expression variation across cell types at each locus.
+[[average-activity-baseline]] component. Two remedies are proposed in preprint studies:
+**balance the importance of each task**, and account for expression variation across cell
+types at each locus. The first is per-*task* loss balancing, not per-locus weighting — the
+same family of intervention as the learned per-task log-variance in [[uncertainty-calibration]],
+and the reason the multitask complaint is an *optimisation* complaint before it is a capacity
+one. See [[multi-task-optimization]].
 The review's overall verdict is that smaller single-task models "may result in equal or
 better performance, faster training, quicker predictions and facilitate interpretability,
 provided that high-quality training data are available."
@@ -88,10 +94,26 @@ predictive signal derives from **proximal regions and promoters rather than dist
 enhancers**, with the proposed explanation that long-range regulatory interactions are
 comparatively rare and so supply few training examples. See [[sequence-model-critiques]].
 
-For orientation on scale: Basset operated on ≤1 kb, Basenji extended to 131 kb with dilated
+For orientation on scale (all figures here are **input spans**, per the note at Enformer above):
+Basset operated on ≤1 kb, Basenji extended to 131 kb with dilated
 convolutions, Enformer to ~196 kb with transformers, and Borzoi to 524 kb while modelling
 RNA-seq coverage — with the review attributing Borzoi's gains as much to modelling multiple
 regulatory layers as to receptive field alone.
+
+## Producible is not reachable
+
+`raw/vafa-2025-steerability.pdf` supplies the evaluation concept these models are usually missing.
+Its distinction is between what a generative model **can produce** and what a user can actually
+**steer it to produce** — a model whose output distribution covers a target is not thereby a model
+you can drive to that target. Measuring steerability is a separate exercise from measuring
+predictive accuracy or coverage.
+
+Applied to a conditioned epigenome model, the two questions come apart cleanly: "does the model
+represent cell-type-specific signal?" is answered by held-out correlation, while "can I move it
+to a specified cell type by setting the conditioning?" is not answered by any accuracy measure.
+The multitask critique above is a symptom of the same gap — a shared trunk can score well on
+aggregate accuracy while the conditioning pathway does little work. See
+[[covariate-conditioning-and-counterfactuals]] for the instruments that test the second question.
 
 ## The honest caveat
 

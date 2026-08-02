@@ -26,6 +26,10 @@ Not fetchable programmatically (publisher paywall / bot protection); add by hand
   - Czado C, Gneiting T, Held L (2009) "Predictive model assessment for count data",
     Biometrics 65(4):1254, doi:10.1111/j.1541-0420.2009.01191.x
     -> raw/czado-2009-czado-pit.pdf
+  - Karlic R, Chung HR, Lasserre J, Vlahovicek K, Vingron M (2010) "Histone modification
+    levels are predictive for gene expression", PNAS 107(7):2926,
+    doi:10.1073/pnas.0909344107  (PNAS is bot-gated; PMC2814872 carries abstract only)
+    -> raw/karlic-2010-histone-marks-expression.pdf
 """
 
 ENTRIES = [
@@ -572,6 +576,70 @@ ENTRIES = [
          title="Uncertainty-aware genomic deep learning with knowledge distillation",
          authors="Jessica Zhou, Kaeli Rizzo, Trevor Christensen, Ziqi Tang, Peter K. Koo",
          year=2026, doi="10.1038/s44387-025-00053-3", origin="R2-T2"),
+
+    # ---------------- Round 3: the training-objective layer ----------------
+    # Added after the 2026-08-01 multi-axis audit found no wiki coverage of class imbalance,
+    # multi-task gradient conflict, alternative regression likelihoods, or the optimisers
+    # production actually uses. See wiki/imbalance-aware-objectives.md,
+    # wiki/multi-task-optimization.md, wiki/regression-likelihoods.md, wiki/training-mechanics.md.
+    dict(slug="lin-2017-focal-loss",
+         title="Focal Loss for Dense Object Detection",
+         authors="Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, Piotr Dollar",
+         year=2017, arxiv="1708.02002", origin="R3"),
+    dict(slug="cui-2019-class-balanced-loss",
+         title="Class-Balanced Loss Based on Effective Number of Samples",
+         authors="Yin Cui, Menglin Jia, Tsung-Yi Lin, Yang Song, Serge Belongie",
+         year=2019, arxiv="1901.05555", origin="R3"),
+    dict(slug="shrivastava-2016-ohem",
+         title="Training Region-based Object Detectors with Online Hard Example Mining",
+         authors="Abhinav Shrivastava, Abhinav Gupta, Ross Girshick",
+         year=2016, arxiv="1604.03540", origin="R3"),
+    dict(slug="yu-2020-pcgrad",
+         title="Gradient Surgery for Multi-Task Learning",
+         authors="Tianhe Yu, Saurabh Kumar, Abhishek Gupta, Sergey Levine, Karol Hausman, Chelsea Finn",
+         year=2020, arxiv="2001.06782", origin="R3"),
+    dict(slug="chen-2018-gradnorm",
+         title="GradNorm: Gradient Normalization for Adaptive Loss Balancing in Deep Multitask Networks",
+         authors="Zhao Chen, Vijay Badrinarayanan, Chen-Yu Lee, Andrew Rabinovich",
+         year=2018, arxiv="1711.02257", origin="R3"),
+    dict(slug="standley-2020-task-grouping",
+         title="Which Tasks Should Be Learned Together in Multi-task Learning?",
+         authors="Trevor Standley, Amir Zamir, Dawn Chen, Leonidas Guibas, Jitendra Malik, Silvio Savarese",
+         year=2020, arxiv="1905.07553", origin="R3"),
+    dict(slug="barron-2019-robust-loss",
+         title="A General and Adaptive Robust Loss Function",
+         authors="Jonathan T. Barron", year=2019, arxiv="1701.03077", origin="R3"),
+    dict(slug="kingma-2015-adam-adamax",
+         title="Adam: A Method for Stochastic Optimization (introduces AdaMax)",
+         authors="Diederik P. Kingma, Jimmy Ba", year=2015, arxiv="1412.6980", origin="R3"),
+    dict(slug="liu-2025-muon-scalable",
+         title="Muon is Scalable for LLM Training",
+         authors="Jingyuan Liu, Jianlin Su, Xingcheng Yao, et al (Moonshot AI)",
+         year=2025, arxiv="2502.16982", origin="R3"),
+    dict(slug="zhang-2020-gradient-clipping",
+         title="Why Gradient Clipping Accelerates Training: A Theoretical Justification for Adaptivity",
+         authors="Jingzhao Zhang, Tianxing He, Suvrit Sra, Ali Jadbabaie",
+         year=2020, arxiv="1905.11881", origin="R3"),
+    dict(slug="zhang-2020-heavy-tailed-noise",
+         title="Why are Adaptive Methods Good for Attention Models?",
+         authors="Jingzhao Zhang, Sai Praneeth Karimireddy, Andreas Veit, Seungyeon Kim, Sashank Reddi, Sanjiv Kumar, Suvrit Sra",
+         year=2020, arxiv="1912.03194", origin="R3"),
+    dict(slug="detlefsen-2019-variance-networks",
+         title="Reliable training and estimation of variance networks",
+         authors="Nicki S. Detlefsen, Martin Jorgensen, Soren Hauberg",
+         year=2019, arxiv="1906.03260", origin="R3"),
+    dict(slug="singh-2016-deepchrome",
+         title="DeepChrome: Deep-learning for predicting gene expression from histone modifications",
+         authors="Ritambhara Singh, Jack Lanchantin, Gabriel Robins, Yanjun Qi",
+         year=2016, arxiv="1607.02078", origin="R3"),
+    dict(slug="shrikumar-2017-revcomp-parameter-sharing",
+         title="Reverse-complement parameter sharing improves deep learning models for genomics",
+         authors="Avanti Shrikumar, Peyton Greenside, Anshul Kundaje",
+         year=2017, doi="10.1101/103663", biorxiv=True, origin="R3"),
+    dict(slug="saito-2015-precision-recall-plot",
+         title="The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets",
+         authors="Takaya Saito, Marc Rehmsmeier",
+         year=2015, doi="10.1371/journal.pone.0118432", pmcid="PMC4349800", origin="R3"),
 
 ]
 

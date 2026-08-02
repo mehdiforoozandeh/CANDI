@@ -3,9 +3,9 @@ type: wiki
 title: Peak calling and signal tracks
 summary: MACS/MACS2 and the local-Poisson model behind the −log10 p-value tracks that essentially all epigenome imputation methods consume as their target.
 category: method
-sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml, raw/li-2011-idr.pdf, raw/pampari-2024-chrombpnet.pdf, raw/barbadilla-martinez-2025.pdf
+sources: raw/zhang-2008-macs.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/landt-2012-chip-seq-guidelines.xml, raw/amemiya-2019-encode-blacklist.xml, raw/li-2011-idr.pdf, raw/pampari-2024-chrombpnet.pdf, raw/barbadilla-martinez-2025.pdf, raw/avsec-2026-alphagenome.xml, raw/linder-2025-borzoi.xml
 created: 2026-07-31T21:26:00
-updated: 2026-08-01T00:51:15
+updated: 2026-08-01T18:05:24
 ---
 
 # Peak calling and signal tracks
@@ -42,7 +42,9 @@ For evaluation, `raw/schreiber-2023-encode-imputation-challenge.pdf` binarises i
 
 `raw/li-2011-idr.pdf` (IDR — irreproducible discovery rate) supplies the statistical basis for how ENCODE actually decides which peaks are real. Rather than thresholding one replicate's significance, it measures the **reproducibility of ranked findings across replicate experiments**. Its central object is not a scalar but a **curve** — the correspondence-at-the-top curve — which plots how the overlap between two replicates' top-ranked findings evolves as one descends the ranking, and so quantitatively identifies the point at which findings stop being consistent across replicates.
 
-Two uses follow. As a **peak-calling criterion**, IDR selects the threshold where reproducibility degrades, which is how ENCODE's conservative and optimistic IDR peak sets are produced — meaning narrowPeak labels are reproducibility-derived, not significance-derived. As an **evaluation instrument**, the correspondence curve compares any two rankings of the same loci, including a predicted ranking against an observed one.
+Two uses follow. As a **peak-calling criterion**, IDR selects the rank threshold at which reproducibility degrades. As an **evaluation instrument**, the correspondence curve compares any two rankings of the same loci, including a predicted ranking against an observed one.
+
+> **Do not assume a narrowPeak file is IDR-derived.** ENCODE's later uniform-processing pipeline builds *conservative* and *optimal* IDR-thresholded peak sets on this idea, but that pipeline description is **not yet in `raw/`** and neither declared source here mentions those sets (`raw/li-2011-idr.pdf` and `raw/landt-2012-chip-seq-guidelines.xml` both contain zero occurrences of "narrowPeak"). More importantly for CANDI, the peak labels the imputation challenge actually used are **significance-derived, not reproducibility-derived**: `raw/schreiber-2023-encode-imputation-challenge.pdf` defines its binary target as "an indicator for whether each locus is within a MACS2 peak call". A Bernoulli head trained on EIC labels is learning agreement with MACS2 thresholding, not with cross-replicate reproducibility — and those are different targets whenever a significant peak fails to replicate.
 
 ## Modelling the assay's own bias
 
@@ -75,6 +77,22 @@ None of this argues against using peak calls as targets — it argues for treati
 with a narrowPeak set as agreement with a **noisy, partly unvalidated proxy**, and for
 pairing it with an orthogonal functional readout where one exists.
 
+## Predicting coverage instead of significance
+
+The lineage that skips the p-value entirely is worth holding alongside the pipeline above.
+`raw/linder-2025-borzoi.xml` predicts **RNA-seq and epigenomic coverage in 32 bp bins**, and
+`raw/avsec-2026-alphagenome.xml` predicts tracks up to **single-base-pair resolution** across 11
+modalities. Neither consumes a MACS p-value as its target; both model the coverage signal
+directly and leave thresholding to the reader.
+
+This matters for a model that predicts a distribution over raw counts. A −log10 p-value has
+already folded in depth, local background and the control, and folded them in *irreversibly* —
+the transformation is not invertible without the control track and the local λ that produced it.
+Predicting counts and predicting p-values are therefore not two parameterisations of one task,
+and a model doing the former can be converted to the latter but not the reverse. The peak call
+sits one step further downstream again: a threshold on the significance statistic, subject to
+all the caveats below.
+
 ## See also
 
-Related:: [[chip-seq-assay-and-controls]], [[count-distributions-for-sequencing-data]], [[imputation-evaluation-measures]], [[read-processing-and-artifact-regions]], [[signal-normalization-in-epigenomics]]
+Related:: [[chip-seq-assay-and-controls]], [[count-distributions-for-sequencing-data]], [[imputation-evaluation-measures]], [[read-processing-and-artifact-regions]], [[signal-normalization-in-epigenomics]], [[imbalance-aware-objectives]], [[epigenome-imputation]]

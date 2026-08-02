@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q13 — What architecture changes move held-out imputation skill in the v2 backbone (E34 autoresearch)?
 
 Parent:: [[candi]]
+Literature:: [[wiki/epigenome-imputation]], [[wiki/sequence-conditioned-epigenome-models]], [[wiki/cross-cell-type-generalization-pitfall]]
 
 ## Question
 

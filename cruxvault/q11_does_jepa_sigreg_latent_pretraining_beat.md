@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q11 — Does JEPA / SIGReg latent pretraining beat reconstruction-only training?
 
 Parent:: [[candi]]
+Literature:: [[wiki/jepa-and-collapse-prevention]], [[wiki/masked-self-supervised-learning]]
 
 ## Question
 

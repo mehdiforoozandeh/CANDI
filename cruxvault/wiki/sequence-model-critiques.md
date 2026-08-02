@@ -24,7 +24,7 @@ This literature is the strongest available argument for conditioning on measured
 
 ## Where the signal comes from
 
-`raw/karollus-2023.xml` confronts state-of-the-art models with two large observational studies and five deep perturbation assays. Enformer largely captures the causal determinants of human **promoters**, but the models **fail to capture the causal effects of distal enhancers**. Despite Enformer's 196 kb receptive field, most of that field has very minor impact on its predictions — the signal is concentrated within roughly **30 kb of the TSS**. This is an empirical bound on what receptive-field expansion has actually bought, and a caution against equating context length with modelled context.
+`raw/karollus-2023.xml` confronts state-of-the-art models with two large observational studies and five deep perturbation assays. Enformer largely captures the causal determinants of human **promoters**, but the models **fail to capture the causal effects of distal enhancers**. Despite Enformer's 196 kb input span (and its claimed ~100 kb reach — see the note in [[sequence-conditioned-epigenome-models]]), most of that context has very minor impact on its predictions — the signal is concentrated within roughly **30 kb of the TSS**. This is an empirical bound on what receptive-field expansion has actually bought, and a caution against equating context length with modelled context.
 
 The paper's framing is worth carrying: training on genome-wide assays is **fundamentally correlative**, exposing the model only to sequence variation that arose through evolution, which is why perturbation and personal-genome evaluations disagree with held-out-region evaluations.
 

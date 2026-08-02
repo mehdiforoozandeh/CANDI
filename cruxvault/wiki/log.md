@@ -259,3 +259,101 @@ _Append-only. `grep '^## \[' log.md` for the timeline._
 ## [2026-07-31] ingest | Uncertainty-aware genomic deep learning with knowledge distillation — Jessica Zhou, Kaeli Rizzo, Trevor Christensen, Ziqi Tang, Peter K. Koo (2026)
 
 ## [2026-08-01] ingest | Predicting gene expression from DNA sequence using deep learning models — Lucia Barbadilla-Martinez, Noud Klaassen, Bas van Steensel, Jeroen de Ridder (2025)
+
+## [2026-08-01] ingest | Focal Loss for Dense Object Detection — Tsung-Yi Lin, Priya Goyal, Ross Girshick, Kaiming He, Piotr Dollar (2017)
+
+## [2026-08-01] ingest | Class-Balanced Loss Based on Effective Number of Samples — Yin Cui, Menglin Jia, Tsung-Yi Lin, Yang Song, Serge Belongie (2019)
+
+## [2026-08-01] ingest | Training Region-based Object Detectors with Online Hard Example Mining — Abhinav Shrivastava, Abhinav Gupta, Ross Girshick (2016)
+
+## [2026-08-01] ingest | Gradient Surgery for Multi-Task Learning — Tianhe Yu, Saurabh Kumar, Abhishek Gupta, Sergey Levine, Karol Hausman, Chelsea Finn (2020)
+
+## [2026-08-01] ingest | GradNorm: Gradient Normalization for Adaptive Loss Balancing in Deep Multitask Networks — Zhao Chen, Vijay Badrinarayanan, Chen-Yu Lee, Andrew Rabinovich (2018)
+
+## [2026-08-01] ingest | Which Tasks Should Be Learned Together in Multi-task Learning? — Trevor Standley, Amir Zamir, Dawn Chen, Leonidas Guibas, Jitendra Malik, Silvio Savarese (2020)
+
+## [2026-08-01] ingest | A General and Adaptive Robust Loss Function — Jonathan T. Barron (2019)
+
+## [2026-08-01] ingest | Adam: A Method for Stochastic Optimization (introduces AdaMax) — Diederik P. Kingma, Jimmy Ba (2015)
+
+## [2026-08-01] ingest | Muon is Scalable for LLM Training — Jingyuan Liu, Jianlin Su, Xingcheng Yao et al., Moonshot AI (2025)
+
+## [2026-08-01] ingest | Why Gradient Clipping Accelerates Training: A Theoretical Justification for Adaptivity — Jingzhao Zhang, Tianxing He, Suvrit Sra, Ali Jadbabaie (2020)
+
+## [2026-08-01] ingest | Why are Adaptive Methods Good for Attention Models? — Jingzhao Zhang, Sai Praneeth Karimireddy, Andreas Veit, Seungyeon Kim, Sashank Reddi, Sanjiv Kumar, Suvrit Sra (2020)
+
+## [2026-08-01] ingest | Reliable training and estimation of variance networks — Nicki S. Detlefsen, Martin Jorgensen, Soren Hauberg (2019)
+
+## [2026-08-01] ingest | DeepChrome: Deep-learning for predicting gene expression from histone modifications — Ritambhara Singh, Jack Lanchantin, Gabriel Robins, Yanjun Qi (2016)
+
+## [2026-08-01] ingest | Reverse-complement parameter sharing improves deep learning models for genomics — Avanti Shrikumar, Peyton Greenside, Anshul Kundaje (2017)
+
+## [2026-08-01] ingest | The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets — Takaya Saito, Marc Rehmsmeier (2015)
+
+## [2026-08-01] lint | first semantic pass — 10 confirmed errors, 5 contradictions/stale claims, 5 uncited declarations, 2 gap notes
+
+Triggered by a multi-axis audit (11 agents; 298 claims traced back to the primary PDFs/XMLs,
+44 alleged inaccuracies, 34 refuted on adversarial re-reading, 10 confirmed). `crux validate`
+reported the vault clean throughout — every defect below is in the class the engine's own
+docstring says is the agent's job.
+
+**Corrected (confirmed against the primary source):**
+- `avocado` — "lower MSE than both ChromImpute and PREDICTD" was false. Table 1 of
+  schreiber-2020-avocado: ChromImpute is best on MSE1obs (0.941 vs 1.66, p=2.37e-22);
+  MSEglobal (p=0.451) and MSEGene (p=0.875) are ties with PREDICTD. Replaced with the table.
+- `sequence-conditioned-epigenome-models` — "weight loci by importance" -> "balance the
+  importance of each task" (barbadilla-martinez-2025: per-task, not per-locus).
+- `peak-calling-and-signal-tracks` — the IDR conservative/"optimistic" claim is unsupported by
+  either declared source; ENCODE's term is *optimal* and comes from the later uniform pipeline,
+  which is not in raw/. Replaced with a scoped note plus the challenge's own MACS2-peak definition.
+- `encode-imputation-challenge` — signal was provided at **basepair** resolution (25 bp is the
+  evaluation convention); the challenge ran **2019** (2023 is the publication year, and the wrong
+  range was propagating into WIKI.md); the Exclusion list was applied to **peaks**, not signal.
+- `film-conditioning` — CFG guidance weight was off by one against ho-2022-cfg Eq. 6 (w=0 is
+  unguided in the paper's own variable; the tooling convention is s = 1 + w).
+- `training-mechanics` — the no-decay-group bullet is not in loshchilov-2017-adamw, which argues
+  the opposite; re-marked as convention.
+- `transformers-and-positional-encoding` — the x-transformers/RoPE-default claim has no source in
+  raw/; re-marked as an implementation note.
+- `query-decoders-and-conditional-computation` — CondConv is a **linear**, not convex, combination
+  (unnormalised sigmoid routing, deliberately: yang-2019-condconv §4.3.1).
+
+**Contradictions and stale claims:**
+- Enformer's receptive field was "~100 kb" and "~196 kb" on the same page, 73 lines apart, and
+  split across two other pages. Both are correct and measure different things (reach vs input
+  span); reconciled once at source with the other two pages pointed at it.
+- "the only method that denoises without retraining" was unqualified on `chromimpute` (including
+  its frontmatter summary, which lands verbatim in WIKI.md) and `epigenome-imputation`, while
+  `epigenome-denoising` documents two counterexamples. Scoped to *imputation-based*.
+- `uncertainty-calibration` lead line still said "both sources here" after growing to 8 sources.
+- `masked-self-supervised-learning` had no reciprocal link back to `jepa-and-collapse-prevention`.
+- `epigenome-imputation` (overview) never revised against the frontier sources already in raw/.
+
+**Wiki-vs-code contradiction resolved:** `uncertainty-calibration` recommended interval-coverage
+ECE, which candi_kit's own docstring rejects for discrete forecasts. Added a "Calibration of
+discrete forecasts" section deriving the non-randomized PIT and stating why coverage is improper
+at low counts. The wiki was on the losing side; the code is right.
+
+**Gap notes added** (an unflagged gap reads as a settled answer):
+- `count-distributions-for-sequencing-data` — every overdispersion measurement in raw/ is
+  RNA-seq/scRNA-seq. No ChIP-seq mean-variance measurement exists here; the NB case is transferred
+  plus a one-directional safety argument.
+- `transcriptome-and-annotation-resources` — Karlic 2010 is unobtainable (PNAS bot-gated, PMC
+  abstract-only), so which marks matter at which promoter class is unsourced.
+
+**Hygiene:** 5 sources declared in `epigenome-imputation`'s frontmatter but cited nowhere in its
+body are now cited (crux validate cannot see this — it only checks the file exists).
+Post-pass: 0 broken links, 0 orphans, 0 uncited raw sources, 0 undeclared body citations.
+
+## [2026-08-01] query | opened the query channel — 3 digests filed, 20 question nodes backlinked
+
+The vault had run 129 ingests and 0 queries, and no tree node cited a wiki page, so nothing had
+ever been drawn back out of it. Added a `digest` page category (see SCHEMA.md): question-shaped
+syntheses that cite only raw/ paths and wiki pages, never a q/h node or a project finding, so the
+flow rule is unchanged. Filed three for the questions that previously cost the most reconstruction:
+`digest-depth-as-covariate-vs-divisor` (was five page-opens),
+`digest-normalization-assumptions-of-prior-imputation-methods` (four, with no landing page),
+`digest-count-likelihood-choice-for-chip-seq` (written honestly as partially open — the decisive
+ChIP-seq overdispersion measurement is not in raw/).
+All 20 question nodes now carry a `Literature::` line of `[[wiki/…]]` links: 47 tree->wiki
+backlinks across 26 of 40 pages, which `crux validate` checks and which count as inbound links.

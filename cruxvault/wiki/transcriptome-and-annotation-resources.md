@@ -3,9 +3,9 @@ type: wiki
 title: Transcriptome and annotation resources
 summary: GENCODE, GTEx, FANTOM5 and FANTOM6 — the gene models, expression references and promoter atlases used to define features and to validate epigenomic predictions biologically.
 category: dataset
-sources: raw/harrow-2012-gencode.xml, raw/gtex-2017-genetic-effects-gene-expression.xml, raw/fantom5-2014-promoter-level-expression-atlas.html, raw/ramilowski-2020-lncrna-functional-annotation.xml, raw/lindeboom-2021-human-cell-atlas.pdf, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/xiang-2020-s3norm.xml, raw/lal-2026-decima.pdf
+sources: raw/harrow-2012-gencode.xml, raw/gtex-2017-genetic-effects-gene-expression.xml, raw/fantom5-2014-promoter-level-expression-atlas.html, raw/ramilowski-2020-lncrna-functional-annotation.xml, raw/lindeboom-2021-human-cell-atlas.pdf, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/xiang-2020-s3norm.xml, raw/lal-2026-decima.pdf, raw/singh-2016-deepchrome.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T18:14:33
 ---
 
 # Transcriptome and annotation resources
@@ -32,6 +32,30 @@ Predicting expression from epigenomic features is the standard external validati
 `raw/lal-2026-decima.pdf` (Decima) addresses the limitation that sequence-to-expression models are trained largely on **bulk** profiles from healthy tissues and cell lines, and therefore cannot make predictions at the resolution of specific cell types and disease states. Trained on large-scale single-cell transcriptomic data, Decima predicts **cell-type- and condition-specific** expression, including for genes not seen in training.
 
 Its relevance here is as a comparator for expression-prediction validation: if a latent representation or an imputed assay panel is evaluated by how well it predicts expression, Decima defines what a purpose-built sequence model achieves on the same target — and it does so at cell-type rather than tissue resolution, which is the resolution such a validation actually needs.
+
+## Predicting expression from histone marks
+
+`raw/singh-2016-deepchrome.pdf` (DeepChrome) is the method baseline for the downstream validation
+these resources support. It predicts gene expression from histone-modification signal with a CNN
+over an input matrix of **100 bins × 5 histone modifications** around the gene, using convolution,
+pooling and dropout into a multi-layer perceptron, and frames the task as classification. Its
+stated motivation is the combinatorial one: methods that predict expression from histone marks are
+wanted precisely "for understanding their combinatorial effects in gene regulation", which a
+per-mark correlation cannot show.
+
+Two things this establishes for any expression-prediction validation:
+
+- **Binned mark signal in a window around the gene is a sufficient feature set** — the
+  representation does not need sequence, and the window, not the single TSS position, is the unit.
+- **The task is a published baseline, so an expression-prediction R² is only interpretable against
+  it.** A number reported for a new feature set (denoised signal, imputed assays, a latent) means
+  little without the mark-derived reference on the same genes.
+
+> **Gap note.** The originating quantitative-model paper — Karlić et al. 2010, *Histone
+> modification levels are predictive for gene expression* (PNAS, `10.1073/pnas.0909344107`) — is
+> **not in `raw/`**; PNAS is bot-gated and PMC carries abstract only. It is the source for which
+> marks matter at which promoter class, so that question is currently unsourced here. Added to the
+> manual-fetch list in `cruxvault/tools/fetch_raw.py`.
 
 ## See also
 

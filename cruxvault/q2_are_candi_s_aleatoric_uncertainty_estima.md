@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q2 — Are CANDI's aleatoric uncertainty estimates calibrated and useful?
 
 Parent:: [[candi]]
+Literature:: [[wiki/uncertainty-calibration]], [[wiki/digest-count-likelihood-choice-for-chip-seq]]
 
 ## Question
 

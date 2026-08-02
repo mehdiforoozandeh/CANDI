@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q7 — Why do sandbox training runs diverge late, and what stabilizes them?
 
 Parent:: [[candi]]
+Literature:: [[wiki/training-mechanics]]
 
 ## Question
 

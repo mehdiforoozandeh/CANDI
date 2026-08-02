@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q9 — How should conditioning (FiLM) and metadata be routed through the model?
 
 Parent:: [[candi]]
+Literature:: [[wiki/film-conditioning]], [[wiki/covariate-conditioning-and-counterfactuals]]
 
 ## Question
 

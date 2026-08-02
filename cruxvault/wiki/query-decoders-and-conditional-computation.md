@@ -20,7 +20,7 @@ The costs are the paper's real contribution to practice: sparse discrete routing
 
 ## Mixing in weight space
 
-`raw/yang-2019-condconv.pdf` (CondConv) challenges the assumption that convolutional kernels should be shared across all examples. Instead of mixing expert **outputs**, it computes an input-dependent **convex combination of kernel weights** and then performs a single convolution with the resulting kernel:
+`raw/yang-2019-condconv.pdf` (CondConv) challenges the assumption that convolutional kernels should be shared across all examples. Instead of mixing expert **outputs**, it computes an input-dependent **linear combination of kernel weights** and then performs a single convolution with the resulting kernel:
 
     W(x) = Σ_k α_k(x) · W_k ,   y = W(x) * x
 
@@ -39,7 +39,9 @@ The two papers are near-simultaneous and describe the same mechanism; CondConv f
 
 For a decoder that must emit an output **per query** (per assay, per target), the weight-space variants are the natural fit: the query supplies the routing signal, the number of queries is small and fixed, and dense softmax routing over a handful of kernels avoids the routing instability that dominates small-scale sparse MoE. The sparse-MoE machinery earns its complexity only when the expert count is large enough that dense mixing is unaffordable.
 
-A caveat both weight-space papers share: because the effective kernel is a per-example convex combination, the layer is **linear in the basis** — expressiveness comes from the input-dependence of α, so a gate that saturates or collapses reduces the layer to an ordinary convolution.
+A caveat both weight-space papers share: the effective kernel is a per-example **linear** combination over the basis, so expressiveness comes entirely from the input-dependence of α — a gate that saturates or collapses reduces the layer to an ordinary convolution.
+
+The routing non-linearity is not a detail. CondConv's α come from an **unnormalised sigmoid**, `r(x) = Sigmoid(GlobalAveragePool(x) · R)`, so they lie in [0,1] but do **not** sum to 1 — the combination is linear, not convex. The choice is deliberate: §4.3.1 reports "the baseline's Sigmoid significantly outperforms Softmax". Dynamic Convolution's softmax routing *is* convex. The difference is behavioural, not cosmetic: sigmoid routing lets the layer scale the effective kernel's **magnitude**, not merely interpolate between kernels, so a saturated CondConv gate can amplify while a saturated DynConv gate can only pick one kernel.
 
 ## See also
 

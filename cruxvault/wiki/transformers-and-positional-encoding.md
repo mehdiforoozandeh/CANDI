@@ -20,7 +20,7 @@ Attention is permutation-invariant, so every transformer needs a positional sche
 
 `raw/su-2021-roformer-rope.pdf` proposes encoding **absolute position with a rotation matrix** applied to the query and key vectors, such that their inner product depends only on the **relative** offset between positions. The paper's theoretical framing is that relative position can be formulated naturally via vector products in self-attention, with absolute position carried by the rotation.
 
-Properties that follow: relative-position dependency is explicit in the attention score rather than injected as an additive input embedding; the scheme requires no learned position table; and it decays sensibly with distance. RoPE is now the default positional scheme in most transformer implementations, including the `x-transformers` family.
+Properties that follow: relative-position dependency is explicit in the attention score rather than injected as an additive input embedding; the scheme requires no learned position table; and it decays sensibly with distance. The paper's own adoption claim is narrow — RoPE "is already integrated into Huggingface". (Its subsequent spread to most transformer implementations, `x-transformers` among them, is an implementation-landscape observation, not a claim from `raw/su-2021-roformer-rope.pdf`; no source in `raw/` establishes it.)
 
 ## Masked bidirectional pre-training
 
@@ -29,7 +29,7 @@ Properties that follow: relative-position dependency is explicit in the attentio
 ## In genomics
 
 - **DNABERT** (`raw/ji-2021-dnabert.html`) transplants BERT to DNA by k-merising sequence, giving pre-trained representations that transfer across genomic tasks.
-- **Enformer** (`raw/avsec-2021-enformer.xml`) uses **11 transformer blocks** on top of 7 convolutional blocks, and attributes its long-range gains (up to ~100 kb) directly to attention's ability to move information between distal elements — the mechanism by which enhancers can influence a distant promoter in the model. See [[sequence-conditioned-epigenome-models]].
+- **Enformer** (`raw/avsec-2021-enformer.xml`) uses **11 transformer blocks** on top of 7 convolutional blocks, and attributes its long-range **reach** — distal elements "up to 100 kb away", against Basenji2's and ExPecto's 20 kb — directly to attention's ability to move information between distal elements — the mechanism by which enhancers can influence a distant promoter in the model. See [[sequence-conditioned-epigenome-models]].
 
 The convolution-then-attention pattern in Enformer is the standard compromise for genomic sequence: convolutions reduce base-pair resolution to a manageable token count, attention then operates over the reduced sequence.
 

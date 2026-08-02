@@ -1,7 +1,7 @@
 ---
 type: wiki
 title: ChromImpute
-summary: Ernst & Kellis 2015: per-target ensembles of regression trees over correlated marks and samples; the first large-scale epigenome imputation, and the only one that denoises without retraining.
+summary: Ernst & Kellis 2015: per-target ensembles of regression trees over correlated marks and samples; the first large-scale epigenome imputation, and the only imputation-based denoiser that avoids per-target retraining.
 category: method
 sources: raw/ernst-2015-chromimpute.xml, raw/roadmap-2015-111-reference-epigenomes.pdf, raw/durham-2018-predictd.xml
 created: 2026-07-31T21:26:00
@@ -11,6 +11,8 @@ updated: 2026-07-31T21:26:00
 # ChromImpute
 
 ChromImpute's architectural quirk — one independently trained model per target experiment — is simultaneously its scaling weakness and the single property that makes it usable as a denoiser.
+
+> Scope note: "denoises without retraining" is a claim *within the imputation lineage*, where the alternative ([[predictd]], [[avocado]]) is to hold the target out and refit the whole factorisation. Purpose-built denoisers reach the same property by other routes — see [[epigenome-denoising]] for AtacWorks generalising to unseen cell types and Coda transferring across individuals, cell types and species.
 
 ## Method
 
@@ -32,4 +34,4 @@ The cost of the per-target design is training expense: a complicated model-and-t
 
 ## See also
 
-Related:: [[epigenome-imputation]], [[predictd]], [[avocado]], [[average-activity-baseline]], [[chromatin-state-annotation]]
+Related:: [[epigenome-imputation]], [[predictd]], [[avocado]], [[average-activity-baseline]], [[chromatin-state-annotation]], [[epigenome-denoising]]

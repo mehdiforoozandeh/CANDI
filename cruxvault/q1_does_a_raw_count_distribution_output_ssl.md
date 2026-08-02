@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q1 — Does a raw-count, distribution-output SSL model do state-of-the-art zero-shot epigenome imputation?
 
 Parent:: [[candi]]
+Literature:: [[wiki/epigenome-imputation]], [[wiki/count-distributions-for-sequencing-data]], [[wiki/encode-imputation-challenge]], [[wiki/masked-self-supervised-learning]]
 
 ## Question
 

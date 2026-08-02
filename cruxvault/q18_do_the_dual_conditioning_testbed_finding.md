@@ -6,12 +6,13 @@ parent: q15
 status: open
 stale: true
 created: "2026-07-10T12:58:22"
-updated: "2026-07-10T12:58:22"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q18 — Do the dual-conditioning testbed findings translate to production CANDI with real metadata and real covariates?
 
 Parent:: [[q15_can_candi_learn_dual_metadata_conditioni]]
+Literature:: [[wiki/covariate-conditioning-and-counterfactuals]], [[wiki/distributional-shift-and-batch-effects]]
 
 ## Question
 

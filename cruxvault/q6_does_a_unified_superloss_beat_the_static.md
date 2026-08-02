@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q6 — Does a unified SuperLoss beat the static weighted-sum loss?
 
 Parent:: [[candi]]
+Literature:: [[wiki/multi-task-optimization]], [[wiki/imbalance-aware-objectives]]
 
 ## Question
 

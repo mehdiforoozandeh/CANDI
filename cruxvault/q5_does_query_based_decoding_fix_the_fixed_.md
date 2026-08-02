@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q5 — Does query-based decoding fix the fixed-channel shortcut and improve controllability?
 
 Parent:: [[candi]]
+Literature:: [[wiki/query-decoders-and-conditional-computation]], [[wiki/set-conditioned-modelling-and-missingness]]
 
 ## Question
 

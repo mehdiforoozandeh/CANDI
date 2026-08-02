@@ -6,12 +6,13 @@ parent: q18
 status: open
 stale: true
 created: "2026-07-24T11:10:04"
-updated: "2026-07-29T02:09:50"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q20 — How should CANDI architecture and training condition on experimental metadata to improve imputation magnitude AND genuine metadata use
 
 Parent:: [[q18_do_the_dual_conditioning_testbed_finding]]
+Literature:: [[wiki/film-conditioning]], [[wiki/covariate-conditioning-and-counterfactuals]], [[wiki/query-decoders-and-conditional-computation]], [[wiki/digest-normalization-assumptions-of-prior-imputation-methods]]
 
 ## Question
 

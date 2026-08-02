@@ -6,12 +6,13 @@ parent: root
 status: review
 stale: true
 created: "2026-07-02T20:37:12"
-updated: "2026-07-02T20:37:12"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q10 — Does the GaussianLayer variance floor prevent pval collapse?
 
 Parent:: [[candi]]
+Literature:: [[wiki/uncertainty-calibration]], [[wiki/regression-likelihoods]]
 
 ## Question
 

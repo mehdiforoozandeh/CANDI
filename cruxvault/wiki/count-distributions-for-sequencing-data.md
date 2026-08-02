@@ -3,9 +3,9 @@ type: wiki
 title: Count distributions for sequencing data
 summary: Poisson and negative binomial models of read counts, the overdispersion that forces the NB, and the variance-stabilising transforms used when counts are fed to a neural network.
 category: concept
-sources: raw/anders-2010-deseq.xml, raw/zhang-2008-macs.xml, raw/jung-2014-sequencing-depth-chip-seq.xml, raw/townes-2020-quantile-normalization-scrnaseq.xml, raw/hoffman-2012-segway.xml, raw/avsec-2021-enformer.xml, raw/angelini-2015-chip-seq-normalization-diagnostic.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/young-2024-ddpn.pdf, raw/rigby-2005-gamlss.xml, raw/kingma-2013-vae.pdf
+sources: raw/anders-2010-deseq.xml, raw/zhang-2008-macs.xml, raw/jung-2014-sequencing-depth-chip-seq.xml, raw/townes-2020-quantile-normalization-scrnaseq.xml, raw/hoffman-2012-segway.xml, raw/avsec-2021-enformer.xml, raw/angelini-2015-chip-seq-normalization-diagnostic.xml, raw/schreiber-2023-encode-imputation-challenge.pdf, raw/young-2024-ddpn.pdf, raw/rigby-2005-gamlss.xml, raw/kingma-2013-vae.pdf, raw/choudhary-2022-sctransform-v2.xml, raw/svensson-2020.pdf
 created: 2026-07-31T21:26:00
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T18:05:24
 ---
 
 # Count distributions for sequencing data
@@ -27,6 +27,32 @@ with the mean–variance relationship estimated by **local regression** rather t
 The NB matters here for two reasons: it is the correct likelihood for raw epigenomic counts, and — `raw/angelini-2015-chip-seq-normalization-diagnostic.xml` argues — any method valid for Poisson bin counts remains valid for more-dispersed distributions, so NB is the safe default.
 
 `raw/townes-2020-quantile-normalization-scrnaseq.xml` provides the compound-Poisson counterpart: UMI counts are well fit by a **Poisson-lognormal** distribution, characterised per cell by just a scale and a shape parameter — which is what makes distribution-matching normalisation tractable there.
+
+## What the overdispersion evidence actually covers
+
+> **Gap note.** Every direct measurement of overdispersion held in `raw/` is from **RNA-seq or
+> scRNA-seq**, not ChIP-seq or ATAC-seq. `raw/anders-2010-deseq.xml` is RNA-seq;
+> `raw/choudhary-2022-sctransform-v2.xml`'s 59-dataset survey is scRNA-seq; `raw/svensson-2020.pdf`
+> is droplet scRNA-seq. No source in this vault measures the mean–variance relationship of binned
+> ChIP-seq counts across biological replicates. The NB case for epigenomic counts as stated above
+> is therefore **transferred, plus a safety argument** (`raw/angelini-2015-chip-seq-normalization-diagnostic.xml`:
+> Poisson-valid methods stay valid under greater dispersion) — not a measurement. Treat "NB is the
+> correct likelihood for raw epigenomic counts" as a well-motivated default with an open empirical
+> question behind it, and note that the safety argument is one-directional: it licenses NB over
+> Poisson, and says nothing about NB versus a distribution that permits **under**-dispersion (see
+> the DDPN critique below).
+
+Two transferable results do survive the domain change, because they are about *estimation* rather
+than about RNA:
+
+- **Shallow sequencing masks overdispersion.** `raw/choudhary-2022-sctransform-v2.xml` finds
+  Poisson looks adequate for sparse data, while at sufficient depth overdispersion is evident in
+  every biological system. A "Poisson fits fine" result at low depth is therefore uninformative —
+  which is exactly the regime most epigenomic 25 bp bins occupy.
+- **Excess zeros are not evidence of zero-inflation.** `raw/svensson-2020.pdf` shows the zero
+  counts in droplet data are what a plain NB already predicts at low mean. The same reasoning
+  applies to sparse epigenomic bins: sparsity is not by itself a reason to reach for a
+  zero-inflated head. See [[count-models-in-single-cell-genomics]].
 
 ## Transforms when counts feed a network
 
@@ -57,4 +83,4 @@ For experimental covariates this distinction is substantive: sequencing depth is
 
 ## See also
 
-Related:: [[peak-calling-and-signal-tracks]], [[signal-normalization-in-epigenomics]], [[uncertainty-calibration]], [[sequencing-depth-and-coverage]], [[sequence-conditioned-epigenome-models]], [[count-models-in-single-cell-genomics]], [[training-mechanics]]
+Related:: [[peak-calling-and-signal-tracks]], [[signal-normalization-in-epigenomics]], [[uncertainty-calibration]], [[sequencing-depth-and-coverage]], [[sequence-conditioned-epigenome-models]], [[count-models-in-single-cell-genomics]], [[training-mechanics]], [[regression-likelihoods]]

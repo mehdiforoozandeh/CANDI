@@ -6,12 +6,13 @@ parent: q18
 status: resolved
 stale: true
 created: "2026-07-15T23:35:12"
-updated: "2026-07-29T02:08:49"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q19 — Can we make dual conditioning work on real CANDI sandbox data before production?
 
 Parent:: [[q18_do_the_dual_conditioning_testbed_finding]]
+Literature:: [[wiki/covariate-conditioning-and-counterfactuals]], [[wiki/film-conditioning]]
 
 ## Question
 

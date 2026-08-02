@@ -6,12 +6,13 @@ parent: root
 status: open
 stale: true
 created: "2026-07-02T20:37:11"
-updated: "2026-07-02T20:37:11"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q4 — Can CANDI's counts be made depth-controllable to denoise toward a canonical "supertrack"?
 
 Parent:: [[candi]]
+Literature:: [[wiki/digest-depth-as-covariate-vs-divisor]], [[wiki/sequencing-depth-and-coverage]], [[wiki/count-distributions-for-sequencing-data]]
 
 ## Question
 

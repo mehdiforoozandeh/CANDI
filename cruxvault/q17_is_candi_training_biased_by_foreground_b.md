@@ -6,12 +6,13 @@ parent: root
 status: open
 stale: false
 created: "2026-07-09T19:57:50"
-updated: "2026-07-09T19:57:50"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q17 — Is CANDI training biased by foreground/background imbalance — does rebalancing effective foreground exposure improve held-out reconstruction and steering?
 
 Parent:: [[candi]]
+Literature:: [[wiki/imbalance-aware-objectives]], [[wiki/peak-calling-and-signal-tracks]], [[wiki/imputation-evaluation-measures]]
 
 ## Question
 

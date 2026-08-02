@@ -6,12 +6,13 @@ parent: root
 status: open
 stale: true
 created: "2026-07-03T01:59:20"
-updated: "2026-07-03T01:59:20"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q15 — Can CANDI learn dual metadata conditioning: normalize a covariate-transformed count input and re-emit the target under an independent output covariate, in a controlled synthetic augmentation testbed?
 
 Parent:: [[candi]]
+Literature:: [[wiki/covariate-conditioning-and-counterfactuals]], [[wiki/film-conditioning]], [[wiki/digest-depth-as-covariate-vs-divisor]]
 
 ## Question
 

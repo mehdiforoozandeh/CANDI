@@ -10,7 +10,7 @@ updated: 2026-07-31T23:27:28
 
 # Uncertainty and calibration
 
-Calibration is a property distinct from accuracy — a model can be more accurate and simultaneously more wrong about how confident it should be — and both sources here document exactly that dissociation.
+Calibration is a property distinct from accuracy — a model can be more accurate and simultaneously more wrong about how confident it should be — and the general and genomics-specific sources below document that dissociation independently, one in image classifiers and one in chromatin-state annotation.
 
 ## The general phenomenon
 
@@ -28,7 +28,25 @@ The paper's diagnosis separates two causes of irreproducibility that a posterior
 
 `raw/schreiber-2023-encode-imputation-challenge.pdf` evaluates only point predictions; every one of its measures (MSE, correlations, binarised accuracy/precision/recall — see [[imputation-evaluation-measures]]) compares a single predicted value to a single observed value. A method that emits a predictive **distribution** rather than a point estimate is not distinguishable from one that does not under these measures, so calibration and distributional ranking quality were untested in the field's most rigorous benchmark to date.
 
-The two natural additions, by analogy with the sources above: **empirical coverage versus nominal credible-interval width** (the reliability diagram for a continuous predictive distribution), and a **ranking/concordance** measure asking whether the distribution orders loci correctly by expected signal.
+The two natural additions, by analogy with the sources above: a **reliability curve** for the predictive distribution, and a **ranking/concordance** measure asking whether the distribution orders loci correctly by expected signal. The obvious way to build the first — empirical coverage versus nominal credible-interval width — is the wrong instrument for count data, for the reason in the next section.
+
+## Calibration of discrete forecasts
+
+Interval coverage is the natural reliability diagram for a *continuous* predictive distribution, and it is **improper for a discrete one**. The failure is not subtle at the counts epigenomic data actually contains.
+
+For a continuous `F`, the probability integral transform `F(y)` is uniform on [0,1] exactly when the forecast is calibrated, so "does the nominal 90% interval contain 90% of observations" is a faithful test. For a discrete `F` the CDF jumps, the attainable coverage levels are a finite set, and a nominal level between two jumps **cannot be hit at all**. The gap is largest where the distribution's mass is concentrated on a few integers — that is, at low counts. A perfectly calibrated negative binomial at μ = 1 registers a large apparent calibration error under interval coverage purely from this discreteness, with no miscalibration present. Since most positions in a 25 bp-binned epigenomic track are low-count, the artifact would dominate the measurement.
+
+The standard repair keeps the PIT idea and removes the discreteness. The **non-randomized PIT** replaces the point value `F(y)` with the linear interpolant across the jump at the observation:
+
+    F^i(u) = 0                              u ≤ F(y−1)
+           = (u − F(y−1)) / (F(y) − F(y−1)) F(y−1) < u < F(y)
+           = 1                              u ≥ F(y)
+
+    F̄(u) = mean_i F^i(u)
+
+`F̄(u) = u` for all `u` **iff** the forecasts are calibrated, and `mean_u |F̄(u) − u|` is a scalar calibration error that is deterministic (unlike randomized PIT, which adds sampling noise) and does not degrade at low counts. This is the construction from **Czado, Gneiting & Held 2009** — *not yet in `raw/`*, see the manual-add list in `cruxvault/tools/fetch_raw.py`. The propriety argument underneath it is `raw/gneiting-2007-gneiting-raftery.pdf`'s: a calibration diagnostic that a forecaster can improve by misreporting their belief is not measuring calibration.
+
+> **Convention note.** CANDI's own implementation (`candi_kit/src/candi_kit/metrics.py`, `calibration_pit_curve` / `ece`) uses the non-randomized PIT, and its docstring rejects interval-coverage ECE on exactly these grounds. Where the manuscript or an older note defines calibration as interval coverage, the PIT form is the one to trust. Coverage curves remain fine for the **Gaussian** signal head, which is continuous; they are not the right instrument for the **negative-binomial** count head.
 
 ## Proper scoring rules — the missing foundation
 
@@ -69,8 +87,17 @@ One interaction is worth flagging when this is combined with the heads above: a 
 
 ## Ranking versus calibration
 
-Harrell's concordance index measures **rank discrimination** — whether the predicted distributions order observations correctly — and is blind to calibration: a model can rank perfectly while being systematically overconfident. It is therefore a complement to coverage and PIT-based measures, never a substitute. (The originating paper, Harrell 1982, is not yet in `raw/`.)
+Harrell's concordance index measures **rank discrimination** — whether the predicted distributions order observations correctly — and is blind to calibration: a model can rank perfectly while being systematically overconfident. It is therefore a complement to PIT-based measures, never a substitute. (The originating paper, Harrell 1982, is not yet in `raw/`.)
+
+The three axes do not collapse into one another, and a single scalar hides which moved:
+
+| Axis | Question | Instrument |
+|---|---|---|
+| Calibration | are the stated probabilities honest? | non-randomized PIT / `F̄(u)` vs `u` |
+| Sharpness | how concentrated is the forecast? | interval width, entropy — read *subject to* calibration |
+| Discrimination | does it order loci correctly? | C-index |
+| Joint | one number trading all three off | CRPS (strictly proper) |
 
 ## See also
 
-Related:: [[count-distributions-for-sequencing-data]], [[chromatin-state-annotation]], [[imputation-evaluation-measures]], [[encode-imputation-challenge]], [[training-mechanics]], [[count-models-in-single-cell-genomics]]
+Related:: [[count-distributions-for-sequencing-data]], [[chromatin-state-annotation]], [[imputation-evaluation-measures]], [[encode-imputation-challenge]], [[training-mechanics]], [[count-models-in-single-cell-genomics]], [[regression-likelihoods]], [[multi-task-optimization]]

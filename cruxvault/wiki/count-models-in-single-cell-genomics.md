@@ -3,9 +3,9 @@ type: wiki
 title: Count models in single-cell genomics
 summary: The single-cell field's decade-long argument about how to model raw counts — NB vs Poisson, zero-inflation, library-size offsets, and whether to transform at all.
 category: comparison
-sources: raw/lopez-2018-scvi.xml, raw/eraslan-2019-dca.xml, raw/hafemeister-2019-sctransform.xml, raw/choudhary-2022-sctransform-v2.xml, raw/martens-2023.xml, raw/svensson-2020.pdf, raw/townes-2019-glmpca.xml, raw/ahlmann-eltze-2023.xml, raw/ashuach-2022-peakvi.xml, raw/ashuach-2023-multivi.xml
+sources: raw/lopez-2018-scvi.xml, raw/eraslan-2019-dca.xml, raw/hafemeister-2019-sctransform.xml, raw/choudhary-2022-sctransform-v2.xml, raw/martens-2023.xml, raw/svensson-2020.pdf, raw/townes-2019-glmpca.xml, raw/ahlmann-eltze-2023.xml, raw/ashuach-2022-peakvi.xml, raw/ashuach-2023-multivi.xml, raw/chen-2025-epiagent.pdf
 created: 2026-07-31T23:27:28
-updated: 2026-07-31T23:27:28
+updated: 2026-08-01T18:05:24
 ---
 
 # Count models in single-cell genomics
@@ -33,6 +33,25 @@ The general lesson: a per-feature dispersion parameter is estimable only with po
 ## Multiple likelihoods off one latent
 
 `raw/ashuach-2022-peakvi.xml` (PeakVI) models scATAC accessibility as a **Bernoulli** probability per region, factorised into a per-cell library-size factor and a per-region bias, with batch conditioned into the decoder — the closest published precedent for a peak head that is depth- and batch-aware rather than depth-normalised. `raw/ashuach-2023-multivi.xml` (MultiVI) runs **NB (expression) and Bernoulli (accessibility) heads off a single shared latent**, and imputes a missing modality for cells where it was not measured — structurally the same move as predicting several distributional heads for an assay from one shared representation.
+
+## The tokenisation escape route
+
+`raw/chen-2025-epiagent.pdf` (EpiAgent) sidesteps the whole likelihood argument, which makes it a
+useful boundary case. Facing the same three problems this page addresses — "the abundance of
+features, high data sparsity, and the **quasi-binary** nature of these data" — it neither models
+counts nor binarises them into a Bernoulli field. It **ranks** accessible cCREs by their
+TF-IDF-transformed values and emits the ordered list as a "cell sentence", then applies
+bidirectional attention over that sequence.
+
+The move is to convert a magnitude problem into an ordering problem: rank information survives,
+absolute scale is discarded, and the depth-normalisation question dissolves because a ranking is
+depth-invariant by construction. The cost is exactly what CANDI needs and this representation
+cannot give — no predictive distribution over a count, so no calibration, no uncertainty, and no
+way to express "this position has 3 reads and I am confident" versus "3 reads and I am not".
+
+It is worth registering as the strongest available argument that count modelling is a *choice*
+rather than a necessity, and worth registering equally that the choice is forced once calibrated
+per-position prediction is the goal. See [[set-conditioned-modelling-and-missingness]].
 
 ## The dissent
 

@@ -45,9 +45,10 @@ adaLN regresses the layer-norm scale and shift (γ, β) from the conditioning ve
 
 `raw/ho-2022-cfg.pdf` (classifier-free guidance) provides two things at once from a single training change. During training, the conditioning is **randomly dropped** with some probability, so one network learns both the conditional and unconditional models. At inference, the two are combined by extrapolation:
 
-    output = uncond + w · (cond − uncond)
+    ε̃ = (1 + w) · ε(z, c) − w · ε(z)          [Eq. 6, the paper's own form]
+       = uncond + (1 + w) · (cond − uncond)    [rearranged]
 
-with w > 1 amplifying the effect of the conditioning beyond what the model would produce on its own. The training-time dropout is the more fundamental half: it forces the network to function *without* the conditioning, which means the conditional pathway must carry information the unconditional one lacks — a direct structural remedy for a conditioning input that is otherwise redundant with the data. The trade-off the guidance weight controls is fidelity against diversity.
+Mind the convention: under `raw/ho-2022-cfg.pdf`'s own variable, **`w = 0` is the unguided model** ("w = 0.0 refers to non-guided models", Table 1) and guidance begins at `w > 0`. The rearranged form widely used in diffusion tooling writes a guidance *scale* `s = 1 + w`, where `s = 1` is unguided and `s > 1` amplifies. The two differ by exactly one, and implementing the paper's `w` against the tooling's threshold double-counts the guidance. The training-time dropout is the more fundamental half: it forces the network to function *without* the conditioning, which means the conditional pathway must carry information the unconditional one lacks — a direct structural remedy for a conditioning input that is otherwise redundant with the data. The trade-off the guidance weight controls is fidelity against diversity.
 
 ## Normalisation can destroy what conditioning writes
 

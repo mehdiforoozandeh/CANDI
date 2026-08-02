@@ -6,12 +6,13 @@ parent: root
 status: open
 stale: true
 created: "2026-07-02T20:37:13"
-updated: "2026-07-02T20:37:13"
+updated: "2026-08-01T18:18:11"
 ---
 
 # q14 — Can a from-scratch ERA-searched CANDI v3 cross the average-reference imputation baseline?
 
 Parent:: [[candi]]
+Literature:: [[wiki/training-mechanics]], [[wiki/average-activity-baseline]]
 
 ## Question
 

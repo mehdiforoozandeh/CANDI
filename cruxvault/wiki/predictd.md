@@ -18,7 +18,7 @@ Roadmap and ENCODE data are arranged as a 3-D tensor with axes **cell type × as
 
 ## Results
 
-- Lower overall **MSE** than [[chromimpute]], and combining the two methods improves further, indicating complementary error profiles (`raw/durham-2018-predictd.xml`).
+- Lower overall **MSE** than [[chromimpute]] (`raw/ernst-2015-chromimpute.xml`), and combining the two methods improves further, indicating complementary error profiles (`raw/durham-2018-predictd.xml`). "Overall" is load-bearing: the later three-way comparison in [[avocado]] shows ChromImpute still best on MSE1obs, the top 1% of positions by observed signal.
 - Explicitly evaluated in the regime that matters: cell types with **only one or two available assays**, where the paper reports the model still performs well. This is the same concern later formalised in [[cross-cell-type-generalization-pitfall]].
 - The learned factors are interpretable: cell-type factors group related biosamples, assay factors group related marks, position factors track genomic annotation.
 - Imputed data recovers enhancer activity at noncoding human accelerated regions.

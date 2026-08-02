@@ -16,7 +16,7 @@ eDICE moves the field's granularity from *cell type* to *individual*, which refr
 
 eDICE is an **attention-based** deep model trained to impute missing epigenomic tracks by conditioning on the observed tracks for the same sample (`raw/hawkins-hooker-2023-edice.xml`). Instead of factorising the whole tensor into fixed per-axis factors ([[predictd]], [[avocado]]), attention lets the set of available tracks for a given sample determine, at inference time, how information is pooled — a better match for the fact that different biosamples have wildly different assay subsets.
 
-The paper positions itself explicitly against [[chromimpute]] as the field's origin point and evaluates on the Roadmap-derived dataset used by prior imputation work, for direct comparability.
+The paper positions itself explicitly against [[chromimpute]] (`raw/ernst-2015-chromimpute.xml`) as the field's origin point and evaluates on the Roadmap-derived dataset used by prior imputation work, for direct comparability. Its own reading of the intervening decade is deflationary: the performance of the deep approaches "has only outstripped ChromImpute on a subset of metrics".
 
 ## The individual-specific claim
 
