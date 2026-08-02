@@ -19,10 +19,13 @@
 #   BASELINE_TIME     — not read here: walltime is set by submit_baselines.sh via
 #                        `sbatch --time=...` (overrides the #SBATCH line below) or
 #                        edit #SBATCH --time when running `sbatch` on this file directly.
+#
+# No --partition: the Alliance job-submit plugin derives it from --time (b1 ≤3h,
+# b2 ≤12h, ...). Naming one it would not have chosen fails with the misleading
+# "The specified partition does not exist, or the submitted job cannot fit in it."
 #SBATCH --job-name=sbx_baseline
 #SBATCH --account=def-maxwl
-#SBATCH --partition=gpubase_bygpu_b1
-#SBATCH --gres=gpu:h100:1
+#SBATCH --gres=gpu:nvidia_h100_80gb_hbm3_1g.10gb:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=03:00:00

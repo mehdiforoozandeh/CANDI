@@ -4,21 +4,18 @@
 #   bash sandbox/slurm/submit_baselines.sh
 #
 # Optional overrides (export before running):
-#   BASELINE_PARTITION — SLURM partition list (default: auto-derived from BASELINE_TIME).
-#                        Default behaviour queries every `gpubase_bygpu_b*` partition's MaxTime
-#                        on the local cluster and submits with a comma-separated list of every
-#                        tier that can host BASELINE_TIME, plus `gpubackfill` when its MaxTime
-#                        also covers it. Slurm then routes the job to whichever partition can
-#                        give an allocation first — minimising queue wait while guaranteeing
-#                        the requested walltime is feasible.
-#                        Set this env var to force a single partition (e.g. `gpubase_bygpu_b2`)
-#                        or to bypass the `scontrol`-based discovery on clusters where it isn't
-#                        available.
-#   BASELINE_DRYRUN    — if "1", print the resolved partition list and skip sbatch.
+#   BASELINE_PARTITION — escape hatch, normally leave unset. By default no --partition is
+#                        passed at all: the Alliance job-submit plugin derives the partition
+#                        from --time (b1 ≤3h, b2 ≤12h, b3 ≤1d, ...). Naming one it would not
+#                        have chosen fails with the misleading error "The specified partition
+#                        does not exist, or the submitted job cannot fit in it." Set this only
+#                        to reach a partition the plugin will not pick on its own (e.g.
+#                        `gpubackfill`), and expect that error if it disagrees.
+#   BASELINE_DRYRUN    — if "1", print the resolved sbatch resource flags and skip sbatch.
 #   BASELINE_MEM       — host RAM cap (default: 32G; safe for H5 RAM-cache ≤10G + PyTorch)
-#   BASELINE_GRES      — GPU request (default: gpu:nvidia_h100_80gb_hbm3_1g.10gb:1)
-#                        Use gpu:nvidia_h100_80gb_hbm3_2g.20gb:1 for larger slice,
-#                        or gpu:h100:1 for full GPU.
+#   BASELINE_GRES      — GPU request (default: gpu:nvidia_h100_80gb_hbm3_1g.10gb:1).
+#                        CLAUDE.md hard rule: every sandbox job takes the 1g.10gb MIG slice.
+#                        Do NOT set this to gpu:h100:1 or any other full-GPU spec.
 #   BASELINE_BATCH     — GPU batch size (default: 32; safe on 10/20GB slices for current model)
 #   SANDBOX_H5, BASELINE_EPOCHS, BASELINE_SEED — forwarded like baseline_train.sh
 #
@@ -43,66 +40,23 @@ export BASELINE_ACCOUNT="${BASELINE_ACCOUNT:-def-maxwl_gpu}"
 MEM="${BASELINE_MEM:-32G}"
 GRES="${BASELINE_GRES:-gpu:nvidia_h100_80gb_hbm3_1g.10gb:1}"
 
-# ── Partition resolution ────────────────────────────────────────────────────
-# Convert SLURM-style walltime ([D-]HH:MM:SS or MM:SS) into seconds.
-slurm_time_to_seconds() {
-  local t="$1" days=0 hms="$1"
-  if [[ "$t" == *-* ]]; then
-    days="${t%%-*}"
-    hms="${t#*-}"
-  fi
-  IFS=: read -r a b c <<<"$hms"
-  if [[ -z "${c:-}" ]]; then
-    # MM:SS
-    c="$b"; b="$a"; a=0
-  fi
-  echo $(( days*86400 + 10#${a:-0}*3600 + 10#${b:-0}*60 + 10#${c:-0} ))
-}
-
-# Build comma-separated list of every `gpubase_bygpu_b*` partition whose MaxTime
-# covers $BASELINE_TIME, plus `gpubackfill` when applicable. Quiet `scontrol`
-# failures with a single hardcoded fallback partition so submission always works.
-auto_resolve_partitions() {
-  local target_secs partitions=() candidate maxtime maxtime_secs
-  target_secs="$(slurm_time_to_seconds "$BASELINE_TIME")"
-  while read -r candidate; do
-    [[ -z "$candidate" ]] && continue
-    maxtime="$(scontrol show partition "$candidate" 2>/dev/null \
-                 | grep -oE 'MaxTime=[^ ]+' | head -1 | cut -d= -f2)"
-    [[ -z "$maxtime" || "$maxtime" == UNLIMITED ]] && { partitions+=("$candidate"); continue; }
-    maxtime_secs="$(slurm_time_to_seconds "$maxtime")"
-    (( maxtime_secs >= target_secs )) && partitions+=("$candidate")
-  done < <(sinfo -h -o "%P" 2>/dev/null \
-             | tr -d '*' | sort -u \
-             | grep -E '^(gpubase_bygpu_b[0-9]+|gpubackfill)$')
-  if [[ ${#partitions[@]} -eq 0 ]]; then
-    echo ""  # caller falls back
-  else
-    local IFS=,
-    echo "${partitions[*]}"
-  fi
-}
-
+# ── Partition ───────────────────────────────────────────────────────────────
+# Deliberately not resolved here. The Alliance job-submit plugin picks the bin
+# from --time, so passing --partition can only ever agree with it or break the
+# submission. BASELINE_PARTITION stays available as an escape hatch (see header).
+SBATCH_RES=(--account="$BASELINE_ACCOUNT" --mem="$MEM" --gres="$GRES" --time="$BASELINE_TIME")
+PART_DESC="plugin-derived from --time=$BASELINE_TIME"
 if [[ -n "${BASELINE_PARTITION:-}" ]]; then
-  PART="$BASELINE_PARTITION"
-  PART_SOURCE="explicit BASELINE_PARTITION"
-else
-  PART="$(auto_resolve_partitions || true)"
-  if [[ -z "$PART" ]]; then
-    PART="gpubase_bygpu_b2"
-    PART_SOURCE="fallback (sinfo/scontrol unavailable)"
-  else
-    PART_SOURCE="auto from BASELINE_TIME=$BASELINE_TIME"
-  fi
+  SBATCH_RES+=(--partition="$BASELINE_PARTITION")
+  PART_DESC="forced via BASELINE_PARTITION=$BASELINE_PARTITION"
 fi
-echo "[submit_baselines] partition=$PART  ($PART_SOURCE)"
+echo "[submit_baselines] partition=$PART_DESC  gres=$GRES mem=$MEM time=$BASELINE_TIME"
 
 if [[ "${BASELINE_DRYRUN:-}" == "1" ]]; then
   echo "[submit_baselines] BASELINE_DRYRUN=1 → skipping sbatch."
+  printf '[submit_baselines] would submit with:'; printf ' %q' "${SBATCH_RES[@]}"; echo
   exit 0
 fi
-
-SBATCH_RES=(--account="$BASELINE_ACCOUNT" --partition="$PART" --mem="$MEM" --gres="$GRES" --time="$BASELINE_TIME")
 
 # ── B1: Anchor (type1 chr19, encode transform=none) ─────────────────────────
 B1=$(BASELINE_NAME="anchor" \
@@ -111,7 +65,7 @@ B1=$(BASELINE_NAME="anchor" \
             "${SBATCH_RES[@]}" \
             --parsable \
             "$SCRIPT")
-echo "Submitted B1 (anchor)     → SLURM job $B1  (partition=$PART gres=$GRES mem=$MEM batch=$BASELINE_BATCH)"
+echo "Submitted B1 (anchor)     → SLURM job $B1  (gres=$GRES mem=$MEM batch=$BASELINE_BATCH)"
 
 # ── B2: DSF=1 only (type1 chr19, encode transform=none) ─────────────────────
 B2=$(BASELINE_NAME="dsf1_only" \

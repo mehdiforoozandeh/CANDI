@@ -29,44 +29,23 @@ export BASELINE_PREFIX=""   # Experiments land at sandbox/runs/<NAME>/ (no basel
 MEM="${BASELINE_MEM:-32G}"
 GRES="${BASELINE_GRES:-gpu:nvidia_h100_80gb_hbm3_1g.10gb:1}"
 
-# ── Partition resolution (mirrors submit_baselines.sh) ──────────────────────
-slurm_time_to_seconds() {
-  local t="$1" days=0 hms="$1"
-  if [[ "$t" == *-* ]]; then days="${t%%-*}"; hms="${t#*-}"; fi
-  IFS=: read -r a b c <<<"$hms"
-  if [[ -z "${c:-}" ]]; then c="$b"; b="$a"; a=0; fi
-  echo $(( days*86400 + 10#${a:-0}*3600 + 10#${b:-0}*60 + 10#${c:-0} ))
-}
-auto_resolve_partitions() {
-  local target_secs partitions=() candidate maxtime maxtime_secs
-  target_secs="$(slurm_time_to_seconds "$BASELINE_TIME")"
-  while read -r candidate; do
-    [[ -z "$candidate" ]] && continue
-    maxtime="$(scontrol show partition "$candidate" 2>/dev/null \
-                 | grep -oE 'MaxTime=[^ ]+' | head -1 | cut -d= -f2)"
-    [[ -z "$maxtime" || "$maxtime" == UNLIMITED ]] && { partitions+=("$candidate"); continue; }
-    maxtime_secs="$(slurm_time_to_seconds "$maxtime")"
-    (( maxtime_secs >= target_secs )) && partitions+=("$candidate")
-  done < <(sinfo -h -o "%P" 2>/dev/null \
-             | tr -d '*' | sort -u \
-             | grep -E '^(gpubase_bygpu_b[0-9]+|gpubackfill)$')
-  if [[ ${#partitions[@]} -eq 0 ]]; then echo ""; else local IFS=,; echo "${partitions[*]}"; fi
-}
-
+# ── Partition (mirrors submit_baselines.sh) ─────────────────────────────────
+# Deliberately not resolved here. The Alliance job-submit plugin picks the bin
+# from --time, so passing --partition can only ever agree with it or break the
+# submission. BASELINE_PARTITION stays available as an escape hatch.
+SBATCH_RES=(--account="$BASELINE_ACCOUNT" --mem="$MEM" --gres="$GRES" --time="$BASELINE_TIME")
+PART_DESC="plugin-derived from --time=$BASELINE_TIME"
 if [[ -n "${BASELINE_PARTITION:-}" ]]; then
-  PART="$BASELINE_PARTITION"; PART_SOURCE="explicit BASELINE_PARTITION"
-else
-  PART="$(auto_resolve_partitions || true)"
-  if [[ -z "$PART" ]]; then PART="gpubase_bygpu_b2"; PART_SOURCE="fallback"; else PART_SOURCE="auto from BASELINE_TIME=$BASELINE_TIME"; fi
+  SBATCH_RES+=(--partition="$BASELINE_PARTITION")
+  PART_DESC="forced via BASELINE_PARTITION=$BASELINE_PARTITION"
 fi
-echo "[submit_experiments_e1_e5] partition=$PART  ($PART_SOURCE)"
+echo "[submit_experiments_e1_e5] partition=$PART_DESC  gres=$GRES mem=$MEM time=$BASELINE_TIME"
 
 if [[ "${BASELINE_DRYRUN:-}" == "1" ]]; then
   echo "[submit_experiments_e1_e5] BASELINE_DRYRUN=1 → skipping sbatch."
+  printf '[submit_experiments_e1_e5] would submit with:'; printf ' %q' "${SBATCH_RES[@]}"; echo
   exit 0
 fi
-
-SBATCH_RES=(--account="$BASELINE_ACCOUNT" --partition="$PART" --mem="$MEM" --gres="$GRES" --time="$BASELINE_TIME")
 
 PARENT="baseline_anchor"   # All E1-E5 runs derive from the anchor baseline
 
