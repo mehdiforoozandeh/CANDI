@@ -4,6 +4,28 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.9%2B-red.svg)](https://pytorch.org)
 
+<p align="center">
+  <img src="docs/candi-graphical-abstract.png" width="100%"
+       alt="CANDI workflow. Top row: a data tensor of cell types x assays x genome, in which
+            one experiment is a thread along the genome and grey threads are missing; one
+            cell type is sliced out as an assays-by-genome matrix; a 30 kb window of it is
+            magnified into raw read-count tracks, a one-hot DNA strip and the experiment
+            covariates, which feed the CANDI encoder-decoder. Bottom row, running back
+            leftward: the same window with a predicted mean and 95% interval on every
+            track, the same slice with the holes filled, and the same tensor complete.
+            Below, three panels of published results: calibrated confidence intervals,
+            gene-expression prediction that resists data sparsity, and more reproducible
+            chromatin state annotations.">
+</p>
+
+<p align="center">
+  <sub>
+    <a href="docs/candi-graphical-abstract.pdf">PDF</a> ·
+    <a href="docs/candi-graphical-abstract.svg">SVG</a> ·
+    <a href="docs/build_ga.py">source</a>
+  </sub>
+</p>
+
 ## Overview
 
 CANDI (Confidence-Aware Neural Denoising Imputer) is a self-supervised deep learning framework for epigenomic data denoising and imputation. CANDI addresses key limitations in existing epigenome imputation methods by predicting raw counts, handling experiment-specific covariates, and providing calibrated uncertainty estimates.
