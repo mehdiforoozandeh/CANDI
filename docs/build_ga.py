@@ -12,6 +12,7 @@ Result panels carry real data from the MLCB manuscript:
 """
 import json
 from math import atan2, degrees
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -33,7 +34,10 @@ plt.rcParams.update({
     "axes.edgecolor": "#333333",
 })
 
-D = json.load(open("digitized.json"))
+# Paths resolve from this file, not the working directory, so the script runs
+# from anywhere.
+HERE = Path(__file__).resolve().parent
+D = json.loads((HERE / "digitized.json").read_text())
 
 INK, MUTED, RULE = "#1B2A32", "#5E6E78", "#B9C2C7"
 TEAL, TEAL_IMP = "#12868C", "#7FC7C9"
@@ -560,7 +564,7 @@ fig.legend(h, l, fontsize=9, frameon=False, ncol=4, loc="lower center",
            bbox_to_anchor=(0.5, 0.010), handlelength=1.4, columnspacing=2.2)
 
 # =============================================================== chrome ======
-out = "candi-graphical-abstract"
+out = HERE / "candi-graphical-abstract"
 for ext in ("svg", "pdf", "png"):
     fig.savefig(f"{out}.{ext}", dpi=300, facecolor="white")
-print("wrote", out, "(svg/pdf/png)")
+print(f"wrote {out}.{{svg,pdf,png}}")

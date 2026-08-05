@@ -6,19 +6,22 @@ curves back off the rendered image. Axes transforms are pinned to detected tick
 pixel positions, so the recovered values are the published ones, not eyeballed.
 """
 import json
+from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-FIGS = ("/Users/mforooz/Desktop/research/libbrechteam@sfu/CANDI/"
-        "manuscript2.0/CANDI-MLCB/mlcbCANDI_figs_png")
+# Paths resolve from this file, not the working directory, so the script runs
+# from anywhere. The source PNGs are tracked in this repo.
+HERE = Path(__file__).resolve().parent
+FIGS = HERE.parent / "manuscript2.0" / "CANDI-MLCB" / "mlcbCANDI_figs_png"
 out = {}
 
 
 def load(path):
     """Composite onto white — several figures carry alpha, which would otherwise
     read back as black and swamp the colour matching."""
-    im = Image.open(f"{FIGS}/{path}").convert("RGBA")
+    im = Image.open(FIGS / path).convert("RGBA")
     bg = Image.new("RGBA", im.size, (255, 255, 255, 255))
     return np.array(Image.alpha_composite(bg, im).convert("RGB")).astype(int)
 
@@ -101,6 +104,6 @@ out["calib"] = digitize(
     tol=100, row_lo=58,         # skip the legend block at the top-left
 )
 
-with open("digitized.json", "w") as f:
-    json.dump(out, f, indent=1)
-print("\nwrote digitized.json")
+dest = HERE / "digitized.json"
+dest.write_text(json.dumps(out, indent=1))
+print(f"\nwrote {dest}")
