@@ -23,7 +23,11 @@ from matplotlib.ticker import MultipleLocator
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
-    "svg.fonttype": "none",
+    # Text as vector paths, not <text> elements. With "none" the SVG only names
+    # the font, so any browser without DejaVu Sans silently substitutes a serif
+    # and the web page stops matching the PNG and PDF. Paths cost file size and
+    # make the text unselectable; matching output everywhere is worth it.
+    "svg.fonttype": "path",
     "pdf.fonttype": 42,
     "axes.linewidth": 0.8,
     "axes.edgecolor": "#333333",
