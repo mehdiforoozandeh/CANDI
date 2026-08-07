@@ -498,7 +498,7 @@ def panel_tag(ax, letter, finding):
 
 # --- A: calibration ---------------------------------------------------------
 axA = fig.add_subplot(bot[0])
-c = D["calib"]["B_RWPE2"]
+c = D["calib"]["B_DND-41"]
 x, y = np.array(c["x"]), np.array(c["y"])
 o = np.argsort(x); x, y = x[o], y[o]
 # Where the curve crosses the dashed diagonal the colour match drops a pixel or
@@ -506,10 +506,12 @@ o = np.argsort(x); x, y = x[o], y[o]
 # without moving the curve itself.
 pad = np.pad(y, 2, mode="edge")
 y = np.array([np.median(pad[i:i + 5]) for i in range(len(y))])
-axA.plot([0, .83], [0, .83], ls="--", lw=1.1, color="#9AA4AA", zorder=2,
+axA.plot([0, 1], [0, 1], ls="--", lw=1.1, color="#9AA4AA", zorder=2,
          label="perfect calibration")
 axA.plot(x, y, lw=2.0, color=TEAL, zorder=3, label="CANDI (DNase-seq)")
-axA.set_xlim(0, .83); axA.set_ylim(0, .83)
+# Both axes are fractions and both run the full 0-1: a calibration curve is
+# only interpretable against the whole diagonal.
+axA.set_xlim(0, 1); axA.set_ylim(0, 1)
 axA.xaxis.set_major_locator(MultipleLocator(.2))
 axA.yaxis.set_major_locator(MultipleLocator(.2))
 axA.set_xlabel("Stated confidence", fontsize=9, color=INK)

@@ -26,8 +26,15 @@ def load(path):
     return np.array(Image.alpha_composite(bg, im).convert("RGB")).astype(int)
 
 
-def digitize(path, box, xmap, ymap, colors, tol=70, row_lo=None, row_hi=None):
-    """box = (left_px, right_px, top_px, bottom_px); xmap/ymap = ((px,val),(px,val))."""
+def digitize(path, box, xmap, ymap, colors, tol=70, row_lo=None, row_hi=None,
+             masks=()):
+    """box = (left_px, right_px, top_px, bottom_px); xmap/ymap = ((px,val),(px,val)).
+
+    masks blanks out rectangles (col0, col1, row0, row1) — use it for legend
+    blocks. A blanket row_lo cannot do that job: the legend sits at the top of
+    the plot and so does the right-hand end of a rising curve, so a row floor
+    high enough to clear the legend also truncates the curve.
+    """
     im = load(path)
     L, R, T, B = box
     (xp0, xv0), (xp1, xv1) = xmap
@@ -58,6 +65,9 @@ def digitize(path, box, xmap, ymap, colors, tol=70, row_lo=None, row_hi=None):
                 # floor would reject it outright, so require neutrality and
                 # darkness instead.
                 ok = (sat < 30) & (col.mean(1) < 120)
+            for mc0, mc1, mr0, mr1 in masks:
+                if mc0 <= c < mc1:
+                    ok[max(0, mr0 - r0):max(0, mr1 - r0)] = False
             hit = np.where((d < tol) & ok)[0]
             if hit.size == 0:
                 continue
@@ -92,17 +102,27 @@ out["rna"] = digitize(
 )
 
 print("\nunc_calib_dnase — empirical coverage vs stated confidence")
+# Axis calibration comes from the detected tick pixels: x ticks at 30/78/126/
+# 173/221 for 0.0-0.8 put 1.0 at 269; y ticks at 60/107/154/201/248 for 0.8-0.0
+# put 1.0 at row 13.
+# B_DND-41 (green) is the series to take. The three cell lines nearly coincide,
+# but green is drawn on top, so it stays visible where they converge past
+# c~0.85; B_RWPE2 (pink) is occluded there.
 out["calib"] = digitize(
     "unc_calib_dnase.png",
-    box=(30, 269, 12, 248),
+    box=(30, 269, 13, 248),
     xmap=((30, 0.0), (269, 1.0)),
-    ymap=((12, 1.0), (248, 0.0)),
-    # Only B_RWPE2 extracts cleanly across the full 0-1 range; the other two
-    # cell lines lie almost on top of it and blend past c~0.7, so one
-    # representative curve it is.
-    colors={"B_RWPE2": (236, 160, 212)},
-    tol=100, row_lo=58,         # skip the legend block at the top-left
+    ymap=((13, 1.0), (248, 0.0)),
+    colors={"B_DND-41": (107, 189, 107)},
+    tol=100,
+    masks=((30, 122, 0, 60),),   # legend block, top-left
 )
+# A calibration curve passes through (0,0) and (1,1) by construction, and the
+# published figure shows all three curves doing so. The extraction stops just
+# short at both ends where the curves overlap, so both corners are anchored.
+_c = out["calib"]["B_DND-41"]
+_c["x"] = [0.0] + _c["x"] + [1.0]
+_c["y"] = [0.0] + _c["y"] + [1.0]
 
 dest = HERE / "digitized.json"
 dest.write_text(json.dumps(out, indent=1))

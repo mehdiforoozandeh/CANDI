@@ -50,8 +50,13 @@ binomial gives — so the band widens with signal the way a real one does.
 **The three result panels are real published numbers.**
 
 - **A — calibration.** Digitized from `mlcbCANDI_figs_png/unc_calib_dnase.png`, the
-  `B_RWPE2` curve. Recovered range 0.03 → 0.80. Only that one cell line extracts cleanly
-  across the full range; the other two lie almost on top of it and blend past c ≈ 0.7.
+  `B_DND-41` curve, over the full 0 → 1 range. The three cell lines nearly coincide; green
+  is drawn on top, so it stays visible where they converge past c ≈ 0.85, whereas the pink
+  `B_RWPE2` is occluded there. Axes are calibrated from detected tick pixels (x ticks
+  30/78/126/173/221 for 0.0–0.8 put 1.0 at 269; y ticks 60/107/154/201/248 for 0.8–0.0 put
+  1.0 at row 13). Extraction covers 0.11 → 0.99; the two corners are anchored at (0,0) and
+  (1,1), which a calibration curve satisfies by construction and which the published figure
+  shows.
 - **B — expression vs. assay count.** Digitized from `mlcbCANDI_figs_png/rna_vs_ntracks.png`,
   all four sources. Recovered: Observed 0.596 → 0.722, Denoised 0.602 → 0.739,
   Denoised+Imputed 0.722 → 0.750, Latent 0.789 → 0.790 (flat).
@@ -83,6 +88,10 @@ Four things in that script exist because the naive version produced garbage:
 4. **Rolling median in `build_ga.py`.** Where a curve crosses the dashed diagonal the colour
    match drops a pixel or two, leaving single-column notches. A width-5 median removes them
    without moving the curve.
+5. **Rectangular masks, not a row floor, for legend blocks.** A blanket `row_lo` high enough
+   to clear a top-left legend also truncates the top-right end of a rising curve. This
+   silently cut panel A off at c = 0.80 and made the calibration plot look like it stopped
+   short of 1.0.
 
 ## Design decisions worth keeping
 
